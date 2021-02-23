@@ -5,6 +5,17 @@
 //  Created by 唐佳诚 on 2021/2/23.
 //
 
+
+// 如果一个函数返回的 napi_status 为 napi_ok，则没有异常被挂起，并且不需要做任何处理
+// 如果 napi_status 是除了 napi_ok 或者 napi_pending_exception，为了尝试恢复并继续执行，而不是直接返回，必须调用 napi_is_exception_pending 来确定是否存在挂起的异常
+
+// 大多数情况下，调用 N-API 函数的时候，如果已经有异常被挂起，函数会立即返回 napi_pending_exception，但是，N-API 允许一些函数被调用用来在返回 JavaScript 环境前做最小化的清理
+// 在这种情况下，napi_status 会反映函数的执行结果状态，而不是当前存在异常，为了避免混淆，在每次函数执行后请检查结果
+
+// 当异常被挂起的时候，有两种方法
+// 1. 进行适当的清理并返回，那么执行环境会返回到 JavaScript，作为返回到 JavaScript 的过渡的一部分，异常将在 JavaScript 调用原生方法的语句处抛出，大多数 N-API 函数在出现异常被挂起的时候，都只是简单的返回 napi_pending_exception，，所以在这种情况下，建议尽量少做事情，等待返回到 JavaScript 中处理异常
+// 2. 尝试处理异常，在原生代码能捕获到异常的地方采取适当的操作，然后继续执行。只有当异常能被安全的处理的少数特定情况下推荐这样做，在这些情况下，napi_get_and_clear_last_exception 可以被用来获取并清除异常，在此之后，如果发现异常还是无法处理，可以通过 napi_throw 重新抛出错误
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdnoreturn.h>
@@ -17,66 +28,15 @@
 
 #include "js_native_api.h"
 
-#define STRINGIFY_(x) #x
-#define STRINGIFY(x) STRINGIFY_(x)
-
-typedef struct {
-    const char *file_line;  // filename:line
-    const char *message;
-    const char *function;
-} AssertionInfo;
-
-_Noreturn static void Assert(const AssertionInfo *info) {
-    if (info) {
-        fprintf(stderr,
-                "%s:%s%s Assertion `%s' failed.\n",
-                info->file_line,
-                info->function,
-                (*info).function ? ":" : "",
-                info->message);
-        fflush(stderr);
-    }
-
-    abort();
-}
-
-#define ERROR_AND_ABORT(expr)                                                 \
-  do {                                                                        \
-    /* Make sure that this struct does not end up in inline code, but      */ \
-    /* rather in a read-only data section when modifying this code.        */ \
-    static const AssertionInfo args = {                                 \
-      __FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME           \
-    };                                                                        \
-    Assert(&args);                                                       \
-  } while (0)
-
-#ifdef __GNUC__
-#define LIKELY(expr) __builtin_expect(!!(expr), 1)
-#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
-#define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
-#else
-#define LIKELY(expr) expr
-#define UNLIKELY(expr) expr
-#define PRETTY_FUNCTION_NAME ""
-#endif
-
-#define CHECK(expr)                                                           \
-  do {                                                                        \
-    if (UNLIKELY(!(expr))) {                                                  \
-      ERROR_AND_ABORT(expr);                                                  \
-    }                                                                         \
-  } while (0)
-
-//#define CHECK_LE(a, b) CHECK((a) <= (b))
-#define CHECK_LT(a, b) CHECK((a) < (b))
-
 struct napi_env__ {
     JSContextRef const contextRef;
-    napi_extended_error_info last_error;
+    // undefined 和 null 实际上也可以当做 exception 抛出，所以异常检查只需要检查是否为 NULL
+    JSValueRef lastException;
+    napi_extended_error_info lastError;
 };
 
 static inline napi_status napi_set_last_error_code(napi_env env, napi_status error_code) {
-    env->last_error.error_code = error_code;
+    env->lastError.error_code = error_code;
 
     return error_code;
 }
@@ -96,6 +56,13 @@ static inline napi_status napi_set_last_error_code(napi_env env, napi_status err
     if ((env) == NULL) {        \
       return napi_invalid_arg;  \
     }                           \
+  } while (0)
+
+#define NAPI_PREAMBLE(env) \
+  do {                     \
+    CHECK_ENV((env));                                                 \
+    RETURN_STATUS_IF_FALSE((env), (((env)->lastException) != NULL), napi_pending_exception);                                      \
+    napi_clear_last_error((env));                                     \
   } while (0)
 
 // Warning: Keep in-sync with napi_status enum
@@ -136,13 +103,15 @@ napi_status napi_get_last_error_info(napi_env env, const napi_extended_error_inf
 //    const int last_status = napi_would_deadlock;
 
     static_assert(sizeof(error_messages) / sizeof(*error_messages) == napi_status_last, "Count of error messages must match count of error values");
-    CHECK_LT(env->last_error.error_code, napi_status_last);
+    if (env->lastError.error_code < napi_status_last) {
+        // Wait until someone requests the last error information to fetch the error
+        // message string
+        env->lastError.error_message = error_messages[env->lastError.error_code];
+    } else {
+        assert(false);
+    }
 
-    // Wait until someone requests the last error information to fetch the error
-    // message string
-    env->last_error.error_message = error_messages[env->last_error.error_code];
-
-    *result = &(env->last_error);
+    *result = &(env->lastError);
 
     return napi_ok;
 }
@@ -208,15 +177,58 @@ napi_status napi_create_object(napi_env env, napi_value *result) {
     return napi_ok;
 }
 
-//napi_status napi_create_array(napi_env env, napi_value *result) {
-//    CHECK_ENV(env);
-//    CHECK_ARG(env, result);
-//
-//    // JSObjectMakeArray 不能传入 NULL，否则触发 release_assert
-//    CHECK_ARG(env, env->contextRef);
-//
-//    JSValueRef exception = NULL;
-//    *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &exception);
-//
-//    return napi_clear_last_error(env);
-//}
+static inline napi_status napi_clear_last_error(napi_env env) {
+    CHECK_ENV(env);
+    env->lastError.error_code = napi_ok;
+
+    // TODO(boingoing): Should this be a callback?
+    env->lastError.engine_error_code = 0;
+    env->lastError.engine_reserved = NULL;
+
+    return napi_ok;
+}
+
+napi_status napi_create_array(napi_env env, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    // JSObjectMakeArray 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
+
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_ok;
+}
+
+napi_status napi_create_array_with_length(napi_env env, size_t length, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    // JSObjectMakeArray JSValueMakeNumber JSObjectSetProperty 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    assert(*result);
+    if (length != 0) {
+        // JSObjectSetProperty 不能传入 NULL object
+        // 实际上不会存在未抛出异常，但是返回 NULL 的情况
+        RETURN_STATUS_IF_FALSE(env, *result, napi_generic_failure);
+
+        JSValueRef lengthValueRef = JSValueMakeNumber(env->contextRef, length);
+        assert(lengthValueRef);
+        // 实际上不存在返回 NULL 的情况
+        RETURN_STATUS_IF_FALSE(env, lengthValueRef, napi_generic_failure);
+        JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
+        // { value: 0, writable: true, enumerable: false, configurable: false }
+        // 实际上 attributes 不会生效
+        // JSValueMakeNumber 必定有返回
+        JSObjectSetProperty(env->contextRef, (JSObjectRef) *result, lengthStringRef, JSValueMakeNumber(env->contextRef, length), kJSPropertyAttributeDontEnum | kJSPropertyAttributeDontDelete, &env->lastException);
+        JSStringRelease(lengthStringRef);
+        RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    }
+
+    return napi_ok;
+}
