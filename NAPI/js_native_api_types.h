@@ -37,12 +37,12 @@ typedef enum {
 
 #ifdef NAPI_EXPERIMENTAL
     // Default for class methods.
-  napi_default_method = napi_writable | napi_configurable,
+    napi_default_method = napi_writable | napi_configurable,
 
-  // Default for object properties, like in JS obj[prop].
-  napi_default_jsproperty = napi_writable |
-                            napi_enumerable |
-                            napi_configurable,
+    // Default for object properties, like in JS obj[prop].
+    napi_default_jsproperty = napi_writable |
+            napi_enumerable |
+            napi_configurable,
 #endif  // NAPI_EXPERIMENTAL
 } napi_property_attributes;
 
@@ -136,29 +136,29 @@ typedef struct {
 
 #if NAPI_VERSION >= 6
 typedef enum {
-  napi_key_include_prototypes,
-  napi_key_own_only
+    napi_key_include_prototypes,
+    napi_key_own_only
 } napi_key_collection_mode;
 
 typedef enum {
-  napi_key_all_properties = 0,
-  napi_key_writable = 1,
-  napi_key_enumerable = 1 << 1,
-  napi_key_configurable = 1 << 2,
-  napi_key_skip_strings = 1 << 3,
-  napi_key_skip_symbols = 1 << 4
+    napi_key_all_properties = 0,
+    napi_key_writable = 1,
+    napi_key_enumerable = 1 << 1,
+    napi_key_configurable = 1 << 2,
+    napi_key_skip_strings = 1 << 3,
+    napi_key_skip_symbols = 1 << 4
 } napi_key_filter;
 
 typedef enum {
-  napi_key_keep_numbers,
-  napi_key_numbers_to_strings
+    napi_key_keep_numbers,
+    napi_key_numbers_to_strings
 } napi_key_conversion;
 #endif  // NAPI_VERSION >= 6
 
 #ifdef NAPI_EXPERIMENTAL
 typedef struct {
-  uint64_t lower;
-  uint64_t upper;
+    uint64_t lower;
+    uint64_t upper;
 } napi_type_tag;
 #endif  // NAPI_EXPERIMENTAL
 
