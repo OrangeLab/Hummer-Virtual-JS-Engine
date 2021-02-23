@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdnoreturn.h>
 #include <stdlib.h>
+#include <JavaScriptCore/JavaScriptCore.h>
 
 #include "js_native_api_jsc.h"
 
@@ -70,6 +71,7 @@ _Noreturn static void Assert(const AssertionInfo *info) {
 #define CHECK_LT(a, b) CHECK((a) < (b))
 
 struct napi_env__ {
+    JSContextRef const contextRef;
     napi_extended_error_info last_error;
 };
 
@@ -144,3 +146,77 @@ napi_status napi_get_last_error_info(napi_env env, const napi_extended_error_inf
 
     return napi_ok;
 }
+
+napi_status napi_get_undefined(napi_env env, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSValueMakeUndefined 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeUndefined(env->contextRef);
+
+    return napi_ok;
+}
+
+napi_status napi_get_null(napi_env env, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSValueMakeNull 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeNull(env->contextRef);
+
+    return napi_ok;
+}
+
+napi_status napi_get_global(napi_env env, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSContextGetGlobalObject 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSContextGetGlobalObject(env->contextRef);
+
+    return napi_ok;
+}
+
+napi_status napi_get_boolean(napi_env env, bool value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSValueMakeBoolean 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeBoolean(env->contextRef, value);
+
+    return napi_ok;
+}
+
+napi_status napi_create_object(napi_env env, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSObjectMake 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    // TODO(ChasonTang): 低版本 JavaScriptCore 是否允许 jsClass 为 NULL
+    *result = (napi_value) JSObjectMake(env->contextRef, NULL, NULL);
+
+    return napi_ok;
+}
+
+//napi_status napi_create_array(napi_env env, napi_value *result) {
+//    CHECK_ENV(env);
+//    CHECK_ARG(env, result);
+//
+//    // JSObjectMakeArray 不能传入 NULL，否则触发 release_assert
+//    CHECK_ARG(env, env->contextRef);
+//
+//    JSValueRef exception = NULL;
+//    *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &exception);
+//
+//    return napi_clear_last_error(env);
+//}
