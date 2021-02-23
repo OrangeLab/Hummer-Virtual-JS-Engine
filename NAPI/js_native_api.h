@@ -27,7 +27,7 @@
 #endif
 #endif
 
-#include "js_native_api_types.h"
+#include <NAPI/js_native_api_types.h>
 
 // If you need __declspec(dllimport), either include <node_api.h> instead, or
 // define NAPI_EXTERN as __declspec(dllimport) on the compiler's command line.
@@ -106,7 +106,8 @@ NAPI_EXTERN napi_status napi_create_string_utf8(napi_env env,
 
 NAPI_EXTERN napi_status napi_create_string_utf16(napi_env env,
 //        const char16_t *str,
-        const uint16_t *str,
+// See https://stackoverflow.com/questions/50965615/why-is-char16-t-defined-to-have-the-same-size-as-uint-least16-t-instead-of-uint1
+        const uint_least16_t *str,
         size_t length,
         napi_value *result);
 
@@ -179,7 +180,7 @@ NAPI_EXTERN napi_status napi_get_value_string_utf8(napi_env env,
 NAPI_EXTERN napi_status napi_get_value_string_utf16(napi_env env,
         napi_value value,
 //        char16_t *buf,
-        uint16_t *buf,
+        uint_least16_t *buf,
         size_t bufsize,
         size_t *result);
 

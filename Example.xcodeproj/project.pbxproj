@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1818CDFE25E559F800AD18C3 /* js_native_api_jsc.h in Headers */ = {isa = PBXBuildFile; fileRef = 1818CDFC25E559F800AD18C3 /* js_native_api_jsc.h */; };
+		1818CDFF25E559F800AD18C3 /* js_native_api_jsc.c in Sources */ = {isa = PBXBuildFile; fileRef = 1818CDFD25E559F800AD18C3 /* js_native_api_jsc.c */; };
 		18B5757025E522200061B45D /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 18B5756F25E522200061B45D /* main.c */; };
-		18B5759825E524C30061B45D /* js_native_api_types.h in Headers */ = {isa = PBXBuildFile; fileRef = 18B5759625E524C30061B45D /* js_native_api_types.h */; };
-		18B5759925E524C30061B45D /* js_native_api_types.c in Sources */ = {isa = PBXBuildFile; fileRef = 18B5759725E524C30061B45D /* js_native_api_types.c */; };
-		18B57B7E25E53BD00061B45D /* js_native_api.h in Headers */ = {isa = PBXBuildFile; fileRef = 18B57B7C25E53BD00061B45D /* js_native_api.h */; };
-		18B57B7F25E53BD00061B45D /* js_native_api.c in Sources */ = {isa = PBXBuildFile; fileRef = 18B57B7D25E53BD00061B45D /* js_native_api.c */; };
+		18B5759825E524C30061B45D /* js_native_api_types.h in Headers */ = {isa = PBXBuildFile; fileRef = 18B5759625E524C30061B45D /* js_native_api_types.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		18B57B7E25E53BD00061B45D /* js_native_api.h in Headers */ = {isa = PBXBuildFile; fileRef = 18B57B7C25E53BD00061B45D /* js_native_api.h */; settings = {ATTRIBUTES = (Public, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -27,13 +27,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1818CDFC25E559F800AD18C3 /* js_native_api_jsc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = js_native_api_jsc.h; sourceTree = "<group>"; };
+		1818CDFD25E559F800AD18C3 /* js_native_api_jsc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = js_native_api_jsc.c; sourceTree = "<group>"; };
 		18B5756C25E522200061B45D /* Example */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Example; sourceTree = BUILT_PRODUCTS_DIR; };
 		18B5756F25E522200061B45D /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		18B5758B25E524A20061B45D /* libNAPI.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libNAPI.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		18B5759625E524C30061B45D /* js_native_api_types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = js_native_api_types.h; sourceTree = "<group>"; };
-		18B5759725E524C30061B45D /* js_native_api_types.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = js_native_api_types.c; sourceTree = "<group>"; };
 		18B57B7C25E53BD00061B45D /* js_native_api.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = js_native_api.h; sourceTree = "<group>"; };
-		18B57B7D25E53BD00061B45D /* js_native_api.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = js_native_api.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,9 +84,9 @@
 			isa = PBXGroup;
 			children = (
 				18B5759625E524C30061B45D /* js_native_api_types.h */,
-				18B5759725E524C30061B45D /* js_native_api_types.c */,
 				18B57B7C25E53BD00061B45D /* js_native_api.h */,
-				18B57B7D25E53BD00061B45D /* js_native_api.c */,
+				1818CDFC25E559F800AD18C3 /* js_native_api_jsc.h */,
+				1818CDFD25E559F800AD18C3 /* js_native_api_jsc.c */,
 			);
 			path = NAPI;
 			sourceTree = "<group>";
@@ -100,6 +100,7 @@
 			files = (
 				18B5759825E524C30061B45D /* js_native_api_types.h in Headers */,
 				18B57B7E25E53BD00061B45D /* js_native_api.h in Headers */,
+				1818CDFE25E559F800AD18C3 /* js_native_api_jsc.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -188,8 +189,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				18B57B7F25E53BD00061B45D /* js_native_api.c in Sources */,
-				18B5759925E524C30061B45D /* js_native_api_types.c in Sources */,
+				1818CDFF25E559F800AD18C3 /* js_native_api_jsc.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

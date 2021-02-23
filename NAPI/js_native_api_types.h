@@ -96,15 +96,13 @@ typedef enum {
     napi_date_expected,
     napi_arraybuffer_expected,
     napi_detachable_arraybuffer_expected,
-    napi_would_deadlock  // unused
+    napi_would_deadlock,  // unused
+
+    napi_status_last // 用于静态断言
 } napi_status;
-// Note: when adding a new enum value to `napi_status`, please also update
-//   * `const int last_status` in the definition of `napi_get_last_error_info()'
-//     in file js_native_api_v8.cc.
-//   * `const char* error_messages[]` in file js_native_api_v8.cc with a brief
-//     message explaining the error.
-//   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
-//     added value(s).
+// 当添加一个新枚举到 `napi_status` 时
+// 1. 必须放在 napi_status_last 前
+// 2. 同时更新 js_native_api_{engine}.{implementation_unit_extension} 中的 const char *error_messages[] 数组的错误文案
 
 typedef napi_value (*napi_callback)(napi_env env,
         napi_callback_info info);
