@@ -756,3 +756,17 @@ napi_status napi_get_named_property(napi_env env, napi_value object, const char 
     return napi_clear_last_error(env);
 }
 
+napi_status napi_set_element(napi_env env, napi_value object, uint32_t index, napi_value value) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    JSObjectSetPropertyAtIndex(env->contextRef, objectRef, index, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
