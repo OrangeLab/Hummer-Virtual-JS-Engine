@@ -36,7 +36,9 @@ struct napi_env__ {
 };
 
 static inline napi_status napi_set_last_error_code(napi_env env, napi_status error_code) {
-    env->lastError.error_code = error_code;
+    if (env) {
+        env->lastError.error_code = error_code;
+    }
 
     return error_code;
 }
@@ -92,6 +94,18 @@ static const char *error_messages[] = {
         "Main thread would deadlock"
 };
 
+static inline napi_status napi_clear_last_error(napi_env env) {
+    if (env) {
+        env->lastError.error_code = napi_ok;
+
+        // TODO(boingoing): Should this be a callback?
+        env->lastError.engine_error_code = 0;
+        env->lastError.engine_reserved = NULL;
+    }
+
+    return napi_ok;
+}
+
 napi_status napi_get_last_error_info(napi_env env, const napi_extended_error_info **result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
@@ -113,7 +127,7 @@ napi_status napi_get_last_error_info(napi_env env, const napi_extended_error_inf
 
     *result = &(env->lastError);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_get_undefined(napi_env env, napi_value *result) {
@@ -125,7 +139,7 @@ napi_status napi_get_undefined(napi_env env, napi_value *result) {
 
     *result = (napi_value) JSValueMakeUndefined(env->contextRef);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_get_null(napi_env env, napi_value *result) {
@@ -137,7 +151,7 @@ napi_status napi_get_null(napi_env env, napi_value *result) {
 
     *result = (napi_value) JSValueMakeNull(env->contextRef);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_get_global(napi_env env, napi_value *result) {
@@ -149,7 +163,7 @@ napi_status napi_get_global(napi_env env, napi_value *result) {
 
     *result = (napi_value) JSContextGetGlobalObject(env->contextRef);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_get_boolean(napi_env env, bool value, napi_value *result) {
@@ -161,7 +175,7 @@ napi_status napi_get_boolean(napi_env env, bool value, napi_value *result) {
 
     *result = (napi_value) JSValueMakeBoolean(env->contextRef, value);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_create_object(napi_env env, napi_value *result) {
@@ -171,21 +185,9 @@ napi_status napi_create_object(napi_env env, napi_value *result) {
     // JSObjectMake 不能传入 NULL，否则触发 release_assert
     CHECK_ARG(env, env->contextRef);
 
-    // TODO(ChasonTang): 低版本 JavaScriptCore 是否允许 jsClass 为 NULL
     *result = (napi_value) JSObjectMake(env->contextRef, NULL, NULL);
 
-    return napi_ok;
-}
-
-static inline napi_status napi_clear_last_error(napi_env env) {
-    CHECK_ENV(env);
-    env->lastError.error_code = napi_ok;
-
-    // TODO(boingoing): Should this be a callback?
-    env->lastError.engine_error_code = 0;
-    env->lastError.engine_reserved = NULL;
-
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_create_array(napi_env env, napi_value *result) {
@@ -199,7 +201,7 @@ napi_status napi_create_array(napi_env env, napi_value *result) {
 
     RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
 
-    return napi_ok;
+    return napi_clear_last_error(env);
 }
 
 napi_status napi_create_array_with_length(napi_env env, size_t length, napi_value *result) {
@@ -211,16 +213,16 @@ napi_status napi_create_array_with_length(napi_env env, size_t length, napi_valu
 
     *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
     RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
-    assert(*result);
+//    assert(*result);
     if (length != 0) {
         // JSObjectSetProperty 不能传入 NULL object
         // 实际上不会存在未抛出异常，但是返回 NULL 的情况
-        RETURN_STATUS_IF_FALSE(env, *result, napi_generic_failure);
+//        RETURN_STATUS_IF_FALSE(env, *result, napi_generic_failure);
 
         JSValueRef lengthValueRef = JSValueMakeNumber(env->contextRef, length);
-        assert(lengthValueRef);
+//        assert(lengthValueRef);
         // 实际上不存在返回 NULL 的情况
-        RETURN_STATUS_IF_FALSE(env, lengthValueRef, napi_generic_failure);
+//        RETURN_STATUS_IF_FALSE(env, lengthValueRef, napi_generic_failure);
         JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
         // { value: 0, writable: true, enumerable: false, configurable: false }
         // 实际上 attributes 不会生效
@@ -230,5 +232,178 @@ napi_status napi_create_array_with_length(napi_env env, size_t length, napi_valu
         RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
     }
 
-    return napi_ok;
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_double(napi_env env, double value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeNumber(env->contextRef, value);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_int32(napi_env env, int32_t value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeNumber(env->contextRef, value);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_uint32(napi_env env, uint32_t value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeNumber(env->contextRef, value);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_int64(napi_env env, int64_t value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeNumber(env->contextRef, value);
+
+    return napi_clear_last_error(env);
+}
+
+// 等同于 napi_create_string_utf8
+napi_status napi_create_string_latin1(napi_env env, const char *str, size_t length, napi_value *result) {
+    return napi_create_string_utf8(env, str, length, result);
+}
+
+// JavaScriptCore 只能接受 \0 结尾的字符串
+napi_status napi_create_string_utf8(napi_env env,
+        const char *str,
+        size_t length,
+        napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    // JSValueMakeString 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+    RETURN_STATUS_IF_FALSE(env, length == NAPI_AUTO_LENGTH, napi_invalid_arg);
+
+    JSStringRef stringRef = JSStringCreateWithUTF8CString(str);
+    *result = (napi_value) JSValueMakeString(env->contextRef, stringRef);
+    JSStringRelease(stringRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_string_utf16(napi_env env, const uint_least16_t *str, size_t length, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+    RETURN_STATUS_IF_FALSE(env, length <= INT_MAX && length != NAPI_AUTO_LENGTH, napi_invalid_arg);
+
+    JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
+    *result = (napi_value) JSValueMakeString(env->contextRef, stringRef);
+    JSStringRelease(stringRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_symbol(napi_env env, napi_value description, napi_value *result) {
+    // TODO(ChasonTang): 未实现，需要考虑 iOS 9 的情况
+    return napi_generic_failure;
+}
+
+// 所有参数都会存在
+static JSValueRef wrapperFunction(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception) {
+    napi_callback callback = JSObjectGetPrivate(function);
+    if (!callback) {
+        assert(false);
+
+        return NULL;
+    }
+
+    // TODO(ChasonTang): 实现
+
+    return NULL;
+}
+
+napi_status napi_create_function(napi_env env, const char *utf8name, size_t length, napi_callback cb, void *data, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+    CHECK_ARG(env, cb);
+
+    // JSObjectMakeFunctionWithCallback 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    JSStringRef stringRef = utf8name ? JSStringCreateWithUTF8CString(utf8name) : NULL;
+    *result = (napi_value) JSObjectMakeFunctionWithCallback(env->contextRef, stringRef, wrapperFunction);
+    if (stringRef) {
+        JSStringRelease(stringRef);
+    }
+    RETURN_STATUS_IF_FALSE(env, JSObjectSetPrivate((JSObjectRef) *result, cb), napi_generic_failure);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_error(napi_env env, napi_value code, napi_value msg, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, msg);
+    CHECK_ARG(env, result);
+
+    // JSObjectMakeError 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    JSValueRef args[] = {
+            (JSValueRef) msg
+    };
+    *result = (napi_value) JSObjectMakeError(env->contextRef, 1, args, &env->lastException);
+
+    // TODO(ChasonTang): Implement code logic
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_create_type_error(napi_env env, napi_value code, napi_value msg, napi_value *result) {
+    // TODO(ChasonTang): 未实现
+    return napi_generic_failure;
+}
+
+napi_status napi_create_range_error(napi_env env, napi_value code, napi_value msg, napi_value *result) {
+    // TODO(ChasonTang): 未实现
+    return napi_generic_failure;
+}
+
+napi_status napi_typeof(napi_env env, napi_value value, napi_valuetype *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    if (JSValueIsNumber(env->contextRef, (JSValueRef) value)) {
+        *result = napi_number;
+    } else if (JSValueIsString(env->contextRef, (JSValueRef) value)) {
+        *result = napi_string;
+    } else if (JSValueIsBoolean(env->contextRef, (JSValueRef) value)) {
+        *result = napi_boolean;
+    } else if (JSValueIsUndefined(env->contextRef, (JSValueRef) value)) {
+        *result = napi_undefined;
+    } else if (JSValueIsNull(env->contextRef, (JSValueRef) value)) {
+        *result = napi_null;
+    } else if (JSValueIsObject(env->contextRef, (JSValueRef) value)) {
+        JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) value, &env->lastException);
+        RETURN_STATUS_IF_FALSE(env, env->lastException, <#status#>)
+        // Function
+    } else {
+        return napi_set_last_error_code(env, napi_invalid_arg);
+    }
 }
