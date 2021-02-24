@@ -18,11 +18,9 @@
 
 #include <assert.h>
 #include <stdio.h>
-#include <stdnoreturn.h>
 #include <stdlib.h>
+#include <math.h>
 #include <JavaScriptCore/JavaScriptCore.h>
-
-#include "js_native_api_jsc.h"
 
 #define NAPI_EXPERIMENTAL
 
@@ -191,17 +189,7 @@ napi_status napi_create_object(napi_env env, napi_value *result) {
 }
 
 napi_status napi_create_array(napi_env env, napi_value *result) {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, result);
-
-    // JSObjectMakeArray 不能传入 NULL，否则触发 release_assert
-    CHECK_ARG(env, env->contextRef);
-
-    *result = (napi_value) JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
-
-    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
-
-    return napi_clear_last_error(env);
+    return napi_create_array_with_length(env, 0, result);
 }
 
 napi_status napi_create_array_with_length(napi_env env, size_t length, napi_value *result) {
@@ -219,14 +207,13 @@ napi_status napi_create_array_with_length(napi_env env, size_t length, napi_valu
         // 实际上不会存在未抛出异常，但是返回 NULL 的情况
 //        RETURN_STATUS_IF_FALSE(env, *result, napi_generic_failure);
 
-        JSValueRef lengthValueRef = JSValueMakeNumber(env->contextRef, length);
-//        assert(lengthValueRef);
         // 实际上不存在返回 NULL 的情况
 //        RETURN_STATUS_IF_FALSE(env, lengthValueRef, napi_generic_failure);
         JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
         // { value: 0, writable: true, enumerable: false, configurable: false }
         // 实际上 attributes 不会生效
         // JSValueMakeNumber 必定有返回
+        // 忽略异常
         JSObjectSetProperty(env->contextRef, (JSObjectRef) *result, lengthStringRef, JSValueMakeNumber(env->contextRef, length), kJSPropertyAttributeDontEnum | kJSPropertyAttributeDontDelete, &env->lastException);
         JSStringRelease(lengthStringRef);
         RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
@@ -281,7 +268,8 @@ napi_status napi_create_int64(napi_env env, int64_t value, napi_value *result) {
 
 // 等同于 napi_create_string_utf8
 napi_status napi_create_string_latin1(napi_env env, const char *str, size_t length, napi_value *result) {
-    return napi_create_string_utf8(env, str, length, result);
+    // TODO(ChasonTang): 未实现
+    return napi_generic_failure;
 }
 
 // JavaScriptCore 只能接受 \0 结尾的字符串
@@ -318,7 +306,7 @@ napi_status napi_create_string_utf16(napi_env env, const uint_least16_t *str, si
 }
 
 napi_status napi_create_symbol(napi_env env, napi_value description, napi_value *result) {
-    // TODO(ChasonTang): 未实现，需要考虑 iOS 9 的情况
+    // TODO(ChasonTang): 未实现，需要考虑 iOS 9 的情况，iOS 13 才可以创建 Symbol
     return napi_generic_failure;
 }
 
@@ -332,7 +320,6 @@ static JSValueRef wrapperFunction(JSContextRef ctx, JSObjectRef function, JSObje
     }
 
     // TODO(ChasonTang): 实现
-
     return NULL;
 }
 
@@ -359,8 +346,9 @@ napi_status napi_create_error(napi_env env, napi_value code, napi_value msg, nap
     CHECK_ARG(env, msg);
     CHECK_ARG(env, result);
 
-    // JSObjectMakeError 不能传入 NULL，否则触发 release_assert
+    // JSValueIsString JSObjectMakeError 不能传入 NULL，否则触发 release_assert
     CHECK_ARG(env, env->contextRef);
+    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->contextRef, (JSValueRef) msg), napi_string_expected);
 
     JSValueRef args[] = {
             (JSValueRef) msg
@@ -401,9 +389,370 @@ napi_status napi_typeof(napi_env env, napi_value value, napi_valuetype *result) 
         *result = napi_null;
     } else if (JSValueIsObject(env->contextRef, (JSValueRef) value)) {
         JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) value, &env->lastException);
-        RETURN_STATUS_IF_FALSE(env, env->lastException, <#status#>)
+        RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
         // Function
+        if (JSObjectIsFunction(env->contextRef, objectRef)) {
+            *result = napi_function;
+        } else {
+            *result = napi_object;
+        }
     } else {
         return napi_set_last_error_code(env, napi_invalid_arg);
     }
+
+    return napi_clear_last_error(env);
 }
+
+napi_status napi_get_value_double(napi_env env, napi_value value, double *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    // JSValueIsNumber 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsNumber(env->contextRef, (JSValueRef) value), napi_number_expected);
+
+    *result = JSValueToNumber(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_value_int32(napi_env env, napi_value value, int32_t *result) {
+    return napi_get_value_double(env, value, (double *) result);
+}
+
+napi_status napi_get_value_int64(napi_env env, napi_value value, int64_t *result) {
+    return napi_get_value_double(env, value, (double *) result);
+}
+
+napi_status napi_get_value_uint32(napi_env env,
+        napi_value value,
+        uint32_t *result) {
+    return napi_get_value_double(env, value, (double *) result);
+}
+
+napi_status napi_get_value_bool(napi_env env, napi_value value, bool *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    // JSValueIsNumber 不能传入 NULL，否则触发 release_assert
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsBoolean(env->contextRef, (JSValueRef) value), napi_number_expected);
+    *result = JSValueToBoolean(env->contextRef, (JSValueRef) value);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_value_string_latin1(napi_env env, napi_value value, char *buf, size_t bufsize, size_t *result) {
+    // TODO(ChasonTang): 未实现
+    return napi_generic_failure;
+}
+
+napi_status napi_get_value_string_utf8(napi_env env, napi_value value, char *buf, size_t bufsize, size_t *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->contextRef, (JSValueRef) value), napi_string_expected);
+
+    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    if (!buf) {
+        CHECK_ARG(env, result);
+        // 不包括 \0
+        *result = JSStringGetLength(stringRef);
+    } else if (bufsize != 0) {
+        size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
+        if (result != NULL) {
+            *result = copied;
+        }
+    } else if (result != NULL) {
+        *result = 0;
+    }
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_value_string_utf16(napi_env env, napi_value value, uint_least16_t *buf, size_t bufsize, size_t *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, value);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->contextRef, (JSValueRef) value), napi_string_expected);
+
+    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    if (!buf) {
+        CHECK_ARG(env, result);
+        *result = JSStringGetLength(stringRef);
+    } else if (bufsize != 0) {
+        const uint_least16_t *charactersPtr = JSStringGetCharactersPtr(stringRef);
+        RETURN_STATUS_IF_FALSE(env, charactersPtr, napi_generic_failure);
+        size_t copied = (size_t) fminf(bufsize - 1, sizeof(uint_least16_t) * JSStringGetLength(stringRef));
+        memcpy(buf, JSStringGetCharactersPtr(stringRef), copied);
+
+        buf[copied] = '\0';
+        if (result != NULL) {
+            *result = copied;
+        }
+    } else if (result != NULL) {
+        *result = 0;
+    }
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_coerce_to_bool(napi_env env, napi_value value, napi_value *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueMakeBoolean(env->contextRef, JSValueToBoolean(env->contextRef, (JSValueRef) value));
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_coerce_to_number(napi_env env, napi_value value, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    double doubleValue = JSValueToNumber(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    *result = (napi_value) JSValueMakeNumber(env->contextRef, doubleValue);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_coerce_to_object(napi_env env, napi_value value, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    *result = (napi_value) JSValueToObject(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_coerce_to_string(napi_env env, napi_value value, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    *result = (napi_value) JSValueMakeString(env->contextRef, stringRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_prototype(napi_env env, JSValueRef object, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, object), napi_object_expected);
+
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    *result = (napi_value) JSObjectGetPrototype(env->contextRef, objectRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_all_property_names(napi_env env,
+        napi_value object,
+        napi_key_collection_mode key_mode,
+        napi_key_filter key_filter,
+        napi_key_conversion key_conversion,
+        napi_value *result) {
+    // 只支持 napi_key_include_prototypes + napi_key_enumerable + napi_key_skip_symbols
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    JSPropertyNameArrayRef propertyNameArrayRef = JSObjectCopyPropertyNames(env->contextRef, objectRef);
+
+    size_t propertyCount = JSPropertyNameArrayGetCount(propertyNameArrayRef);
+
+    if (propertyCount > 0) {
+        JSObjectRef arrayObjectRef = JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
+        if (env->lastException) {
+            JSPropertyNameArrayRelease(propertyNameArrayRef);
+
+            return napi_set_last_error_code(env, napi_pending_exception);
+        }
+        RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+        for (unsigned int i = 0; i < propertyCount; ++i) {
+            JSStringRef propertyNameStringRef = JSPropertyNameArrayGetNameAtIndex(propertyNameArrayRef, i);
+            JSValueRef exception = NULL;
+            JSValueRef propertyValueRef = JSObjectGetProperty(env->contextRef, objectRef, propertyNameStringRef, &exception);
+            if (!exception) {
+                // 忽略异常，直接跳过
+                JSObjectSetPropertyAtIndex(env->contextRef, arrayObjectRef, i, propertyValueRef, NULL);
+            }
+        }
+        *result = (napi_value) arrayObjectRef;
+    }
+    JSPropertyNameArrayRelease(propertyNameArrayRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_property_names(napi_env env, napi_value object, napi_value *result) {
+    return napi_get_all_property_names(env, object, napi_key_include_prototypes, napi_key_enumerable |
+            napi_key_skip_symbols, napi_key_numbers_to_strings, result);
+}
+
+napi_status napi_set_property(napi_env env, napi_value object, napi_value key, napi_value value) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, key);
+    CHECK_ARG(env, value);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    JSObjectSetPropertyForKey(env->contextRef, objectRef, (JSValueRef) key, (JSValueRef) value, kJSPropertyAttributeNone, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_has_property(napi_env env, napi_value object, napi_value key, bool *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+    CHECK_ARG(env, key);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    *result = JSObjectHasPropertyForKey(env->contextRef, objectRef, (JSValueRef) key, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_property(napi_env env, napi_value object, napi_value key, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+    CHECK_ARG(env, key);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    *result = (napi_value) JSObjectGetPropertyForKey(env->contextRef, objectRef, (JSValueRef) key, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_delete_property(napi_env env, napi_value object, napi_value key, bool *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+    CHECK_ARG(env, key);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    *result = JSObjectDeletePropertyForKey(env->contextRef, objectRef, (JSValueRef) key, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_has_own_property(napi_env env, napi_value object, napi_value key, bool *result) {
+    // TODO(ChasonTang): 没有 Symbol 支持，所以无法检查 key 为 napi_name_expected，也缺少 own 的检查
+    return napi_generic_failure;
+}
+
+napi_status napi_set_named_property(napi_env env, napi_value object, const char *utf8name, napi_value value) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, utf8name, napi_string_expected);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    JSStringRef stringRef = JSStringCreateWithUTF8CString(utf8name);
+    JSObjectSetProperty(env->contextRef, objectRef, stringRef, (JSValueRef) value, kJSPropertyAttributeNone, &env->lastException);
+    JSStringRelease(stringRef);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_has_named_property(napi_env env, napi_value object, const char *utf8name, bool *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, utf8name, napi_string_expected);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    JSStringRef stringRef = JSStringCreateWithUTF8CString(utf8name);
+    *result = JSObjectHasProperty(env->contextRef, objectRef, stringRef);
+    JSStringRelease(stringRef);
+
+    return napi_clear_last_error(env);
+}
+
+napi_status napi_get_named_property(napi_env env, napi_value object, const char *utf8name, napi_value *result) {
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    CHECK_ARG(env, env->contextRef);
+
+    RETURN_STATUS_IF_FALSE(env, utf8name, napi_string_expected);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef) object), napi_object_expected);
+    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+    JSStringRef stringRef = JSStringCreateWithUTF8CString(utf8name);
+    *result = (napi_value) JSObjectGetProperty(env->contextRef, objectRef, stringRef, &env->lastException);
+    JSStringRelease(stringRef);
+    RETURN_STATUS_IF_FALSE(env, env->lastException, napi_pending_exception);
+
+    return napi_clear_last_error(env);
+}
+
