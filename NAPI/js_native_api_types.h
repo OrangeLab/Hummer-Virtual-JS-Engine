@@ -8,157 +8,111 @@
 #ifndef js_native_api_types_h
 #define js_native_api_types_h
 
-//#include <stddef.h>
+// 基于 Node.js 14.16.0
+// #define NAPI_VERSION 7
+// #define NAPI_EXPERIMENTAL
+// JavaScript Engine Only
+// LLVM Only
+
 #include <stdint.h>
 
-//#if !defined __cplusplus || (defined(_MSC_VER) && _MSC_VER < 1900)
-//    typedef uint16_t char16_t;
-//#endif
-
-// JSVM API types are all opaque pointers for ABI stability
+// JS VM API types are all opaque pointers for ABI stability
 // typedef undefined structs instead of void* for compile time type safety
-typedef struct napi_env__ *napi_env;
-typedef struct napi_value__ *napi_value;
-typedef struct napi_ref__ *napi_ref;
-typedef struct napi_handle_scope__ *napi_handle_scope;
-typedef struct napi_escapable_handle_scope__ *napi_escapable_handle_scope;
-typedef struct napi_callback_info__ *napi_callback_info;
-typedef struct napi_deferred__ *napi_deferred;
+typedef struct OpaqueNAPIEnv *NAPIEnv;
+typedef struct OpaqueNAPIValue *NAPIValue;
+typedef struct OpaqueNAPIRef *NAPIRef;
+typedef struct OpaqueNAPIHandleScope *NAPIHandleScope;
+typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
+typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
+typedef struct OpaqueNAPIDeferred *NAPIDeferred;
 
 typedef enum {
-    napi_default = 0,
-    napi_writable = 1 << 0,
-    napi_enumerable = 1 << 1,
-    napi_configurable = 1 << 2,
+    NAPIDefault = 0,
+    NAPIWritable = 1 << 0,
+    NAPIEnumerable = 1 << 1,
+    NAPIConfigurable = 1 << 2,
 
     // Used with napi_define_class to distinguish static properties
-    // from instance properties. Ignored by napi_define_properties.
-    napi_static = 1 << 10,
+    // from instance properties. Ignored by NAPIDefineProperties.
+    NAPIStatic = 1 << 10,
 
-#ifdef NAPI_EXPERIMENTAL
     // Default for class methods.
-    napi_default_method = napi_writable | napi_configurable,
+//    NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
 
     // Default for object properties, like in JS obj[prop].
-    napi_default_jsproperty = napi_writable |
-            napi_enumerable |
-            napi_configurable,
-#endif  // NAPI_EXPERIMENTAL
-} napi_property_attributes;
+//    NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
+} NAPIPropertyAttributes;
 
 typedef enum {
     // ES6 types (corresponds to typeof)
-    napi_undefined,
-    napi_null,
-    napi_boolean,
-    napi_number,
-    napi_string,
-    napi_symbol,
-    napi_object,
-    napi_function,
-    napi_external,
-    napi_bigint,
-} napi_valuetype;
+    NAPIUndefined,
+    NAPINull,
+    NAPIBoolean,
+    NAPINumber,
+    NAPIString,
+    NAPIObject,
+    NAPIFunction,
+    NAPIExternal,
+} NAPIValueType;
 
 typedef enum {
-    napi_int8_array,
-    napi_uint8_array,
-    napi_uint8_clamped_array,
-    napi_int16_array,
-    napi_uint16_array,
-    napi_int32_array,
-    napi_uint32_array,
-    napi_float32_array,
-    napi_float64_array,
-    napi_bigint64_array,
-    napi_biguint64_array,
-} napi_typedarray_type;
+    NAPIOk,
+    NAPIInvalidArg,
+    NAPIObjectExpected,
+    NAPIStringExpected,
+    NAPIFunctionExpected,
+    NAPINumberExpected,
+    NAPIBooleanExpected,
+    NAPIArrayExpected,
+    NAPIGenericFailure,
+    NAPIPendingException,
+    NAPIEscapeCalledTwice,
+    NAPIHandleScopeMismatch,
+    NAPIDateExpected,
 
-typedef enum {
-    napi_ok,
-    napi_invalid_arg,
-    napi_object_expected,
-    napi_string_expected,
-    napi_name_expected,
-    napi_function_expected,
-    napi_number_expected,
-    napi_boolean_expected,
-    napi_array_expected,
-    napi_generic_failure,
-    napi_pending_exception,
-    napi_cancelled,
-    napi_escape_called_twice,
-    napi_handle_scope_mismatch,
-    napi_callback_scope_mismatch,
-    napi_queue_full,
-    napi_closing,
-    napi_bigint_expected,
-    napi_date_expected,
-    napi_arraybuffer_expected,
-    napi_detachable_arraybuffer_expected,
-    napi_would_deadlock,  // unused
-
-    napi_status_last // 用于静态断言
-} napi_status;
-// 当添加一个新枚举到 `napi_status` 时
-// 1. 必须放在 napi_status_last 前
+    NAPIStatusLast // 用于静态断言
+} NAPIStatus;
+// 当添加一个新枚举到 `NAPIStatus` 时
+// 1. 必须放在 NAPIStatusLast 前
 // 2. 同时更新 js_native_api_{engine}.{implementation_unit_extension} 中的 const char *error_messages[] 数组的错误文案
 
-typedef napi_value (*napi_callback)(napi_env env,
-        napi_callback_info info);
+typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
 
-typedef void (*napi_finalize)(napi_env env,
-        void *finalize_data,
-        void *finalize_hint);
+typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint);
 
 typedef struct {
     // One of utf8name or name should be NULL.
     const char *utf8name;
-    napi_value name;
+    NAPIValue name;
 
-    napi_callback method;
-    napi_callback getter;
-    napi_callback setter;
-    napi_value value;
+    NAPICallback method;
+    NAPICallback getter;
+    NAPICallback setter;
+    NAPIValue value;
 
-    napi_property_attributes attributes;
+    NAPIPropertyAttributes attributes;
     void *data;
-} napi_property_descriptor;
+} NAPIPropertyDescriptor;
 
 typedef struct {
-    const char *error_message;
-    void *engine_reserved;
-    uint32_t engine_error_code;
-    napi_status error_code;
-} napi_extended_error_info;
-
-#if NAPI_VERSION >= 6
-typedef enum {
-    napi_key_include_prototypes,
-    napi_key_own_only
-} napi_key_collection_mode;
+    const char *errorMessage;
+    void *engineReserved;
+    uint32_t engineErrorCode;
+    NAPIStatus errorCode;
+} NAPIExtendedErrorInfo;
 
 typedef enum {
-    napi_key_all_properties = 0,
-    napi_key_writable = 1,
-    napi_key_enumerable = 1 << 1,
-    napi_key_configurable = 1 << 2,
-    napi_key_skip_strings = 1 << 3,
-    napi_key_skip_symbols = 1 << 4
-} napi_key_filter;
+    NAPIKeyIncludePrototypes,
+    NAPIKeyOwnOnly
+} NAPIKeyCollectionMode;
 
 typedef enum {
-    napi_key_keep_numbers,
-    napi_key_numbers_to_strings
-} napi_key_conversion;
-#endif  // NAPI_VERSION >= 6
-
-#ifdef NAPI_EXPERIMENTAL
-typedef struct {
-    uint64_t lower;
-    uint64_t upper;
-} napi_type_tag;
-#endif  // NAPI_EXPERIMENTAL
+    NAPIKeyAllProperties = 0,
+    NAPIKeyWritable = 1,
+    NAPIKeyEnumerable = 1 << 1,
+    NAPIKeyConfigurable = 1 << 2,
+    NAPIKeySkipStrings = 1 << 3,
+} NAPIKeyFilter;
 
 typedef enum {
     NAPIKeyKeepNumbers,
