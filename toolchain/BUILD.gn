@@ -1,0 +1,22 @@
+toolchain("clang") {
+    tool("cc") {
+        depfile = "{{output}}.d"
+        # depsformat = "gcc"
+        command = "clang -x c -Os -flto -g -Werror -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        outputs = [
+            "{{source_out_dir}}/{{source_name_part}}.o"
+        ]
+    }
+
+    tool("alink") {
+        rspfile_content = "{{inputs}}"
+        rspfile = "{{output}}.rsp"
+        command = "libtool -static -o {{output}} @$rspfile"
+        default_output_dir = "{{target_out_dir}}"
+        outputs = [
+            "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+        ]
+        default_output_extension = ".a"
+        output_prefix = "lib"
+    }
+}

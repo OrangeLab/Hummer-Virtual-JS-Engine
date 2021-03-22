@@ -21,7 +21,7 @@
 #include <math.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
-#include "js_native_api.h"
+#include <napi/js_native_api.h>
 
 struct OpaqueNAPIEnv {
     JSContextRef const contextRef;

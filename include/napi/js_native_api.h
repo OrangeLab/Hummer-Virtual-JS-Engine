@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include <NAPI/js_native_api_types.h>
+#include <napi/js_native_api_types.h>
 
 #define NAPI_AUTO_LENGTH SIZE_MAX
 

@@ -1,0 +1,15 @@
+config("napi") {
+    include_dirs = [
+        "include"
+    ]
+}
+
+static_library("napi_jsc") {
+    configs = [
+        ":napi"
+    ]
+
+    sources = [
+        "src/js_native_api_jsc.c"
+    ]
+}
