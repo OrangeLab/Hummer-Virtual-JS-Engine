@@ -13,3 +13,72 @@ static_library("napi_jsc") {
         "src/js_native_api_jsc.c"
     ]
 }
+
+config("gtest_config") {
+    libs = [
+        "c++"
+    ]
+    include_dirs = [
+        "third_party/googletest/googletest/include"
+    ]
+}
+
+config("gmock_config") {
+    # libs = [
+    #     "c++"
+    # ]
+    include_dirs = [
+        "third_party/googletest/googlemock/include",
+    ]
+}
+
+source_set("gtest") {
+    testonly = true
+    sources = [
+        "third_party/googletest/googletest/src/gtest-death-test.cc",
+        "third_party/googletest/googletest/src/gtest-filepath.cc",
+        "third_party/googletest/googletest/src/gtest-matchers.cc",
+        "third_party/googletest/googletest/src/gtest-port.cc",
+        "third_party/googletest/googletest/src/gtest-printers.cc",
+        "third_party/googletest/googletest/src/gtest-test-part.cc",
+        "third_party/googletest/googletest/src/gtest-typed-test.cc",
+        "third_party/googletest/googletest/src/gtest.cc",
+    ]
+
+    # Some files include "src/gtest-internal-inl.h".
+    include_dirs = [ "third_party/googletest/googletest" ]
+        
+    public_configs = [ ":gtest_config" ]
+}
+
+source_set("gtest_main") {
+    testonly = true
+    sources = [ "third_party/googletest/googletest/src/gtest_main.cc" ]
+    deps = [ ":gtest" ]
+}
+
+source_set("gmock") {
+    testonly = true
+    sources = [
+        "third_party/googletest/googlemock/src/gmock-cardinalities.cc",
+        "third_party/googletest/googlemock/src/gmock-internal-utils.cc",
+        "third_party/googletest/googlemock/src/gmock-matchers.cc",
+        "third_party/googletest/googlemock/src/gmock-spec-builders.cc",
+        "third_party/googletest/googlemock/src/gmock.cc",
+    ]
+
+    deps = [
+        ":gtest"
+    ]
+
+    public_configs = [
+        ":gmock_config",
+        ":gtest_config"
+    ]
+}
+
+source_set("gmock_main") {
+    testonly = true
+    sources = [ "third_party/googletest/googlemock/src/gmock_main.cc" ]
+    deps = [ ":gmock" ]
+}

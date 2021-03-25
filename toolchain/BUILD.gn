@@ -2,9 +2,31 @@ toolchain("clang") {
     tool("cc") {
         depfile = "{{output}}.d"
         # depsformat = "gcc"
-        command = "clang -x c -Os -flto -g -Werror -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        command = "clang -Os -flto -g -fembed-bitcode=all -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         outputs = [
             "{{source_out_dir}}/{{source_name_part}}.o"
+        ]
+    }
+
+    tool("cxx") {
+        depfile = "{{output}}.d"
+        command = "clang++ -std=c++11 -stdlib=libc++ -fembed-bitcode=all -Os -flto -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        outputs = [
+            "{{source_out_dir}}/{{source_name_part}}.o"
+        ]
+    }
+
+    tool("stamp") {
+        command = "touch {{output}}"
+    }
+
+    tool("link") {
+        rspfile_content = "{{inputs}}"
+        rspfile = "{{output}}.rsp"
+        command = "clang -o {{output}} {{libs}} @$rspfile"
+        default_output_dir = "{{root_out_dir}}"
+        outputs = [
+            "{{output_dir}}/{{target_output_name}}{{output_extension}}"
         ]
     }
 
