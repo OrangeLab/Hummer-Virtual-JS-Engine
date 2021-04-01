@@ -143,7 +143,7 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
 // See https://stackoverflow.com/questions/50965615/why-is-char16-t-defined-to-have-the-same-size-as-uint-least16-t-instead-of-uint1
 NAPIStatus napi_create_string_utf16(NAPIEnv env, const uint_least16_t *str, size_t length, NAPIValue *result);
 
-// iOS 9 JavaScriptCore 可能会返回错误
+// iOS 9 JavaScriptCore 可能会返回错误，该方法也支持 polyfill
 NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result);
 
 NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result);

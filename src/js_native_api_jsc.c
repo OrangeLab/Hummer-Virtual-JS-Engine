@@ -76,6 +76,18 @@ static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode)
 
 #define CHECK_ARG(env, arg) RETURN_STATUS_IF_FALSE((env), ((arg) != NULL), NAPIInvalidArg)
 
+// This does not call napi_set_last_error because the expression
+// is assumed to be a NAPI function call that already did.
+#define CHECK_NAPI(expr)            \
+    do                              \
+    {                               \
+        NAPIStatus status = (expr); \
+        if (status != NAPIOk)       \
+        {                           \
+            return status;          \
+        }                           \
+    } while (0)
+
 #define CHECK_ENV(env)             \
     do                             \
     {                              \
@@ -266,67 +278,84 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result)
     return clearLastError(env);
 }
 
-/*
 // JavaScriptCore 只能接受 \0 结尾的字符串
 // 传入 str NULL 则为 ""
-NAPIStatus NAPICreateStringUTF8(NAPIEnv env,
-                                const char *str,
-                                size_t length,
-                                NAPIValue *result)
+NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    // JSValueMakeString 不能传入 NULL，否则触发 release_assert
-    CHECK_ARG(env, env->contextRef);
     RETURN_STATUS_IF_FALSE(env, length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     JSStringRef stringRef = JSStringCreateWithUTF8CString(str);
-    *result = (NAPIValue)JSValueMakeString(env->contextRef, stringRef);
+    *result = (NAPIValue)JSValueMakeString(env->context, stringRef);
     JSStringRelease(stringRef);
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPICreateStringUTF16(NAPIEnv env, const uint_least16_t *str, size_t length, NAPIValue *result)
+NAPIStatus napi_create_string_utf16(NAPIEnv env, const uint_least16_t *str, size_t length, NAPIValue *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
+    static_assert(sizeof(uint_least16_t) == sizeof(JSChar), "uint_least16_t size not equal JSChar");
+
+    // Node.js 默认判断
     RETURN_STATUS_IF_FALSE(env, length <= INT_MAX && length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
-    *result = (NAPIValue)JSValueMakeString(env->contextRef, stringRef);
+    *result = (NAPIValue)JSValueMakeString(env->context, stringRef);
     JSStringRelease(stringRef);
+
+    return clearLastError(env);
+}
+
+NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    NAPIValue global = NULL;
+    NAPIValue symbolFunc = NULL;
+    CHECK_NAPI(napi_get_global(env, &global));
+    CHECK_NAPI(napi_get_named_property(env, global, "Symbol", &symbolFunc));
+    CHECK_NAPI(napi_call_function(env, global, symbolFunc, 1, &description, result));
 
     return clearLastError(env);
 }
 
 // 所有参数都会存在
-static JSValueRef wrapperFunction(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception)
+// static JSValueRef wrapperFunction(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef *exception)
+// {
+//     NAPICallback callback = JSObjectGetPrivate(function);
+//     if (!callback)
+//     {
+//         assert(false);
+
+//         return NULL;
+//     }
+
+//     // TODO(ChasonTang): 实现
+//     return NULL;
+// }
+
+struct OpaqueNAPICallbackInfo
 {
-    NAPICallback callback = JSObjectGetPrivate(function);
-    if (!callback)
-    {
-        assert(false);
+    NAPIValue newTarget;
+    NAPIValue thisArg;
+    NAPIValue *argv;
+    void *data;
+    uint16_t argc;
+};
 
-        return NULL;
-    }
-
-    // TODO(ChasonTang): 实现
-    return NULL;
-}
-
-NAPIStatus NAPICreateFunction(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result)
+/*
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result)
 {
     // TODO(ChasonTang): 使用 data
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
     CHECK_ARG(env, cb);
-
-    // JSObjectMakeFunctionWithCallback 不能传入 NULL，否则触发 release_assert
-    CHECK_ARG(env, env->contextRef);
 
     JSStringRef stringRef = utf8name ? JSStringCreateWithUTF8CString(utf8name) : NULL;
     *result = (NAPIValue)JSObjectMakeFunctionWithCallback(env->contextRef, stringRef, wrapperFunction);
