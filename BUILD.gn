@@ -5,7 +5,7 @@ config("napi") {
 }
 
 static_library("napi_jsc") {
-    configs = [
+    public_configs = [
         ":napi"
     ]
 
@@ -14,21 +14,22 @@ static_library("napi_jsc") {
     ]
 }
 
+executable("test") {
+    testonly = true
+
+    sources = [
+        "test/test.cpp"
+    ]
+
+    deps = [ ":gtest_main" ]
+}
+
 config("gtest_config") {
     libs = [
         "c++"
     ]
     include_dirs = [
         "third_party/googletest/googletest/include"
-    ]
-}
-
-config("gmock_config") {
-    # libs = [
-    #     "c++"
-    # ]
-    include_dirs = [
-        "third_party/googletest/googlemock/include",
     ]
 }
 
@@ -55,30 +56,48 @@ source_set("gtest_main") {
     testonly = true
     sources = [ "third_party/googletest/googletest/src/gtest_main.cc" ]
     deps = [ ":gtest" ]
-}
-
-source_set("gmock") {
-    testonly = true
-    sources = [
-        "third_party/googletest/googlemock/src/gmock-cardinalities.cc",
-        "third_party/googletest/googlemock/src/gmock-internal-utils.cc",
-        "third_party/googletest/googlemock/src/gmock-matchers.cc",
-        "third_party/googletest/googlemock/src/gmock-spec-builders.cc",
-        "third_party/googletest/googlemock/src/gmock.cc",
-    ]
-
-    deps = [
-        ":gtest"
-    ]
 
     public_configs = [
-        ":gmock_config",
         ":gtest_config"
     ]
 }
 
-source_set("gmock_main") {
-    testonly = true
-    sources = [ "third_party/googletest/googlemock/src/gmock_main.cc" ]
-    deps = [ ":gmock" ]
-}
+# config("gmock_config") {
+#     # libs = [
+#     #     "c++"
+#     # ]
+#     include_dirs = [
+#         "third_party/googletest/googlemock/include",
+#     ]
+# }
+
+# source_set("gmock") {
+#     testonly = true
+#     sources = [
+#         "third_party/googletest/googlemock/src/gmock-cardinalities.cc",
+#         "third_party/googletest/googlemock/src/gmock-internal-utils.cc",
+#         "third_party/googletest/googlemock/src/gmock-matchers.cc",
+#         "third_party/googletest/googlemock/src/gmock-spec-builders.cc",
+#         "third_party/googletest/googlemock/src/gmock.cc",
+#     ]
+
+#     deps = [
+#         ":gtest"
+#     ]
+
+#     public_configs = [
+#         ":gmock_config",
+#         ":gtest_config"
+#     ]
+# }
+
+# source_set("gmock_main") {
+#     testonly = true
+#     sources = [ "third_party/googletest/googlemock/src/gmock_main.cc" ]
+#     deps = [ ":gmock" ]
+
+#     public_configs = [
+#         ":gmock_config",
+#         ":gtest_config"
+#     ]
+# }

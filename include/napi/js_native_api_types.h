@@ -11,12 +11,10 @@
 // 基于 Node.js 14.16.0
 // #define NAPI_VERSION 7
 // #define NAPI_EXPERIMENTAL
-// JavaScript Engine Only
-// LLVM Only
 
 #include <stdint.h>
 
-// JS VM API types are all opaque pointers for ABI stability
+// JSVM API types are all opaque pointers for ABI stability
 // typedef undefined structs instead of void* for compile time type safety
 typedef struct OpaqueNAPIEnv *NAPIEnv;
 typedef struct OpaqueNAPIValue *NAPIValue;
@@ -26,49 +24,78 @@ typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
 typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
 typedef struct OpaqueNAPIDeferred *NAPIDeferred;
 
-typedef enum {
+typedef enum
+{
     NAPIDefault = 0,
     NAPIWritable = 1 << 0,
     NAPIEnumerable = 1 << 1,
     NAPIConfigurable = 1 << 2,
 
     // Used with napi_define_class to distinguish static properties
-    // from instance properties. Ignored by NAPIDefineProperties.
+    // from instance properties. Ignored by napi_define_properties.
     NAPIStatic = 1 << 10,
 
     // Default for class methods.
-//    NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
+    NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
 
     // Default for object properties, like in JS obj[prop].
-//    NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
+    NAPIDefaultJSProperty = NAPIDefaultMethod | NAPIEnumerable,
 } NAPIPropertyAttributes;
 
-typedef enum {
+typedef enum
+{
     // ES6 types (corresponds to typeof)
     NAPIUndefined,
     NAPINull,
     NAPIBoolean,
     NAPINumber,
     NAPIString,
+    NAPISymbol,
     NAPIObject,
     NAPIFunction,
     NAPIExternal,
+    NAPIBigInt,
 } NAPIValueType;
 
-typedef enum {
+typedef enum
+{
+    NAPIInt8Array,
+    NAPIUInt8Array,
+    NAPIUInt8ClampedArray,
+    NAPIInt16Array,
+    NAPIUInt16Array,
+    NAPIInt32Array,
+    NAPIUInt32Array,
+    NAPIFloat32Array,
+    NAPIFloat64Array,
+    NAPIBigInt64Array,
+    NAPIBigUInt64Array,
+} NAPITypedArrayType;
+
+typedef enum
+{
     NAPIOk,
     NAPIInvalidArg,
     NAPIObjectExpected,
     NAPIStringExpected,
+    NAPINameExpected,
     NAPIFunctionExpected,
     NAPINumberExpected,
     NAPIBooleanExpected,
     NAPIArrayExpected,
     NAPIGenericFailure,
     NAPIPendingException,
+    NAPICancelled,
     NAPIEscapeCalledTwice,
     NAPIHandleScopeMismatch,
+    NAPICallbackScopeMismatch,
+    NAPIQueueFull,
+    NAPIClosing,
+    NAPIBigIntExpected,
     NAPIDateExpected,
+    NAPIArrayBufferExpected,
+    NAPIDetachableArrayBufferExpected,
+    NAPIWouldDeadlock, // unused
 
     NAPIStatusLast // 用于静态断言
 } NAPIStatus;
@@ -80,7 +107,8 @@ typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
 
 typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint);
 
-typedef struct {
+typedef struct
+{
     // One of utf8name or name should be NULL.
     const char *utf8name;
     NAPIValue name;
@@ -94,29 +122,12 @@ typedef struct {
     void *data;
 } NAPIPropertyDescriptor;
 
-typedef struct {
+typedef struct
+{
     const char *errorMessage;
     void *engineReserved;
     uint32_t engineErrorCode;
     NAPIStatus errorCode;
 } NAPIExtendedErrorInfo;
-
-typedef enum {
-    NAPIKeyIncludePrototypes,
-    NAPIKeyOwnOnly
-} NAPIKeyCollectionMode;
-
-typedef enum {
-    NAPIKeyAllProperties = 0,
-    NAPIKeyWritable = 1,
-    NAPIKeyEnumerable = 1 << 1,
-    NAPIKeyConfigurable = 1 << 2,
-    NAPIKeySkipStrings = 1 << 3,
-} NAPIKeyFilter;
-
-typedef enum {
-    NAPIKeyKeepNumbers,
-    NAPIKeyNumbersToStrings
-} NAPIKeyConversion;
 
 #endif /* js_native_api_types_h */
