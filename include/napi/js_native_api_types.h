@@ -35,11 +35,13 @@ typedef enum
     // from instance properties. Ignored by napi_define_properties.
     NAPIStatic = 1 << 10,
 
+#ifdef NAPI_EXPERIMENTAL
     // Default for class methods.
     NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
 
     // Default for object properties, like in JS obj[prop].
-    NAPIDefaultJSProperty = NAPIDefaultMethod | NAPIEnumerable,
+    NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
+#endif // NAPI_EXPERIMENTAL
 } NAPIPropertyAttributes;
 
 typedef enum
@@ -95,13 +97,15 @@ typedef enum
     NAPIDateExpected,
     NAPIArrayBufferExpected,
     NAPIDetachableArrayBufferExpected,
-    NAPIWouldDeadlock, // unused
-
-    NAPIStatusLast // 用于静态断言
+    NAPIWouldDeadLock, // unused
 } NAPIStatus;
-// 当添加一个新枚举到 `NAPIStatus` 时
-// 1. 必须放在 NAPIStatusLast 前
-// 2. 同时更新 js_native_api_{engine}.{implementation_unit_extension} 中的 const char *error_messages[] 数组的错误文案
+// Note: when adding a new enum value to `napi_status`, please also update
+//   * `const int last_status` in the definition of `napi_get_last_error_info()'
+//     in file js_native_api_v8.cc.
+//   * `const char* error_messages[]` in file js_native_api_v8.cc with a brief
+//     message explaining the error.
+//   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
+//     added value(s).
 
 typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
 
@@ -129,5 +133,37 @@ typedef struct
     uint32_t engineErrorCode;
     NAPIStatus errorCode;
 } NAPIExtendedErrorInfo;
+
+#if NAPI_VERSION >= 6
+typedef enum
+{
+    NAPIKeyIncludePrototypes,
+    NAPIKeyOwnOnly
+} NAPIKeyCollectionMode;
+
+typedef enum
+{
+    NAPIKeyAllProperties = 0,
+    NAPIKeyWritable = 1,
+    NAPIKeyEnumerable = 1 << 1,
+    NAPIKeyConfigurable = 1 << 2,
+    NAPIKeySkipStrings = 1 << 3,
+    NAPIKeySkipSymbols = 1 << 4
+} NAPIKeyFilter;
+
+typedef enum
+{
+    NAPIKeyKeepNumbers,
+    NAPIKeyNumbersToStrings
+} NAPIKeyConversion;
+#endif // NAPI_VERSION >= 6
+
+#ifdef NAPI_EXPERIMENTAL
+typedef struct
+{
+    uint64_t lower;
+    uint64_t upper;
+} NAPITypeTag;
+#endif // NAPI_EXPERIMENTAL
 
 #endif /* js_native_api_types_h */

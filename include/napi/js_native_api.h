@@ -11,6 +11,24 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+// JavaScriptCore 目标 iOS 9
+
+// Use INT_MAX, this should only be consumed by the pre-processor anyway.
+#define NAPI_VERSION_EXPERIMENTAL 2147483647
+#ifndef NAPI_VERSION
+#ifdef NAPI_EXPERIMENTAL
+#define NAPI_VERSION NAPI_VERSION_EXPERIMENTAL
+#else
+// The baseline version for N-API.
+// The NAPI_VERSION controls which version will be used by default when
+// compilling a native addon. If the addon developer specifically wants to use
+// functions available in a new version of N-API that is not yet ported in all
+// LTS versions, they can set NAPI_VERSION knowing that they have specifically
+// depended on that version.
+#define NAPI_VERSION 4
+#endif
+#endif
+
 #include <napi/js_native_api_types.h>
 
 #define NAPI_AUTO_LENGTH SIZE_MAX
@@ -26,90 +44,6 @@
 #endif
 
 EXTERN_C_START
-
-/*
-NAPI_EXTERN napi_status napi_create_string_latin1(napi_env env,
-                                                  const char* str,
-                                                  size_t length,
-                                                  napi_value* result);
-
-// Copies LATIN-1 encoded bytes from a string into a buffer.
-NAPI_EXTERN napi_status napi_get_value_string_latin1(napi_env env,
-                                                     napi_value value,
-                                                     char* buf,
-                                                     size_t bufsize,
-                                                     size_t* result);
-
-NAPI_EXTERN napi_status napi_get_date_value(napi_env env,
-                                            napi_value value,
-                                            double* result);
-
-// BigInt
-NAPI_EXTERN napi_status napi_create_bigint_int64(napi_env env,
-                                                 int64_t value,
-                                                 napi_value* result);
-NAPI_EXTERN napi_status napi_create_bigint_uint64(napi_env env,
-                                                  uint64_t value,
-                                                  napi_value* result);
-NAPI_EXTERN napi_status napi_create_bigint_words(napi_env env,
-                                                 int sign_bit,
-                                                 size_t word_count,
-                                                 const uint64_t* words,
-                                                 napi_value* result);
-NAPI_EXTERN napi_status napi_get_value_bigint_int64(napi_env env,
-                                                    napi_value value,
-                                                    int64_t* result,
-                                                    bool* lossless);
-NAPI_EXTERN napi_status napi_get_value_bigint_uint64(napi_env env,
-                                                     napi_value value,
-                                                     uint64_t* result,
-                                                     bool* lossless);
-NAPI_EXTERN napi_status napi_get_value_bigint_words(napi_env env,
-                                                    napi_value value,
-                                                    int* sign_bit,
-                                                    size_t* word_count,
-                                                    uint64_t* words);
-
-// Object
-NAPI_EXTERN napi_status
-napi_get_all_property_names(napi_env env,
-                            napi_value object,
-                            napi_key_collection_mode key_mode,
-                            napi_key_filter key_filter,
-                            napi_key_conversion key_conversion,
-                            napi_value* result);
-
-// Instance data
-NAPI_EXTERN napi_status napi_set_instance_data(napi_env env,
-                                               void* data,
-                                               napi_finalize finalize_cb,
-                                               void* finalize_hint);
-
-NAPI_EXTERN napi_status napi_get_instance_data(napi_env env,
-                                               void** data);
-
-// ArrayBuffer detaching
-NAPI_EXTERN napi_status napi_detach_arraybuffer(napi_env env,
-                                                napi_value arraybuffer);
-
-NAPI_EXTERN napi_status napi_is_detached_arraybuffer(napi_env env,
-                                                     napi_value value,
-                                                     bool* result);
-
-NAPI_EXTERN napi_status napi_type_tag_object(napi_env env,
-                                             napi_value value,
-                                             const napi_type_tag* type_tag);
-
-NAPI_EXTERN napi_status
-napi_check_object_type_tag(napi_env env,
-                           napi_value value,
-                           const napi_type_tag* type_tag,
-                           bool* result);
-NAPI_EXTERN napi_status napi_object_freeze(napi_env env,
-                                           napi_value object);
-NAPI_EXTERN napi_status napi_object_seal(napi_env env,
-                                         napi_value object);
- */
 
 NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
 
@@ -137,13 +71,14 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result);
 
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result);
 
+NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
+
 NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
 
 // 原先为 const char16_t *str,
 // See https://stackoverflow.com/questions/50965615/why-is-char16-t-defined-to-have-the-same-size-as-uint-least16-t-instead-of-uint1
 NAPIStatus napi_create_string_utf16(NAPIEnv env, const uint_least16_t *str, size_t length, NAPIValue *result);
 
-// iOS 9 JavaScriptCore 可能会返回错误，该方法也支持 polyfill
 NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result);
 
 NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result);
@@ -166,6 +101,9 @@ NAPIStatus napi_get_value_uint32(NAPIEnv env, NAPIValue value, uint32_t *result)
 NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result);
 
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result);
+
+// Copies LATIN-1 encoded bytes from a string into a buffer.
+NAPIStatus napi_get_value_string_latin1(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result);
 
 // Copies UTF-8 encoded bytes from a string into a buffer.
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result);
@@ -216,6 +154,7 @@ NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bo
 NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, const NAPIPropertyDescriptor *properties);
 
 // Methods to work with Arrays
+// 需要处理 Proxy 的情况
 NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
 
 NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result);
@@ -382,10 +321,15 @@ NAPIStatus napi_adjust_external_memory(NAPIEnv env,
                                        int64_t change_in_bytes,
                                        int64_t *adjusted_value);
 
-// Dates
-// NAPIStatus napi_create_date(NAPIEnv env, double time, NAPIValue *result);
+#if NAPI_VERSION >= 5
 
-// NAPIStatus napi_is_date(NAPIEnv env, NAPIValue value, bool *isDate);
+// Dates
+NAPIStatus napi_create_date(NAPIEnv env, double time, NAPIValue *result);
+
+// instanceof
+NAPIStatus napi_is_date(NAPIEnv env, NAPIValue value, bool *isDate);
+
+NAPIStatus napi_get_date_value(NAPIEnv env, NAPIValue value, double *result);
 
 // Add finalizer for pointer
 NAPIStatus napi_add_finalizer(NAPIEnv env,
@@ -395,10 +339,88 @@ NAPIStatus napi_add_finalizer(NAPIEnv env,
                               void *finalize_hint,
                               NAPIRef *result);
 
-// 自定义函数
-NAPIStatus NAPICreateJSEngine(NAPIEnv env);
+#endif // NAPI_VERSION >= 5
 
-NAPIStatus NAPIFreeJSEngine(NAPIEnv env);
+#if NAPI_VERSION >= 6
+// BigInt
+NAPIStatus napi_create_bigint_int64(NAPIEnv env,
+                                    int64_t value,
+                                    NAPIValue *result);
+NAPIStatus napi_create_bigint_uint64(NAPIEnv env,
+                                     uint64_t value,
+                                     NAPIValue *result);
+NAPIStatus napi_create_bigint_words(NAPIEnv env,
+                                    int sign_bit,
+                                    size_t word_count,
+                                    const uint64_t *words,
+                                    NAPIValue *result);
+NAPIStatus napi_get_value_bigint_int64(NAPIEnv env,
+                                       NAPIValue value,
+                                       int64_t *result,
+                                       bool *lossless);
+NAPIStatus napi_get_value_bigint_uint64(NAPIEnv env,
+                                        NAPIValue value,
+                                        uint64_t *result,
+                                        bool *lossless);
+NAPIStatus napi_get_value_bigint_words(NAPIEnv env,
+                                       NAPIValue value,
+                                       int *sign_bit,
+                                       size_t *word_count,
+                                       uint64_t *words);
+
+// Object
+NAPIStatus napi_get_all_property_names(NAPIEnv env,
+                                       NAPIValue object,
+                                       NAPIKeyCollectionMode key_mode,
+                                       NAPIKeyFilter key_filter,
+                                       NAPIKeyConversion key_conversion,
+                                       NAPIValue *result);
+
+// Instance data
+NAPIStatus napi_set_instance_data(NAPIEnv env,
+                                  void *data,
+                                  NAPIFinalize finalize_cb,
+                                  void *finalize_hint);
+
+NAPIStatus napi_get_instance_data(NAPIEnv env,
+                                  void **data);
+
+#endif // NAPI_VERSION >= 6
+
+#if NAPI_VERSION >= 7
+
+// ArrayBuffer detaching
+NAPIStatus napi_detach_arraybuffer(NAPIEnv env,
+                                   NAPIValue arraybuffer);
+
+NAPIStatus napi_is_detached_arraybuffer(NAPIEnv env,
+                                        NAPIValue value,
+                                        bool *result);
+
+#endif // NAPI_VERSION >= 7
+
+#ifdef NAPI_EXPERIMENTAL
+
+NAPIStatus NAPITypeTag_object(NAPIEnv env,
+                              NAPIValue value,
+                              const NAPITypeTag *type_tag);
+
+NAPIStatus
+napi_check_object_type_tag(NAPIEnv env,
+                           NAPIValue value,
+                           const NAPITypeTag *type_tag,
+                           bool *result);
+NAPIStatus napi_object_freeze(NAPIEnv env,
+                              NAPIValue object);
+NAPIStatus napi_object_seal(NAPIEnv env,
+                            NAPIValue object);
+
+#endif // NAPI_EXPERIMENTAL
+
+// 自定义函数
+// NAPIStatus NAPICreateEnv(NAPIEnv *env);
+
+// NAPIStatus NAPIFreeEnv(NAPIEnv *env);
 
 EXTERN_C_END
 
