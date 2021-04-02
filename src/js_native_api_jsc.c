@@ -812,52 +812,51 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
     return clearLastError(env);
 }
 
-/*
-NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIKeyCollectionMode keyMode, NAPIKeyFilter keyFilter, NAPIKeyConversion keyConversion, NAPIValue *result)
+NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
-    // N-API V8 实现默认
-    // 1. 包含原型链
-    // 2. 可枚举，不包括 Symbol
-    // 3. number 转换为 string
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, result);
 
+    // 应当检查参数是否为对象
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef)object, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    JSPropertyNameArrayRef propertyNameArrayRef = JSObjectCopyPropertyNames(env->contextRef, objectRef);
-
-    size_t propertyCount = JSPropertyNameArrayGetCount(propertyNameArrayRef);
-
-    if (propertyCount > 0)
-    {
-        JSObjectRef arrayObjectRef = JSObjectMakeArray(env->contextRef, 0, NULL, &env->lastException);
-        if (env->lastException)
-        {
-            JSPropertyNameArrayRelease(propertyNameArrayRef);
-        }
-        RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-        for (unsigned int i = 0; i < propertyCount; ++i)
-        {
-            JSStringRef propertyNameStringRef = JSPropertyNameArrayGetNameAtIndex(propertyNameArrayRef, i);
-            JSValueRef exception = NULL;
-            JSValueRef propertyValueRef = JSObjectGetProperty(env->contextRef, objectRef, propertyNameStringRef, &exception);
-            if (!exception)
-            {
-                // 忽略异常，直接跳过
-                JSObjectSetPropertyAtIndex(env->contextRef, arrayObjectRef, i, propertyValueRef, NULL);
-            }
-        }
-        *result = (NAPIValue)arrayObjectRef;
-    }
-    JSPropertyNameArrayRelease(propertyNameArrayRef);
+    NAPIValue global = NULL;
+    NAPIValue objectConstructor = NULL;
+    NAPIValue keysFunction = NULL;
+    CHECK_NAPI(napi_get_global(env, &global));
+    CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectConstructor));
+    CHECK_NAPI(napi_get_named_property(env, objectConstructor, "keys", &keysFunction));
+    CHECK_NAPI(napi_call_function(env, objectConstructor, keysFunction, 1, &object, result));
 
     return clearLastError(env);
 }
 
+NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv, NAPIValue *result)
+{
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, constructor);
+    if (argc > 0)
+    {
+        CHECK_ARG(env, argv);
+    }
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)constructor), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)constructor, &env->lastException);
+    CHECK_JSC(env);
+
+    *result = (NAPIValue)JSObjectCallAsConstructor(
+        env->context,
+        objectRef,
+        argc,
+        (const JSValueRef *)argv,
+        &env->lastException);
+    CHECK_JSC(env);
+
+    return clearLastError(env);
+}
+
+/*
 NAPIStatus NAPIGetPropertyNames(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
     // 正常应该还有 NAPIKeySkipSymbols
