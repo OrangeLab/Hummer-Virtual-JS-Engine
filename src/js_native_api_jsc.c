@@ -626,263 +626,203 @@ NAPIStatus napi_get_value_string_latin1(NAPIEnv env, NAPIValue value, char *buf,
     return setLastErrorCode(env, NAPIGenericFailure);
 }
 
-/*
-NAPIStatus NAPITypeOf(NAPIEnv env, NAPIValue value, NAPIValueType *result)
+// 光计算长度实际上存在性能损耗
+// Copies a JavaScript string into a UTF-8 string buffer. The result is the
+// number of bytes (excluding the null terminator) copied into buf.
+// A sufficient buffer size should be greater than the length of string,
+// reserving space for null terminator.
+// If bufsize is insufficient, the string will be truncated and null terminated.
+// If buf is NULL, this method returns the length of the string (in bytes)
+// via the result parameter.
+// The result argument is optional unless buf is NULL.
+NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result)
 {
-    // 缺少 Symbol External BigInt
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
-    CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
+    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->context, (JSValueRef)value), NAPIStringExpected);
 
-    if (JSValueIsNumber(env->contextRef, (JSValueRef)value))
+    // 1. buf == NULL 计算长度，这是 N-API 文档规定
+    // 2. buf && bufsize 发生复制
+    // 3. buf && bufsize == 0 正常情况实际上也可以计算长度，但是 N-API 规定计算长度必须是 buf == NULL，因此只能返回 0 长度
+    if (buf && bufsize == 0)
     {
-        *result = NAPINumber;
-    }
-    else if (JSValueIsString(env->contextRef, (JSValueRef)value))
-    {
-        *result = NAPIString;
-    }
-    else if (JSValueIsBoolean(env->contextRef, (JSValueRef)value))
-    {
-        *result = NAPIBoolean;
-    }
-    else if (JSValueIsUndefined(env->contextRef, (JSValueRef)value))
-    {
-        *result = NAPIUndefined;
-    }
-    else if (JSValueIsNull(env->contextRef, (JSValueRef)value))
-    {
-        *result = NAPINull;
-    }
-    else if (JSValueIsObject(env->contextRef, (JSValueRef)value))
-    {
-        JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef)value, &env->lastException);
-        RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-        // Function
-        if (JSObjectIsFunction(env->contextRef, objectRef))
+        if (result)
         {
-            *result = NAPIFunction;
-        }
-        else
-        {
-            *result = NAPIObject;
+            *result = 0;
         }
     }
     else
     {
-        return setLastErrorCode(env, NAPIInvalidArg);
-    }
+        // !buf || bufsize != 0
+        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)value, &env->lastException);
+        CHECK_JSC(env);
 
-    return clearLastError(env);
-}
-
-NAPIStatus NAPIGetValueDouble(NAPIEnv env, NAPIValue value, double *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
-    CHECK_ARG(env, result);
-
-    // JSValueIsNumber 不能传入 NULL，否则触发 release_assert
-    CHECK_ARG(env, env->contextRef);
-
-    RETURN_STATUS_IF_FALSE(env, JSValueIsNumber(env->contextRef, (JSValueRef)value), NAPINumberExpected);
-
-    *result = JSValueToNumber(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    return clearLastError(env);
-}
-
-NAPIStatus NAPIGetValueInt32(NAPIEnv env, NAPIValue value, int32_t *result)
-{
-    return NAPIGetValueDouble(env, value, (double *)result);
-}
-
-NAPIStatus NAPIGetValueInt64(NAPIEnv env, NAPIValue value, int64_t *result)
-{
-    return NAPIGetValueDouble(env, value, (double *)result);
-}
-
-NAPIStatus NAPIGetValueUInt32(NAPIEnv env,
-                              NAPIValue value,
-                              uint32_t *result)
-{
-    return NAPIGetValueDouble(env, value, (double *)result);
-}
-
-NAPIStatus NAPIGetValueBool(NAPIEnv env, NAPIValue value, bool *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, value);
-    CHECK_ARG(env, result);
-
-    // JSValueIsNumber 不能传入 NULL，否则触发 release_assert
-    CHECK_ARG(env, env->contextRef);
-
-    RETURN_STATUS_IF_FALSE(env, JSValueIsBoolean(env->contextRef, (JSValueRef)value), NAPINumberExpected);
-    *result = JSValueToBoolean(env->contextRef, (JSValueRef)value);
-
-    return clearLastError(env);
-}
-
-NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
-
-    CHECK_ARG(env, env->contextRef);
-
-    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->contextRef, (JSValueRef)value), NAPIStringExpected);
-
-    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    if (!buf)
-    {
-        CHECK_ARG(env, result);
-        // 不包括 \0
-        *result = JSStringGetLength(stringRef);
-    }
-    else if (bufsize != 0)
-    {
-        size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
-        if (result != NULL)
+        if (!buf)
         {
-            *result = copied;
+            CHECK_ARG(env, result);
+            // 本质上是 UNICODE length * 3 + 1 \0
+            size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
+            errno = 0;
+            char *buffer = malloc(sizeof(char) * length);
+            if (errno == ENOMEM)
+            {
+                // malloc 失败，无法发生复制，则无法计算实际长度
+                *result = 0;
+                errno = 0;
+
+                return clearLastError(env);
+            }
+            // 返回值一定带 \0
+            *result = JSStringGetUTF8CString(stringRef, buffer, length) - 1;
+            // 虽然是 GetUTF8CString，但实际上是复制，所以需要 free
+            free(buffer);
+        }
+        else
+        {
+            size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
+            if (result)
+            {
+                // JSStringGetUTF8CString returns size with null terminator.
+                *result = copied - 1;
+            }
+        }
+
+        JSStringRelease(stringRef);
+    }
+
+    return clearLastError(env);
+}
+
+// Copies a JavaScript string into a UTF-16 string buffer. The result is the
+// number of 2-byte code units (excluding the null terminator) copied into buf.
+// A sufficient buffer size should be greater than the length of string,
+// reserving space for null terminator.
+// If bufsize is insufficient, the string will be truncated and null terminated.
+// If buf is NULL, this method returns the length of the string (in 2-byte
+// code units) via the result parameter.
+// The result argument is optional unless buf is NULL.
+NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, uint_least16_t *buf, size_t bufsize, size_t *result)
+{
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->context, (JSValueRef)value), NAPIStringExpected);
+
+    if (buf && bufsize == 0)
+    {
+        if (result)
+        {
+            *result = 0;
         }
     }
-    else if (result != NULL)
+    else
     {
-        *result = 0;
-    }
+        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)value, &env->lastException);
+        CHECK_JSC(env);
 
-    return clearLastError(env);
-}
-
-NAPIStatus NAPIGetValueStringUTF16(NAPIEnv env, NAPIValue value, uint_least16_t *buf, size_t bufsize, size_t *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, value);
-
-    CHECK_ARG(env, env->contextRef);
-
-    RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->contextRef, (JSValueRef)value), NAPIStringExpected);
-
-    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    if (!buf)
-    {
-        CHECK_ARG(env, result);
-        *result = JSStringGetLength(stringRef);
-    }
-    else if (bufsize != 0)
-    {
-        const uint_least16_t *charactersPtr = JSStringGetCharactersPtr(stringRef);
-        RETURN_STATUS_IF_FALSE(env, charactersPtr, NAPIGenericFailure);
-        size_t copied = (size_t)fminf(bufsize - 1, sizeof(uint_least16_t) * JSStringGetLength(stringRef));
-        memcpy(buf, JSStringGetCharactersPtr(stringRef), copied);
-
-        buf[copied] = '\0';
-        if (result != NULL)
+        if (!buf)
         {
-            *result = copied;
+            CHECK_ARG(env, result);
+            *result = JSStringGetLength(stringRef);
         }
-    }
-    else if (result != NULL)
-    {
-        *result = 0;
+        else
+        {
+            size_t length = JSStringGetLength(stringRef);
+            const JSChar *chars = JSStringGetCharactersPtr(stringRef);
+            // 64 位
+            size_t copied = fmin(length, bufsize - 1);
+            memcpy(buf, chars, copied * sizeof(uint_least16_t));
+            buf[copied] = 0;
+            if (result)
+            {
+                *result = copied;
+            }
+        }
+
+        JSStringRelease(stringRef);
     }
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPICoerceToBool(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
-
-    *result = (NAPIValue)JSValueMakeBoolean(env->contextRef, JSValueToBoolean(env->contextRef, (JSValueRef)value));
+    *result = (NAPIValue)JSValueMakeBoolean(env->context, JSValueToBoolean(env->context, (JSValueRef)value));
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPICoerceToNumber(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
+    double doubleValue = JSValueToNumber(env->context, (JSValueRef)value, &env->lastException);
+    CHECK_JSC(env);
 
-    double doubleValue = JSValueToNumber(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    *result = (NAPIValue)JSValueMakeNumber(env->contextRef, doubleValue);
+    *result = (NAPIValue)JSValueMakeNumber(env->context, doubleValue);
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPICoerceToObject(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
-
-    *result = (NAPIValue)JSValueToObject(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
+    *result = (NAPIValue)JSValueToObject(env->context, (JSValueRef)value, &env->lastException);
+    CHECK_JSC(env);
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPICoerceToString(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
-
-    JSStringRef stringRef = JSValueToStringCopy(env->contextRef, (JSValueRef)value, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-    *result = (NAPIValue)JSValueMakeString(env->contextRef, stringRef);
-
-    return clearLastError(env);
-}
-
-NAPIStatus NAPIGetPrototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, result);
-
-    CHECK_ARG(env, env->contextRef);
-
-    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef)object), NAPIObjectExpected);
-
-    JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef)object, &env->lastException);
-    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
-
-    *result = (NAPIValue)JSObjectGetPrototype(env->contextRef, objectRef);
+    JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)value, &env->lastException);
+    CHECK_JSC(env);
+    *result = (NAPIValue)JSValueMakeString(env->context, stringRef);
+    JSStringRelease(stringRef);
 
     return clearLastError(env);
 }
 
-NAPIStatus NAPIGetAllPropertyNames(NAPIEnv env, NAPIValue object, NAPIKeyCollectionMode keyMode, NAPIKeyFilter keyFilter, NAPIKeyConversion keyConversion, NAPIValue *result)
+NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
-    // 只支持 NAPIKeyIncludePrototypes + NAPIKeyEnumerable + NAPIKeySkipSymbols
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->contextRef);
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
 
-    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->contextRef, (JSValueRef)object), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
+    CHECK_JSC(env);
+
+    *result = (NAPIValue)JSObjectGetPrototype(env->context, objectRef);
+
+    return clearLastError(env);
+}
+
+/*
+NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIKeyCollectionMode keyMode, NAPIKeyFilter keyFilter, NAPIKeyConversion keyConversion, NAPIValue *result)
+{
+    // N-API V8 实现默认
+    // 1. 包含原型链
+    // 2. 可枚举，不包括 Symbol
+    // 3. number 转换为 string
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->contextRef, (JSValueRef)object, &env->lastException);
     RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
