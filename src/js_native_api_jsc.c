@@ -369,11 +369,8 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
 typedef enum
 {
     External,
-    Function,
-    Constructor,
 } NativeType;
 
-// nativeType 必须是第一个
 typedef struct
 {
     NAPIEnv env;
@@ -844,6 +841,7 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)constructor), NAPIObjectExpected);
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)constructor, &env->lastException);
     CHECK_JSC(env);
+    RETURN_STATUS_IF_FALSE(env, JSObjectIsConstructor(env->context, objectRef), NAPIFunctionExpected);
 
     *result = (NAPIValue)JSObjectCallAsConstructor(
         env->context,
@@ -855,6 +853,96 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
 
     return clearLastError(env);
 }
+
+NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result)
+{
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, object);
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef)constructor), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)constructor, &env->lastException);
+    CHECK_JSC(env);
+    RETURN_STATUS_IF_FALSE(env, JSObjectIsConstructor(env->context, objectRef), NAPIFunctionExpected);
+
+    *result = JSValueIsInstanceOfConstructor(
+        env->context,
+        (JSValueRef)object,
+        objectRef,
+        &env->lastException);
+    CHECK_JSC(env);
+
+    return clearLastError(env);
+}
+
+NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo cbinfo, size_t *argc, NAPIValue *argv, NAPIValue *thisArg, void **data)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, cbinfo);
+
+    if (argv)
+    {
+        CHECK_ARG(env, argc);
+
+        size_t i = 0;
+        size_t min = fmin(*argc, cbinfo->argc);
+
+        for (; i < min; i++)
+        {
+            argv[i] = (NAPIValue)cbinfo->argv[i];
+        }
+
+        if (i < *argc)
+        {
+            for (; i < *argc; i++)
+            {
+                argv[i] = (NAPIValue)JSValueMakeUndefined(env->context);
+            }
+        }
+    }
+
+    if (argc)
+    {
+        *argc = cbinfo->argc;
+    }
+
+    if (thisArg)
+    {
+        *thisArg = (NAPIValue)cbinfo->thisArg;
+    }
+
+    if (data)
+    {
+        *data = cbinfo->data;
+    }
+
+    return clearLastError(env);
+}
+
+NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, cbinfo);
+    CHECK_ARG(env, result);
+
+    *result = (NAPIValue)cbinfo->newTarget;
+
+    return clearLastError(env);
+}
+
+// NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data, size_t property_count, const NAPIPropertyDescriptor *properties, NAPIValue *result)
+// {
+//     NAPI_PREAMBLE(env);
+//     CHECK_ARG(env, result);
+//     CHECK_ARG(env, constructor);
+
+//     if (property_count > 0)
+//     {
+//         CHECK_ARG(env, properties);
+//     }
+
+//     return GET_RETURN_STATUS(env);
+// }
 
 /*
 NAPIStatus NAPIGetPropertyNames(NAPIEnv env, NAPIValue object, NAPIValue *result)
