@@ -8,10 +8,14 @@
 #ifndef js_native_api_h
 #define js_native_api_h
 
-#include <stddef.h>
-#include <stdbool.h>
+#include <napi/js_native_api_types.h>
 
-// JavaScriptCore 目标 iOS 9
+EXTERN_C_START
+
+#include <stddef.h> // NOLINT(modernize-deprecated-headers)
+#include <stdbool.h> // NOLINT(modernize-deprecated-headers)
+
+// JavaScriptCore deployment target iOS 9
 
 // Use INT_MAX, this should only be consumed by the pre-processor anyway.
 #define NAPI_VERSION_EXPERIMENTAL 2147483647
@@ -29,21 +33,7 @@
 #endif
 #endif
 
-#include <napi/js_native_api_types.h>
-
 #define NAPI_AUTO_LENGTH SIZE_MAX
-
-#ifdef __cplusplus
-#define EXTERN_C_START \
-    extern "C"         \
-    {
-#define EXTERN_C_END }
-#else
-#define EXTERN_C_START
-#define EXTERN_C_END
-#endif
-
-EXTERN_C_START
 
 NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
 
@@ -71,7 +61,9 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result);
 
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result);
 
-NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
+NAPIStatus napi_create_string_latin1(NAPIEnv env, __attribute__((unused)) const char *str,
+                                     __attribute__((unused)) size_t length,
+                                     __attribute__((unused)) NAPIValue *result);
 
 NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
 
@@ -81,7 +73,8 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const uint_least16_t *str, size
 
 NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result);
 
-NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result);
+NAPIStatus
+napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result);
 
 NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result);
 
@@ -103,14 +96,17 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result);
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result);
 
 // Copies LATIN-1 encoded bytes from a string into a buffer.
-NAPIStatus napi_get_value_string_latin1(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result);
+NAPIStatus napi_get_value_string_latin1(NAPIEnv env, __attribute__((unused)) NAPIValue value,
+                                        __attribute__((unused)) char *buf, __attribute__((unused)) size_t bufsize,
+                                        __attribute__((unused)) size_t *result);
 
 // Copies UTF-8 encoded bytes from a string into a buffer.
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result);
 
 // 原先为 char16_t *buf,
 // Copies UTF-16 encoded bytes from a string into a buffer.
-NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, uint_least16_t *buf, size_t bufsize, size_t *result);
+NAPIStatus
+napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, uint_least16_t *buf, size_t bufsize, size_t *result);
 
 // Methods to coerce values
 // These APIs may execute user scripts
@@ -151,7 +147,8 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
 
 NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result);
 
-NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, const NAPIPropertyDescriptor *properties);
+NAPIStatus
+napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, const NAPIPropertyDescriptor *properties);
 
 // Methods to work with Arrays
 // 需要处理 Proxy 的情况
@@ -163,7 +160,8 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
 NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result);
 
 // Methods to work with Functions
-NAPIStatus napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result);
+NAPIStatus
+napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result);
 
 NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv, NAPIValue *result);
 
@@ -173,25 +171,29 @@ NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor,
 
 // Gets all callback info in a single call. (Ugly, but faster.)
 NAPIStatus napi_get_cb_info(
-    NAPIEnv env,             // [in] NAPI environment handle
-    NAPICallbackInfo cbinfo, // [in] Opaque callback-info handle
-    size_t *argc,            // [in-out] Specifies the size of the provided argv array and receives the actual count of args.
-    NAPIValue *argv,         // [out] Array of values
-    NAPIValue *thisArg,      // [out] Receives the JS 'this' arg for the call
-    void **data);            // [out] Receives the data pointer for the callback.
+        NAPIEnv env,             // [in] NAPI environment handle
+        NAPICallbackInfo cbinfo, // [in] Opaque callback-info handle
+        size_t *argc,            // [in-out] Specifies the size of the provided argv array and receives the actual count of args.
+        NAPIValue *argv,         // [out] Array of values
+        NAPIValue *thisArg,      // [out] Receives the JS 'this' arg for the call
+        void **data);            // [out] Receives the data pointer for the callback.
 
 NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *result);
 
-NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data, size_t property_count, const NAPIPropertyDescriptor *properties, NAPIValue *result);
+NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
+                             size_t propertyCount, const NAPIPropertyDescriptor *properties, NAPIValue *result);
 
 // Methods to work with external data objects
-NAPIStatus napi_wrap(NAPIEnv env, NAPIValue js_object, void *native_object, NAPIFinalize finalize_cb, void *finalize_hint, NAPIRef *result);
+NAPIStatus
+napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize finalizeCallback, void *finalizeHint,
+          NAPIRef *result);
 
-NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue js_object, void **result);
+NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue jsObject, void **result);
 
-NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue js_object, void **result);
+NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result);
 
-NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result);
+NAPIStatus
+napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result);
 
 NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result);
 
@@ -250,7 +252,9 @@ NAPIStatus napi_is_arraybuffer(NAPIEnv env, NAPIValue value, bool *result);
 
 NAPIStatus napi_create_arraybuffer(NAPIEnv env, size_t byte_length, void **data, NAPIValue *result);
 
-NAPIStatus napi_create_external_arraybuffer(NAPIEnv env, void *external_data, size_t byte_length, NAPIFinalize finalize_cb, void *finalize_hint, NAPIValue *result);
+NAPIStatus
+napi_create_external_arraybuffer(NAPIEnv env, void *external_data, size_t byte_length, NAPIFinalize finalize_cb,
+                                 void *finalize_hint, NAPIValue *result);
 
 NAPIStatus napi_get_arraybuffer_info(NAPIEnv env,
                                      NAPIValue arraybuffer,

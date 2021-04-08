@@ -8,11 +8,23 @@
 #ifndef js_native_api_types_h
 #define js_native_api_types_h
 
+#ifdef __cplusplus
+#define EXTERN_C_START \
+    extern "C"         \
+    {
+#define EXTERN_C_END }
+#else
+#define EXTERN_C_START
+#define EXTERN_C_END
+#endif
+
+EXTERN_C_START
+
 // 基于 Node.js 14.16.0
 // #define NAPI_VERSION 7
 // #define NAPI_EXPERIMENTAL
 
-#include <stdint.h>
+#include <stdint.h> // NOLINT(modernize-deprecated-headers)
 
 // JSVM API types are all opaque pointers for ABI stability
 // typedef undefined structs instead of void* for compile time type safety
@@ -24,8 +36,7 @@ typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
 typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
 typedef struct OpaqueNAPIDeferred *NAPIDeferred;
 
-typedef enum
-{
+typedef enum {
     NAPIDefault = 0,
     NAPIWritable = 1 << 0,
     NAPIEnumerable = 1 << 1,
@@ -44,8 +55,7 @@ typedef enum
 #endif // NAPI_EXPERIMENTAL
 } NAPIPropertyAttributes;
 
-typedef enum
-{
+typedef enum {
     // ES6 types (corresponds to typeof)
     NAPIUndefined,
     NAPINull,
@@ -59,8 +69,7 @@ typedef enum
     NAPIBigInt,
 } NAPIValueType;
 
-typedef enum
-{
+typedef enum {
     NAPIInt8Array,
     NAPIUInt8Array,
     NAPIUInt8ClampedArray,
@@ -74,8 +83,7 @@ typedef enum
     NAPIBigUInt64Array,
 } NAPITypedArrayType;
 
-typedef enum
-{
+typedef enum {
     NAPIOk,
     NAPIInvalidArg,
     NAPIObjectExpected,
@@ -111,8 +119,7 @@ typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
 
 typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint);
 
-typedef struct
-{
+typedef struct {
     // One of utf8name or name should be NULL.
     const char *utf8name;
     NAPIValue name;
@@ -126,8 +133,7 @@ typedef struct
     void *data;
 } NAPIPropertyDescriptor;
 
-typedef struct
-{
+typedef struct {
     const char *errorMessage;
     void *engineReserved;
     uint32_t engineErrorCode;
@@ -165,5 +171,7 @@ typedef struct
     uint64_t upper;
 } NAPITypeTag;
 #endif // NAPI_EXPERIMENTAL
+
+EXTERN_C_END
 
 #endif /* js_native_api_types_h */
