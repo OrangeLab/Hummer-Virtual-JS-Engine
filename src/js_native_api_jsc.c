@@ -341,8 +341,13 @@ typedef struct {
 typedef struct {
     NAPIEnv env;
     void *data;
+    // reference
     Finalizer *finalizers;
     size_t finalizerCount;
+    size_t referenceCount;
+    // wrap
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
 } ExternalInfo;
 
 static void finalize(JSObjectRef object) {
@@ -1031,10 +1036,15 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
     // 调用 finalizer
-    for (size_t i = 0; i < info->finalizerCount; ++i) {
-        info->finalizers[i].finalizeCallback(info->env, info->data, info->finalizers[i].finalizeHint);
+    if (info) {
+        if (info->finalizeCallback) {
+            info->finalizeCallback(info->env, info->data, info->finalizeHint);
+        }
+        for (size_t i = 0; i < info->finalizerCount; ++i) {
+            info->finalizers[i].finalizeCallback(info->env, info->data, info->finalizers[i].finalizeHint);
+        }
+        free(info->finalizers);
     }
-    free(info->finalizers);
     free(info);
 }
 
@@ -1043,13 +1053,14 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     CHECK_NAPI(unwrap(env, object, &info));
     if (!info) {
         info = malloc(sizeof(ExternalInfo));
-        if (!info) {
-            return setLastErrorCode(env, NAPIGenericFailure);
-        }
+        RETURN_STATUS_IF_FALSE(env, info, NAPIGenericFailure);
         info->env = env;
         info->finalizerCount = 0;
         info->finalizers = NULL;
         info->data = NULL;
+        info->finalizeCallback = NULL;
+        info->finalizeHint = NULL;
+        info->referenceCount = 0;
         JSClassRef classRef = createExternalClass();
 
         NAPI_PREAMBLE(env);
@@ -1110,12 +1121,14 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
     RETURN_STATUS_IF_FALSE(env, info->data == NULL, NAPIInvalidArg);
     info->data = nativeObject;
     if (finalizeCallback) {
-        if (!addFinalizer(info, finalizeCallback, finalizeHint)) {
-            // 失败
-            info->data = NULL;
-
-            return setLastErrorCode(env, NAPIGenericFailure);
-        }
+        info->finalizeCallback = finalizeCallback;
+        info->finalizeHint = finalizeHint;
+//        if (!addFinalizer(info, finalizeCallback, finalizeHint)) {
+//            // 失败
+//            info->data = NULL;
+//
+//            return setLastErrorCode(env, NAPIGenericFailure);
+//        }
     }
     if (result) {
         CHECK_NAPI(napi_create_reference(env, jsObject, 0, result));
@@ -1164,6 +1177,12 @@ static NAPIStatus create(NAPIEnv env,
     ExternalInfo *info = malloc(sizeof(ExternalInfo));
     RETURN_STATUS_IF_FALSE(env, info, NAPIGenericFailure);
     info->env = env;
+    info->finalizerCount = 0;
+    info->finalizers = NULL;
+    info->data = NULL;
+    info->finalizeCallback = NULL;
+    info->finalizeHint = NULL;
+    info->referenceCount = 0;
 
     JSClassRef classRef = createExternalClass();
 
@@ -1220,8 +1239,8 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
 }
 
 typedef struct {
-    NAPIValue value;
-    uint32_t count;
+    bool isValid;
+    JSValueRef value;
 } OpaqueNAPIRef;
 
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result) {
