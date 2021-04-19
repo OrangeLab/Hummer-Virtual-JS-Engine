@@ -26,6 +26,10 @@ EXTERN_C_START
 
 #include <stdint.h> // NOLINT(modernize-deprecated-headers)
 
+#if !defined __cplusplus || (defined(_MSC_VER) && _MSC_VER < 1900)
+typedef uint16_t char16_t;
+#endif
+
 // JSVM API types are all opaque pointers for ABI stability
 // typedef undefined structs instead of void* for compile time type safety
 typedef struct OpaqueNAPIEnv *NAPIEnv;
@@ -46,13 +50,11 @@ typedef enum {
     // from instance properties. Ignored by napi_define_properties.
     NAPIStatic = 1 << 10,
 
-#ifdef NAPI_EXPERIMENTAL
     // Default for class methods.
     NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
 
     // Default for object properties, like in JS obj[prop].
     NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
-#endif // NAPI_EXPERIMENTAL
 } NAPIPropertyAttributes;
 
 typedef enum {
@@ -66,25 +68,10 @@ typedef enum {
     NAPIObject,
     NAPIFunction,
     NAPIExternal,
-    NAPIBigInt,
 } NAPIValueType;
 
 typedef enum {
-    NAPIInt8Array,
-    NAPIUInt8Array,
-    NAPIUInt8ClampedArray,
-    NAPIInt16Array,
-    NAPIUInt16Array,
-    NAPIInt32Array,
-    NAPIUInt32Array,
-    NAPIFloat32Array,
-    NAPIFloat64Array,
-    NAPIBigInt64Array,
-    NAPIBigUInt64Array,
-} NAPITypedArrayType;
-
-typedef enum {
-    NAPIOk,
+    NAPIOK,
     NAPIInvalidArg,
     NAPIObjectExpected,
     NAPIStringExpected,
@@ -139,38 +126,6 @@ typedef struct {
     uint32_t engineErrorCode;
     NAPIStatus errorCode;
 } NAPIExtendedErrorInfo;
-
-#if NAPI_VERSION >= 6
-typedef enum
-{
-    NAPIKeyIncludePrototypes,
-    NAPIKeyOwnOnly
-} NAPIKeyCollectionMode;
-
-typedef enum
-{
-    NAPIKeyAllProperties = 0,
-    NAPIKeyWritable = 1,
-    NAPIKeyEnumerable = 1 << 1,
-    NAPIKeyConfigurable = 1 << 2,
-    NAPIKeySkipStrings = 1 << 3,
-    NAPIKeySkipSymbols = 1 << 4
-} NAPIKeyFilter;
-
-typedef enum
-{
-    NAPIKeyKeepNumbers,
-    NAPIKeyNumbersToStrings
-} NAPIKeyConversion;
-#endif // NAPI_VERSION >= 6
-
-#ifdef NAPI_EXPERIMENTAL
-typedef struct
-{
-    uint64_t lower;
-    uint64_t upper;
-} NAPITypeTag;
-#endif // NAPI_EXPERIMENTAL
 
 EXTERN_C_END
 

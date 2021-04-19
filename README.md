@@ -1,10 +1,8 @@
 ## macOS 编译
-1. gn
-2. ninja
-3. gn gen out
-4. ninja -C out
-5. mv out/obj/libnapi_jsc.a .
-6. include/napi 即为头文件
+1. gn gen out
+2. ninja -C out
+3. mv out/obj/libnapi_jsc.a .
+4. include/napi 即为头文件
 
 ## 编辑器配置
 1. 推荐使用 CLion

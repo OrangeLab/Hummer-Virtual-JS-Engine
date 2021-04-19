@@ -17,22 +17,6 @@ EXTERN_C_START
 
 // JavaScriptCore deployment target iOS 9
 
-// Use INT_MAX, this should only be consumed by the pre-processor anyway.
-#define NAPI_VERSION_EXPERIMENTAL 2147483647
-#ifndef NAPI_VERSION
-#ifdef NAPI_EXPERIMENTAL
-#define NAPI_VERSION NAPI_VERSION_EXPERIMENTAL
-#else
-// The baseline version for N-API.
-// The NAPI_VERSION controls which version will be used by default when
-// compilling a native addon. If the addon developer specifically wants to use
-// functions available in a new version of N-API that is not yet ported in all
-// LTS versions, they can set NAPI_VERSION knowing that they have specifically
-// depended on that version.
-#define NAPI_VERSION 3
-#endif
-#endif
-
 #define NAPI_AUTO_LENGTH SIZE_MAX
 
 NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
@@ -69,7 +53,7 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
 
 // 原先为 const char16_t *str,
 // See https://stackoverflow.com/questions/50965615/why-is-char16-t-defined-to-have-the-same-size-as-uint-least16-t-instead-of-uint1
-NAPIStatus napi_create_string_utf16(NAPIEnv env, const uint_least16_t *str, size_t length, NAPIValue *result);
+NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t length, NAPIValue *result);
 
 NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result);
 
@@ -106,7 +90,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 // 原先为 char16_t *buf,
 // Copies UTF-16 encoded bytes from a string into a buffer.
 NAPIStatus
-napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, uint_least16_t *buf, size_t bufsize, size_t *result);
+napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t bufsize, size_t *result);
 
 // Methods to coerce values
 // These APIs may execute user scripts
@@ -151,7 +135,6 @@ NAPIStatus
 napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, const NAPIPropertyDescriptor *properties);
 
 // Methods to work with Arrays
-// 需要处理 Proxy 的情况
 NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
 
 NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result);
@@ -247,10 +230,11 @@ NAPIStatus napi_is_exception_pending(NAPIEnv env, bool *result);
 
 NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result);
 
+/*
 // Methods to work with array buffers and typed arrays
 NAPIStatus napi_is_arraybuffer(NAPIEnv env, NAPIValue value, bool *result);
 
-NAPIStatus napi_create_arraybuffer(NAPIEnv env, size_t byte_length, void **data, NAPIValue *result);
+NAPIStatus napi_create_arraybuffer(NAPIEnv env, size_t byteLength, void **data, NAPIValue *result);
 
 NAPIStatus
 napi_create_external_arraybuffer(NAPIEnv env, void *external_data, size_t byte_length, NAPIFinalize finalize_cb,
@@ -296,9 +280,10 @@ NAPIStatus napi_get_dataview_info(NAPIEnv env,
                                   void **data,
                                   NAPIValue *arraybuffer,
                                   size_t *byte_offset);
+                                  */
 
 // version management
-NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
+//NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
 
 // Promises
 NAPIStatus napi_create_promise(NAPIEnv env,
@@ -318,110 +303,15 @@ NAPIStatus napi_is_promise(NAPIEnv env,
                            bool *is_promise);
 
 // Running a script
-NAPIStatus napi_run_script(NAPIEnv env, NAPIValue script, NAPIValue *result);
-
-// Memory management
-NAPIStatus napi_adjust_external_memory(NAPIEnv env,
-                                       int64_t change_in_bytes,
-                                       int64_t *adjusted_value);
-
-#if NAPI_VERSION >= 5
-
-// Dates
-NAPIStatus napi_create_date(NAPIEnv env, double time, NAPIValue *result);
-
-// instanceof
-NAPIStatus napi_is_date(NAPIEnv env, NAPIValue value, bool *isDate);
-
-NAPIStatus napi_get_date_value(NAPIEnv env, NAPIValue value, double *result);
-
-// Add finalizer for pointer
-NAPIStatus napi_add_finalizer(NAPIEnv env,
-                              NAPIValue js_object,
-                              void *native_object,
-                              NAPIFinalize finalize_cb,
-                              void *finalize_hint,
-                              NAPIRef *result);
-
-#endif // NAPI_VERSION >= 5
-
-#if NAPI_VERSION >= 6
-// BigInt
-NAPIStatus napi_create_bigint_int64(NAPIEnv env,
-                                    int64_t value,
-                                    NAPIValue *result);
-NAPIStatus napi_create_bigint_uint64(NAPIEnv env,
-                                     uint64_t value,
-                                     NAPIValue *result);
-NAPIStatus napi_create_bigint_words(NAPIEnv env,
-                                    int sign_bit,
-                                    size_t word_count,
-                                    const uint64_t *words,
-                                    NAPIValue *result);
-NAPIStatus napi_get_value_bigint_int64(NAPIEnv env,
-                                       NAPIValue value,
-                                       int64_t *result,
-                                       bool *lossless);
-NAPIStatus napi_get_value_bigint_uint64(NAPIEnv env,
-                                        NAPIValue value,
-                                        uint64_t *result,
-                                        bool *lossless);
-NAPIStatus napi_get_value_bigint_words(NAPIEnv env,
-                                       NAPIValue value,
-                                       int *sign_bit,
-                                       size_t *word_count,
-                                       uint64_t *words);
-
-// Object
-NAPIStatus napi_get_all_property_names(NAPIEnv env,
-                                       NAPIValue object,
-                                       NAPIKeyCollectionMode key_mode,
-                                       NAPIKeyFilter key_filter,
-                                       NAPIKeyConversion key_conversion,
-                                       NAPIValue *result);
-
-// Instance data
-NAPIStatus napi_set_instance_data(NAPIEnv env,
-                                  void *data,
-                                  NAPIFinalize finalize_cb,
-                                  void *finalize_hint);
-
-NAPIStatus napi_get_instance_data(NAPIEnv env,
-                                  void **data);
-
-#endif // NAPI_VERSION >= 6
-
-#if NAPI_VERSION >= 7
-
-// ArrayBuffer detaching
-NAPIStatus napi_detach_arraybuffer(NAPIEnv env,
-                                   NAPIValue arraybuffer);
-
-NAPIStatus napi_is_detached_arraybuffer(NAPIEnv env,
-                                        NAPIValue value,
-                                        bool *result);
-
-#endif // NAPI_VERSION >= 7
-
-#ifdef NAPI_EXPERIMENTAL
-
-NAPIStatus NAPITypeTag_object(NAPIEnv env,
-                              NAPIValue value,
-                              const NAPITypeTag *type_tag);
-
-NAPIStatus
-napi_check_object_type_tag(NAPIEnv env,
-                           NAPIValue value,
-                           const NAPITypeTag *type_tag,
-                           bool *result);
-NAPIStatus napi_object_freeze(NAPIEnv env,
-                              NAPIValue object);
-NAPIStatus napi_object_seal(NAPIEnv env,
-                            NAPIValue object);
-
-#endif // NAPI_EXPERIMENTAL
+NAPIStatus napi_run_script(NAPIEnv env,
+                           NAPIValue script,
+                           NAPIValue *result);
 
 // 自定义函数
+
+NAPIStatus
+NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8SourceUrl, NAPIValue *result);
+
 // NAPIStatus NAPICreateEnv(NAPIEnv *env);
 
 // NAPIStatus NAPIFreeEnv(NAPIEnv *env);
