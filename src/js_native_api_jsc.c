@@ -323,22 +323,7 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
     return clearLastError(env);
 }
 
-typedef struct {
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-} Finalizer;
-
-typedef struct {
-    NAPIEnv env;
-    void *data;
-    // reference
-    Finalizer *finalizers;
-    size_t finalizerCount;
-    size_t referenceCount;
-    // wrap
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-} ExternalInfo;
+// Function
 
 struct OpaqueNAPICallbackInfo {
     JSObjectRef newTarget;
@@ -1330,6 +1315,8 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
     return clearLastError(env);
 }
 
+// Constructor
+
 typedef struct {
     NAPIEnv env;
     JSClassRef classRef;
@@ -1543,6 +1530,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     return clearLastError(env);
 }
 
+// External
+
 static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPIValue prototype = NULL;
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
@@ -1557,18 +1546,40 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
     return clearLastError(env);
 }
 
+struct Finalizer {
+    SLIST_ENTRY(Finalizer) node;
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
+};
+
+struct OpaqueNAPIRef {
+    JSValueRef value;
+    uint32_t count;
+    bool isValid;
+};
+
+struct Reference {
+    SLIST_ENTRY(Reference) node;
+    struct OpaqueNAPIRef data;
+};
+
+typedef struct {
+    NAPIEnv env;
+    void *data;
+    SLIST_HEAD(, Finalizer) finalizerHead;
+    SLIST_HEAD(, Reference) referenceHead;
+} ExternalInfo;
+
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
     // 调用 finalizer
-    if (info) {
-        if (info->finalizeCallback) {
-            info->finalizeCallback(info->env, info->data, info->finalizeHint);
+    if (info && !SLIST_EMPTY(&info->finalizerHead)) {
+        struct Finalizer *finalizer, *tempFinalizer;
+        SLIST_FOREACH_SAFE(finalizer, &info->finalizerHead, node, tempFinalizer) {
+            finalizer->finalizeCallback ? finalizer->finalizeCallback(info->env, info->data, finalizer->finalizeHint)
+                                        : NULL;
+            free(finalizer);
         }
-        for (size_t i = 0; i < info->finalizerCount; ++i) {
-            info->finalizers[i].finalizeCallback(info->env, info->data, info->finalizers[i].finalizeHint);
-        }
-        // TODO(ChasonTang): 内存管理
-        free(info->finalizers);
     }
     free(info);
 }
@@ -1600,12 +1611,10 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
             return setLastErrorCode(env, NAPIMemoryError);
         }
         info->env = env;
-        info->finalizerCount = 0;
-        info->finalizers = NULL;
         info->data = NULL;
-        info->finalizeCallback = NULL;
-        info->finalizeHint = NULL;
-        info->referenceCount = 0;
+        SLIST_INIT(&info->finalizerHead);
+        SLIST_INIT(&info->referenceHead);
+
         JSClassRef classRef = createExternalClass();
 
         JSObjectRef prototype = JSObjectMake(env->context, classRef, info);
@@ -1619,35 +1628,19 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
 }
 
 static bool addFinalizer(ExternalInfo *externalInfo, NAPIFinalize finalize, void *finalizeHint) {
-    // TODO(ChasonTang): 链表实现
     if (!externalInfo) {
         return false;
     }
-    // externalInfo->finalizers == NULL && externalInfo->finalizerCount > 0
-    // ||
-    // externalInfo->finalizers != NULL && externalInfo->finalizerCount == 0
-    if ((!externalInfo->finalizers && externalInfo->finalizerCount) ||
-        (externalInfo->finalizers && !externalInfo->finalizerCount)) {
+
+    errno = 0;
+    struct Finalizer *finalizer = malloc(sizeof(struct Finalizer));
+    if (errno == ENOMEM) {
         return false;
     }
-    size_t tempCount = externalInfo->finalizerCount + 1;
-    // 1. ptr == NULL 等价于 malloc，同时需要注意 malloc(0) 的情况
-    //   * malloc(size) 分配 size 字节内存
-    //   - malloc(0) 分配 16 字节内存
-    // 2. ptr != NULL
-    //   * size > 0 调整空间
-    //     * 分配失败返回 NULL，原指针有效
-    //     * 分配成功返回指针（可能是新的也可能是老的）
-    //   - size == 0 释放前指针，创建新 16 字节空间并返回指针
-    Finalizer *temp = realloc(externalInfo->finalizers, sizeof(Finalizer) * tempCount);
-    if (!temp) {
-        // 分配失败
-        return false;
-    }
-    temp[tempCount].finalizeCallback = finalize;
-    temp[tempCount].finalizeHint = finalizeHint;
-    externalInfo->finalizerCount = tempCount;
-    externalInfo->finalizers = temp;
+    finalizer->finalizeCallback = finalize;
+    finalizer->finalizeHint = finalizeHint;
+
+    SLIST_INSERT_HEAD(&externalInfo->finalizerHead, finalizer, node);
 
     return true;
 }
@@ -1663,11 +1656,11 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
     ExternalInfo *info = NULL;
     CHECK_NAPI(wrap(env, jsObject, &info));
     RETURN_STATUS_IF_FALSE(env, !info->data, NAPIInvalidArg);
-    info->data = nativeObject;
     if (finalizeCallback) {
-        info->finalizeCallback = finalizeCallback;
-        info->finalizeHint = finalizeHint;
+        RETURN_STATUS_IF_FALSE(env, addFinalizer(info, finalizeCallback, finalizeHint), NAPIMemoryError);
     }
+    info->data = nativeObject;
+
     // 当 napi_create_reference 失败的时候可以不回滚前面的 wrap 过程，因为这实际上是两步骤
     if (result) {
         CHECK_NAPI(napi_create_reference(env, jsObject, 0, result));
@@ -1720,13 +1713,9 @@ static NAPIStatus create(NAPIEnv env,
         return setLastErrorCode(env, NAPIMemoryError);
     }
     info->env = env;
-    info->finalizerCount = 0;
-    info->finalizers = NULL;
-    info->data = NULL;
-    info->finalizeCallback = NULL;
-    info->finalizeHint = NULL;
-    info->referenceCount = 0;
     info->data = data;
+    SLIST_INIT(&info->finalizerHead);
+    SLIST_INIT(&info->referenceHead);
 
     JSClassRef classRef = createExternalClass();
     if (finalizeCB) {
@@ -1769,12 +1758,6 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
 
     return clearLastError(env);
 }
-
-struct OpaqueNAPIRef {
-    bool isValid;
-    JSValueRef value;
-    uint32_t count;
-};
 
 static void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint) {
     ((NAPIRef) finalizeHint)->isValid = false;
