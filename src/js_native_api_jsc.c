@@ -17,23 +17,25 @@
 
 #include <napi/js_native_api.h>
 
+#include <sys/queue.h>
+
 #define RETURN_STATUS_IF_FALSE(env, condition, status) \
     do                                                 \
     {                                                  \
         if (!(condition))                              \
         {                                              \
-            return setLastErrorCode((env), (status));  \
+            return setLastErrorCode(env, status);  \
         }                                              \
     } while (0)
 
-#define CHECK_ARG(env, arg) RETURN_STATUS_IF_FALSE((env), ((arg) != NULL), NAPIInvalidArg)
+#define CHECK_ARG(env, arg) RETURN_STATUS_IF_FALSE(env, arg, NAPIInvalidArg)
 
 // This does not call napi_set_last_error because the expression
 // is assumed to be a NAPI function call that already did.
 #define CHECK_NAPI(expr)            \
     do                              \
     {                               \
-        NAPIStatus status = (expr); \
+        NAPIStatus status = expr; \
         if (status != NAPIOK)       \
         {                           \
             return status;          \
@@ -43,7 +45,7 @@
 #define CHECK_ENV(env)             \
     do                             \
     {                              \
-        if ((env) == NULL)         \
+        if (!(env))         \
         {                          \
             return NAPIInvalidArg; \
         }                          \
@@ -52,15 +54,15 @@
 #define NAPI_PREAMBLE(env)                                                                     \
     do                                                                                         \
     {                                                                                          \
-        CHECK_ENV((env));                                                                      \
-        RETURN_STATUS_IF_FALSE((env), (((env)->lastException) != NULL), NAPIPendingException); \
-        clearLastError((env));                                                                 \
+        CHECK_ENV(env);                                                                      \
+        RETURN_STATUS_IF_FALSE(env, (env)->lastException, NAPIPendingException); \
+        clearLastError(env);                                                                 \
     } while (0)
 
 #define CHECK_JSC(env)                                                             \
     do                                                                             \
     {                                                                              \
-        RETURN_STATUS_IF_FALSE((env), ((env)->lastException), NAPIPendingException); \
+        RETURN_STATUS_IF_FALSE(env, ((env)->lastException), NAPIPendingException); \
     } while (0)
 
 #include <napi/js_native_api_types.h>
@@ -68,7 +70,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
 struct OpaqueNAPIEnv {
@@ -129,13 +130,15 @@ static const char *errorMessages[] = {
         "An arraybuffer was expected",
         "A detachable arraybuffer was expected",
         "Main thread would deadlock",
+        "The function is not implemented",
+        "Memory allocation error"
 };
 
 // The value of the constant below must be updated to reference the last
 // message in the `napi_status` enum each time a new error message is added.
 // We don't have a napi_status_last as this would result in an ABI
 // change each time a message was added.
-#define LAST_STATUS NAPIWouldDeadLock
+#define LAST_STATUS NAPIMemoryError
 
 NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result) {
     CHECK_ENV(env);
@@ -269,10 +272,8 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
 }
 
 // 未实现
-NAPIStatus napi_create_string_latin1(NAPIEnv env, __attribute__((unused)) const char *str,
-                                     __attribute__((unused)) size_t length,
-                                     __attribute__((unused)) NAPIValue *result) {
-    return setLastErrorCode(env, NAPIGenericFailure);
+NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result) {
+    return setLastErrorCode(env, NAPINotImplemented);
 }
 
 // JavaScriptCore 只能接受 \0 结尾的字符串
@@ -297,7 +298,7 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
     static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
 
     // Node.js 默认判断
-    RETURN_STATUS_IF_FALSE(env, (length == NAPI_AUTO_LENGTH) || length <= INT_MAX, NAPIInvalidArg);
+    RETURN_STATUS_IF_FALSE(env, length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
     *result = (NAPIValue) JSValueMakeString(env->context, stringRef);
@@ -310,9 +311,9 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    NAPIValue global = NULL;
-    NAPIValue symbolFunc = NULL;
+    NAPIValue global, symbolFunc;
     CHECK_NAPI(napi_get_global(env, &global));
+    // iOS 9
     CHECK_NAPI(napi_get_named_property(env, global, "Symbol", &symbolFunc));
     CHECK_NAPI(napi_call_function(env, global, symbolFunc, 1, &description, result));
 
@@ -349,7 +350,7 @@ typedef struct {
     void *finalizeHint;
 } ExternalInfo;
 
-static void finalize(JSObjectRef object) {
+static void functionFinalize(JSObjectRef object) {
     free(JSObjectGetPrivate(object));
 }
 
@@ -360,8 +361,6 @@ struct OpaqueNAPICallbackInfo {
     const JSValueRef *argv;
     void *data;
 };
-
-static JSClassRef createExternalClass();
 
 // 所有参数都会存在，返回值可以为 NULL
 static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount,
@@ -387,9 +386,11 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
 
         return NULL;
     }
+
+    // Make sure any errors encountered last time we were in N-API are gone.
     clearLastError(functionInfo->env);
 
-    struct OpaqueNAPICallbackInfo callbackInfo = {};
+    struct OpaqueNAPICallbackInfo callbackInfo;
     callbackInfo.newTarget = NULL;
     callbackInfo.thisArg = thisObject;
     callbackInfo.argc = argumentCount;
@@ -402,8 +403,8 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
 NAPIStatus
 napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data, NAPIValue *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, cb);
     CHECK_ARG(env, result);
+    CHECK_ARG(env, cb);
 
     RETURN_STATUS_IF_FALSE(env, length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
@@ -413,7 +414,7 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     if (errno == ENOMEM) {
         errno = 0;
 
-        return setLastErrorCode(env, NAPIGenericFailure);
+        return setLastErrorCode(env, NAPIMemoryError);
     }
     functionInfo->env = env;
     functionInfo->callback = cb;
@@ -422,20 +423,21 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     // 使用 Object.prototype 作为实例的 [[prototype]]
     classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
-    classDefinition.finalize = finalize;
+    classDefinition.finalize = functionFinalize;
     JSClassRef classRef = JSClassCreate(&classDefinition);
     JSObjectRef prototype = JSObjectMake(env->context, classRef, functionInfo);
     JSClassRelease(classRef);
 
     // 函数名如果为 NULL 则为匿名函数
     JSStringRef stringRef = utf8name ? JSStringCreateWithUTF8CString(utf8name) : NULL;
-    *result = (NAPIValue) JSObjectMakeFunctionWithCallback(env->context, stringRef, callAsFunction);
+    JSObjectRef functionObjectRef = JSObjectMakeFunctionWithCallback(env->context, stringRef, callAsFunction);
+    *result = (NAPIValue) functionObjectRef;
     if (stringRef) {
         JSStringRelease(stringRef);
     }
 
-    JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, (JSObjectRef) *result));
-    JSObjectSetPrototype(env->context, (JSObjectRef) *result, prototype);
+    JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, functionObjectRef));
+    JSObjectSetPrototype(env->context, functionObjectRef, prototype);
 
     return clearLastError(env);
 }
@@ -542,17 +544,44 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result) {
 }
 
 NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result) {
-    return napi_get_value_double(env, value, (double *) result);
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+
+    *result = (int32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    CHECK_JSC(env);
+
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_uint32(NAPIEnv env,
                                  NAPIValue value,
                                  uint32_t *result) {
-    return napi_get_value_double(env, value, (double *) result);
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+
+    *result = (uint32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    CHECK_JSC(env);
+
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
-    return napi_get_value_double(env, value, (double *) result);
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    RETURN_STATUS_IF_FALSE(env, JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+
+    *result = (int64_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    CHECK_JSC(env);
+
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
@@ -569,7 +598,7 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
 NAPIStatus napi_get_value_string_latin1(NAPIEnv env, __attribute__((unused)) NAPIValue value,
                                         __attribute__((unused)) char *buf, __attribute__((unused)) size_t bufsize,
                                         __attribute__((unused)) size_t *result) {
-    return setLastErrorCode(env, NAPIGenericFailure);
+    return setLastErrorCode(env, NAPINotImplemented);
 }
 
 // 光计算长度实际上存在性能损耗
@@ -600,16 +629,27 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
         CHECK_JSC(env);
 
         if (!buf) {
-            CHECK_ARG(env, result);
+            if (!result) {
+                JSStringRelease(stringRef);
+
+                return setLastErrorCode(env, NAPIInvalidArg);
+            }
             // 本质上是 UNICODE length * 3 + 1 \0
             size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
-            RETURN_STATUS_IF_FALSE(env, length, NAPIGenericFailure);
+            if (!length) {
+                assert(false);
+
+                JSStringRelease(stringRef);
+
+                return setLastErrorCode(env, NAPIGenericFailure);
+            }
             errno = 0;
             char *buffer = malloc(sizeof(char) * length);
             if (errno == ENOMEM) {
                 // malloc 失败，无法发生复制，则无法计算实际长度
                 *result = 0;
                 errno = 0;
+                JSStringRelease(stringRef);
 
                 return clearLastError(env);
             }
@@ -655,13 +695,19 @@ napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t 
         CHECK_JSC(env);
 
         if (!buf) {
-            CHECK_ARG(env, result);
+            if (!result) {
+                JSStringRelease(stringRef);
+
+                return setLastErrorCode(env, NAPIInvalidArg);
+            }
             *result = JSStringGetLength(stringRef);
         } else {
+            static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
+
             size_t length = JSStringGetLength(stringRef);
             const JSChar *chars = JSStringGetCharactersPtr(stringRef);
             // 64 位
-            size_t copied = (size_t) fmin((double) length, (double) (bufsize - 1));
+            size_t copied = length > bufsize - 1 ? bufsize - 1 : length;
             memcpy(buf, chars, copied * sizeof(char16_t));
             buf[copied] = 0;
             if (result) {
@@ -737,21 +783,51 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result) 
 }
 
 NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *result) {
+    // N-API V8 实现默认
+    // 1. 包含原型链
+    // 2. 可枚举，不包括 Symbol
+    // 3. number 转换为 string
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
     // 应当检查参数是否为对象
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
 
-    // TODO(ChasonTang): 使用 copyPropertyNamesArray 实现，符合 Object.keys
+    // 使用 JSObjectCopyPropertyNames 实现，符合 Object.keys
+    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(env, !env->lastException, NAPIPendingException);
 
-    NAPIValue global = NULL;
-    NAPIValue objectConstructor = NULL;
-    NAPIValue keysFunction = NULL;
-    CHECK_NAPI(napi_get_global(env, &global));
-    CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectConstructor));
-    CHECK_NAPI(napi_get_named_property(env, objectConstructor, "keys", &keysFunction));
-    CHECK_NAPI(napi_call_function(env, objectConstructor, keysFunction, 1, &object, result));
+    JSPropertyNameArrayRef propertyNameArrayRef = JSObjectCopyPropertyNames(env->context, objectRef);
+
+    size_t propertyCount = JSPropertyNameArrayGetCount(propertyNameArrayRef);
+
+    if (propertyCount > 0) {
+        JSObjectRef arrayObjectRef = JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
+        if (env->lastException) {
+            JSPropertyNameArrayRelease(propertyNameArrayRef);
+
+            return setLastErrorCode(env, NAPIPendingException);
+        }
+
+        for (unsigned int i = 0; i < propertyCount; ++i) {
+            JSStringRef propertyNameStringRef = JSPropertyNameArrayGetNameAtIndex(propertyNameArrayRef, i);
+            JSValueRef propertyValueRef = JSObjectGetProperty(env->context, objectRef, propertyNameStringRef,
+                                                              &env->lastException);
+            if (env->lastException) {
+                JSPropertyNameArrayRelease(propertyNameArrayRef);
+
+                return setLastErrorCode(env, NAPIPendingException);
+            }
+            JSObjectSetPropertyAtIndex(env->context, arrayObjectRef, i, propertyValueRef, &env->lastException);
+            if (env->lastException) {
+                JSPropertyNameArrayRelease(propertyNameArrayRef);
+
+                return setLastErrorCode(env, NAPIPendingException);
+            }
+        }
+        *result = (NAPIValue) arrayObjectRef;
+    }
+    JSPropertyNameArrayRelease(propertyNameArrayRef);
 
     return clearLastError(env);
 }
@@ -832,7 +908,7 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 }
 
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, key);
 
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -860,11 +936,11 @@ NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, b
     CHECK_ARG(env, key);
     CHECK_ARG(env, result);
 
-    NAPIValue global, object_ctor, function, value;
+    NAPIValue global, objectCtor, function, value;
     CHECK_NAPI(napi_get_global(env, &global));
-    CHECK_NAPI(napi_get_named_property(env, global, "Object", &object_ctor));
-    CHECK_NAPI(napi_get_named_property(env, object_ctor, "hasOwnProperty", &function));
-    CHECK_NAPI(napi_call_function(env, object_ctor, function, 0, NULL, &value));
+    CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
+    CHECK_NAPI(napi_get_named_property(env, objectCtor, "hasOwnProperty", &function));
+    CHECK_NAPI(napi_call_function(env, objectCtor, function, 1, &key, &value));
     *result = (JSValueRef) JSValueToBoolean(env->context, (JSValueRef) value);
 
     return clearLastError(env);
@@ -1036,7 +1112,7 @@ napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, con
         CHECK_NAPI(napi_set_named_property(env, descriptor, "configurable", configurable));
 
         NAPIValue enumerable;
-        CHECK_NAPI(napi_get_boolean(env, (p->attributes & NAPIConfigurable), &enumerable));
+        CHECK_NAPI(napi_get_boolean(env, (p->attributes & NAPIEnumerable), &enumerable));
         CHECK_NAPI(napi_set_named_property(env, descriptor, "enumerable", enumerable));
 
         if (p->getter || p->setter) {
@@ -1071,13 +1147,13 @@ napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, con
             CHECK_NAPI(napi_create_string_utf8(env, p->utf8name, NAPI_AUTO_LENGTH, &propertyName));
         }
 
-        NAPIValue global, object_ctor, function;
+        NAPIValue global, objectCtor, function;
         CHECK_NAPI(napi_get_global(env, &global));
-        CHECK_NAPI(napi_get_named_property(env, global, "Object", &object_ctor));
-        CHECK_NAPI(napi_get_named_property(env, object_ctor, "defineProperty", &function));
+        CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
+        CHECK_NAPI(napi_get_named_property(env, objectCtor, "defineProperty", &function));
 
         NAPIValue args[] = {object, propertyName, descriptor};
-        CHECK_NAPI(napi_call_function(env, object_ctor, function, 3, args, NULL));
+        CHECK_NAPI(napi_call_function(env, objectCtor, function, 3, args, NULL));
     }
 
     return clearLastError(env);
@@ -1151,7 +1227,7 @@ napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, con
         CHECK_JSC(env);
     }
 
-    JSValueRef return_value = JSObjectCallAsFunction(
+    JSValueRef returnValue = JSObjectCallAsFunction(
             env->context,
             objectRef,
             thisObjectRef,
@@ -1161,7 +1237,7 @@ napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, con
     CHECK_JSC(env);
 
     if (result) {
-        *result = (NAPIValue) return_value;
+        *result = (NAPIValue) returnValue;
     }
 
     return clearLastError(env);
@@ -1221,7 +1297,7 @@ napi_get_cb_info(NAPIEnv env, NAPICallbackInfo cbinfo, size_t *argc, NAPIValue *
         CHECK_ARG(env, argc);
 
         size_t i = 0;
-        size_t min = (size_t) fmin((double) *argc, (double) cbinfo->argc);
+        size_t min = *argc > cbinfo->argc ? cbinfo->argc : *argc;
 
         for (; i < min; i++) {
             argv[i] = (NAPIValue) cbinfo->argv[i];
@@ -1293,10 +1369,11 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
 
         return NULL;
     }
+
+    // Make sure any errors encountered last time we were in N-API are gone.
     clearLastError(constructorInfo->env);
 
     JSObjectRef instance = JSObjectMake(ctx, constructorInfo->classRef, NULL);
-    JSObjectSetPrototype(ctx, instance, prototype);
 
     struct OpaqueNAPICallbackInfo callbackInfo = {};
     callbackInfo.newTarget = constructor;
@@ -1334,27 +1411,28 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         CHECK_ARG(env, properties);
     }
     errno = 0;
-    ConstructorInfo *functionInfo = malloc(sizeof(ConstructorInfo));
+    ConstructorInfo *constructorInfo = malloc(sizeof(ConstructorInfo));
     if (errno == ENOMEM) {
         errno = 0;
 
         return setLastErrorCode(env, NAPIGenericFailure);
     }
-    functionInfo->env = env;
-    functionInfo->callback = constructor;
-    functionInfo->data = data;
+    constructorInfo->env = env;
+    constructorInfo->callback = constructor;
+    constructorInfo->data = data;
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     classDefinition.className = utf8name;
-    functionInfo->classRef = JSClassCreate(&classDefinition);
+    constructorInfo->classRef = JSClassCreate(&classDefinition);
 
     JSClassDefinition prototypeClassDefinition = kJSClassDefinitionEmpty;
+    prototypeClassDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
     prototypeClassDefinition.className = utf8name;
     prototypeClassDefinition.finalize = constructorFinalize;
     JSClassRef prototypeClassRef = JSClassCreate(&prototypeClassDefinition);
 
-    JSObjectRef function = JSObjectMakeConstructor(env->context, functionInfo->classRef, callAsConstructor);
-    JSObjectRef prototype = JSObjectMake(env->context, prototypeClassRef, functionInfo);
+    JSObjectRef function = JSObjectMakeConstructor(env->context, constructorInfo->classRef, callAsConstructor);
+    JSObjectRef prototype = JSObjectMake(env->context, prototypeClassRef, constructorInfo);
     JSClassRelease(prototypeClassRef);
     JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, function));
     JSObjectSetPrototype(env->context, function, prototype);
@@ -1363,7 +1441,12 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     JSObjectSetProperty(env->context, prototype, stringRef, function,
                         kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &env->lastException);
     JSStringRelease(stringRef);
-    CHECK_JSC(env);
+    if (env->lastException) {
+        JSClassRelease(constructorInfo->classRef);
+        free(constructorInfo);
+
+        return setLastErrorCode(env, NAPIPendingException);
+    }
 
     int instancePropertyCount = 0;
     int staticPropertyCount = 0;
@@ -1382,8 +1465,10 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
                 sizeof(NAPIPropertyDescriptor) * staticPropertyCount);
         if (errno == ENOMEM) {
             errno = 0;
+            JSClassRelease(constructorInfo->classRef);
+            free(constructorInfo);
 
-            return NAPIGenericFailure;
+            return NAPIMemoryError;
         }
     }
 
@@ -1394,9 +1479,11 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
                 sizeof(NAPIPropertyDescriptor) * instancePropertyCount);
         if (errno == ENOMEM) {
             errno = 0;
+            JSClassRelease(constructorInfo->classRef);
+            free(constructorInfo);
             free(staticDescriptors);
 
-            return NAPIGenericFailure;
+            return NAPIMemoryError;
         }
     }
 
@@ -1414,15 +1501,40 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     }
 
     if (staticPropertyCount > 0) {
-        CHECK_NAPI(napi_define_properties(env, (NAPIValue) function, staticPropertyIndex, staticDescriptors));
+        NAPIStatus status = napi_define_properties(env, (NAPIValue) function, staticPropertyIndex, staticDescriptors);
+        if (status != NAPIOK) {
+            JSClassRelease(constructorInfo->classRef);
+            free(constructorInfo);
+            free(staticDescriptors);
+            free(instanceDescriptors);
+
+            return setLastErrorCode(env, status);
+        }
     }
 
     if (instancePropertyCount > 0) {
-        CHECK_NAPI(napi_define_properties(env,
-                                          (NAPIValue) prototype,
-                                          instancePropertyIndex,
-                                          instanceDescriptors));
+        NAPIValue prototypeValue;
+        NAPIStatus status = napi_get_named_property(env, (NAPIValue) function, "prototype", &prototypeValue);
+        if (status != NAPIOK) {
+            JSClassRelease(constructorInfo->classRef);
+            free(constructorInfo);
+            free(staticDescriptors);
+            free(instanceDescriptors);
+
+            return setLastErrorCode(env, status);
+        }
+        status = napi_define_properties(env, prototypeValue, instancePropertyIndex, instanceDescriptors);
+        if (status != NAPIOK) {
+            JSClassRelease(constructorInfo->classRef);
+            free(constructorInfo);
+            free(staticDescriptors);
+            free(instanceDescriptors);
+
+            return setLastErrorCode(env, status);
+        }
     }
+    free(staticDescriptors);
+    free(instanceDescriptors);
 
     *result = (NAPIValue) function;
 
@@ -1434,7 +1546,7 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
 
     NAPI_PREAMBLE(env);
-    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) prototype), NAPIGenericFailure);
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) prototype), NAPIObjectExpected);
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) prototype, &env->lastException);
     CHECK_JSC(env);
 
@@ -1453,17 +1565,38 @@ static void ExternalFinalize(JSObjectRef object) {
         for (size_t i = 0; i < info->finalizerCount; ++i) {
             info->finalizers[i].finalizeCallback(info->env, info->data, info->finalizers[i].finalizeHint);
         }
+        // TODO(ChasonTang): 内存管理
         free(info->finalizers);
     }
     free(info);
 }
 
+static inline JSClassRef createExternalClass() {
+    JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
+    classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
+    classDefinition.className = "External";
+    classDefinition.finalize = ExternalFinalize;
+    JSClassRef classRef = JSClassCreate(&classDefinition);
+
+    return classRef;
+}
+
 static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
+    NAPI_PREAMBLE(env);
+    RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIGenericFailure);
+    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    CHECK_JSC(env);
+
     ExternalInfo *info = NULL;
     CHECK_NAPI(unwrap(env, object, &info));
     if (!info) {
+        errno = 0;
         info = malloc(sizeof(ExternalInfo));
-        RETURN_STATUS_IF_FALSE(env, info, NAPIGenericFailure);
+        if (errno == ENOMEM) {
+            errno = 0;
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
         info->env = env;
         info->finalizerCount = 0;
         info->finalizers = NULL;
@@ -1472,11 +1605,6 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
         info->finalizeHint = NULL;
         info->referenceCount = 0;
         JSClassRef classRef = createExternalClass();
-
-        NAPI_PREAMBLE(env);
-        RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIGenericFailure);
-        JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
-        CHECK_JSC(env);
 
         JSObjectRef prototype = JSObjectMake(env->context, classRef, info);
         JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, objectRef));
@@ -1489,11 +1617,15 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
 }
 
 static bool addFinalizer(ExternalInfo *externalInfo, NAPIFinalize finalize, void *finalizeHint) {
+    // TODO(ChasonTang): 链表实现
     if (!externalInfo) {
         return false;
     }
-    if ((!externalInfo->finalizers || !externalInfo->finalizerCount) &&
-        (externalInfo->finalizers || externalInfo->finalizerCount)) {
+    // externalInfo->finalizers == NULL && externalInfo->finalizerCount > 0
+    // ||
+    // externalInfo->finalizers != NULL && externalInfo->finalizerCount == 0
+    if ((!externalInfo->finalizers && externalInfo->finalizerCount) ||
+        (externalInfo->finalizers && !externalInfo->finalizerCount)) {
         return false;
     }
     size_t tempCount = externalInfo->finalizerCount + 1;
@@ -1528,18 +1660,13 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
 
     ExternalInfo *info = NULL;
     CHECK_NAPI(wrap(env, jsObject, &info));
-    RETURN_STATUS_IF_FALSE(env, info->data == NULL, NAPIInvalidArg);
+    RETURN_STATUS_IF_FALSE(env, !info->data, NAPIInvalidArg);
     info->data = nativeObject;
     if (finalizeCallback) {
         info->finalizeCallback = finalizeCallback;
         info->finalizeHint = finalizeHint;
-//        if (!addFinalizer(info, finalizeCallback, finalizeHint)) {
-//            // 失败
-//            info->data = NULL;
-//
-//            return setLastErrorCode(env, NAPIGenericFailure);
-//        }
     }
+    // 当 napi_create_reference 失败的时候可以不回滚前面的 wrap 过程，因为这实际上是两步骤
     if (result) {
         CHECK_NAPI(napi_create_reference(env, jsObject, 0, result));
     }
@@ -1566,7 +1693,6 @@ NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     CHECK_ARG(env, result);
 
     // Once an object is wrapped, it stays wrapped in order to support finalizer callbacks.
-    // TODO(ChasonTang): 恢复 napi_wrap 前原貌
     ExternalInfo *info = NULL;
     CHECK_NAPI(unwrap(env, jsObject, &info));
     RETURN_STATUS_IF_FALSE(env, info && info->data, NAPIInvalidArg);
@@ -1584,8 +1710,13 @@ static NAPIStatus create(NAPIEnv env,
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
+    errno = 0;
     ExternalInfo *info = malloc(sizeof(ExternalInfo));
-    RETURN_STATUS_IF_FALSE(env, info, NAPIGenericFailure);
+    if (errno == ENOMEM) {
+        errno = 0;
+
+        return setLastErrorCode(env, NAPIMemoryError);
+    }
     info->env = env;
     info->finalizerCount = 0;
     info->finalizers = NULL;
@@ -1598,25 +1729,16 @@ static NAPIStatus create(NAPIEnv env,
     JSClassRef classRef = createExternalClass();
     if (finalizeCB) {
         if (!addFinalizer(info, finalizeCB, finalizeHint)) {
-            free(info);
             JSClassRelease(classRef);
+            free(info);
 
             return setLastErrorCode(env, NAPIGenericFailure);
         }
     }
     *result = (NAPIValue) JSObjectMake(env->context, classRef, info);
+    JSClassRelease(classRef);
 
     return clearLastError(env);
-}
-
-static inline JSClassRef createExternalClass() {
-    JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
-    classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
-    classDefinition.className = "External";
-    classDefinition.finalize = ExternalFinalize;
-    JSClassRef classRef = JSClassCreate(&classDefinition);
-
-    return classRef;
 }
 
 NAPIStatus
@@ -1649,6 +1771,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
 struct OpaqueNAPIRef {
     bool isValid;
     JSValueRef value;
+    uint32_t count;
 };
 
 static void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint) {
@@ -1660,21 +1783,32 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
-    reference->isValid = true;
-    reference->value = (JSValueRef) value;
-
     // wrap
     ExternalInfo *externalInfo = NULL;
-    CHECK_NAPI(unwrap(env, value, &externalInfo));
+    CHECK_NAPI(wrap(env, value, &externalInfo));
+
+    errno = 0;
+    NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
+    if (errno == ENOMEM) {
+        errno = 0;
+
+        return setLastErrorCode(env, NAPIMemoryError);
+    }
+    reference->isValid = true;
+    reference->value = (JSValueRef) value;
+    reference->count = initialRefCount;
+
     if (!addFinalizer(externalInfo, referenceFinalize, reference)) {
         // 失败
         free(reference);
 
         return setLastErrorCode(env, NAPIGenericFailure);
     }
-    if (initialRefCount && !externalInfo->referenceCount) {
-        JSValueProtect(env->context, (JSValueRef) value);
+    if (initialRefCount) {
+        if (!externalInfo->referenceCount) {
+            JSValueProtect(env->context, (JSValueRef) value);
+        }
+        externalInfo->referenceCount += initialRefCount;
     }
 
     return clearLastError(env);
@@ -1688,8 +1822,11 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
     // unwrap
     ExternalInfo *externalInfo = NULL;
     CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
-    if (externalInfo->referenceCount) {
-        JSValueUnprotect(env->context, ref->value);
+    if (externalInfo && externalInfo->referenceCount) {
+        externalInfo->referenceCount -= ref->count;
+        if (!externalInfo->referenceCount) {
+            JSValueUnprotect(env->context, ref->value);
+        }
     }
     free(ref);
 
@@ -1703,7 +1840,7 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     ExternalInfo *externalInfo = NULL;
     CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
     if (externalInfo->referenceCount == 0) {
-        JSValueUnprotect(env->context, ref->value);
+        JSValueProtect(env->context, ref->value);
     }
     externalInfo->referenceCount += 1;
 
@@ -1716,6 +1853,7 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
 
     ExternalInfo *externalInfo = NULL;
     CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
+    if (externalInfo)
     if (externalInfo->referenceCount == 1) {
         JSValueUnprotect(env->context, ref->value);
     } else if (externalInfo->referenceCount) {

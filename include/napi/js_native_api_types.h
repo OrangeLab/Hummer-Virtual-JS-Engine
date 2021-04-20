@@ -93,6 +93,8 @@ typedef enum {
     NAPIArrayBufferExpected,
     NAPIDetachableArrayBufferExpected,
     NAPIWouldDeadLock, // unused
+    NAPINotImplemented,
+    NAPIMemoryError
 } NAPIStatus;
 // Note: when adding a new enum value to `napi_status`, please also update
 //   * `const int last_status` in the definition of `napi_get_last_error_info()'
