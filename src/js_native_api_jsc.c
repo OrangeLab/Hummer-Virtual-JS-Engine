@@ -80,6 +80,7 @@ struct OpaqueNAPIEnv {
 };
 
 static inline NAPIStatus clearLastError(NAPIEnv env) {
+    // env 空指针检查
     CHECK_ENV(env);
     env->lastError.errorCode = NAPIOK;
 
@@ -100,6 +101,7 @@ static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode) {
 static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code) {
     CHECK_ENV(env);
 
+    // JSValueIsString 传入 NULL context，返回 false，传入 NULL value，转化为 JS null
     RETURN_STATUS_IF_FALSE(env, JSValueIsString(env->context, (JSValueRef) code), NAPIStringExpected);
     CHECK_NAPI(napi_set_named_property(env, error, "code", code));
 
@@ -273,6 +275,8 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
 
 // 未实现
 NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result) {
+    CHECK_ENV(env);
+
     return setLastErrorCode(env, NAPINotImplemented);
 }
 
@@ -297,7 +301,6 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
 
     static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
 
-    // Node.js 默认判断
     RETURN_STATUS_IF_FALSE(env, length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
@@ -321,19 +324,6 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
 }
 
 typedef struct {
-    NAPIEnv env;
-    NAPICallback callback;
-    void *data;
-} FunctionInfo;
-
-typedef struct {
-    NAPIEnv env;
-    JSClassRef classRef;
-    NAPICallback callback;
-    void *data;
-} ConstructorInfo;
-
-typedef struct {
     NAPIFinalize finalizeCallback;
     void *finalizeHint;
 } Finalizer;
@@ -350,10 +340,6 @@ typedef struct {
     void *finalizeHint;
 } ExternalInfo;
 
-static void functionFinalize(JSObjectRef object) {
-    free(JSObjectGetPrivate(object));
-}
-
 struct OpaqueNAPICallbackInfo {
     JSObjectRef newTarget;
     JSObjectRef thisArg;
@@ -361,6 +347,12 @@ struct OpaqueNAPICallbackInfo {
     const JSValueRef *argv;
     void *data;
 };
+
+typedef struct {
+    NAPIEnv env;
+    NAPICallback callback;
+    void *data;
+} FunctionInfo;
 
 // 所有参数都会存在，返回值可以为 NULL
 static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount,
@@ -398,6 +390,10 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
     callbackInfo.data = functionInfo->data;
 
     return (JSValueRef) functionInfo->callback(functionInfo->env, &callbackInfo);
+}
+
+static void functionFinalize(JSObjectRef object) {
+    free(JSObjectGetPrivate(object));
 }
 
 NAPIStatus
@@ -625,15 +621,12 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
         }
     } else {
         // !buf || bufsize != 0
-        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
-        CHECK_JSC(env);
-
         if (!buf) {
-            if (!result) {
-                JSStringRelease(stringRef);
+            CHECK_ARG(env, result);
 
-                return setLastErrorCode(env, NAPIInvalidArg);
-            }
+            JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+            CHECK_JSC(env);
+
             // 本质上是 UNICODE length * 3 + 1 \0
             size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
             if (!length) {
@@ -657,15 +650,17 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
             *result = JSStringGetUTF8CString(stringRef, buffer, length) - 1;
             // 虽然是 GetUTF8CString，但实际上是复制，所以需要 free
             free(buffer);
+            JSStringRelease(stringRef);
         } else {
+            JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+            CHECK_JSC(env);
             size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
             if (result) {
                 // JSStringGetUTF8CString returns size with null terminator.
                 *result = copied - 1;
             }
+            JSStringRelease(stringRef);
         }
-
-        JSStringRelease(stringRef);
     }
 
     return clearLastError(env);
@@ -691,18 +686,19 @@ napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t 
             *result = 0;
         }
     } else {
-        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
-        CHECK_JSC(env);
-
         if (!buf) {
-            if (!result) {
-                JSStringRelease(stringRef);
+            CHECK_ARG(env, result);
 
-                return setLastErrorCode(env, NAPIInvalidArg);
-            }
+            JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+            CHECK_JSC(env);
+
             *result = JSStringGetLength(stringRef);
+            JSStringRelease(stringRef);
         } else {
             static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
+
+            JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+            CHECK_JSC(env);
 
             size_t length = JSStringGetLength(stringRef);
             const JSChar *chars = JSStringGetCharactersPtr(stringRef);
@@ -713,9 +709,8 @@ napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t 
             if (result) {
                 *result = copied;
             }
+            JSStringRelease(stringRef);
         }
-
-        JSStringRelease(stringRef);
     }
 
     return clearLastError(env);
@@ -787,7 +782,7 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     // 1. 包含原型链
     // 2. 可枚举，不包括 Symbol
     // 3. number 转换为 string
-    CHECK_ENV(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     // 应当检查参数是否为对象
@@ -1335,6 +1330,13 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
     return clearLastError(env);
 }
 
+typedef struct {
+    NAPIEnv env;
+    JSClassRef classRef;
+    NAPICallback callback;
+    void *data;
+} ConstructorInfo;
+
 static void constructorFinalize(JSObjectRef object) {
     ConstructorInfo *info = JSObjectGetPrivate(object);
     if (info && info->classRef) {
@@ -1854,11 +1856,11 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     ExternalInfo *externalInfo = NULL;
     CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
     if (externalInfo)
-    if (externalInfo->referenceCount == 1) {
-        JSValueUnprotect(env->context, ref->value);
-    } else if (externalInfo->referenceCount) {
-        externalInfo->referenceCount -= 1;
-    }
+        if (externalInfo->referenceCount == 1) {
+            JSValueUnprotect(env->context, ref->value);
+        } else if (externalInfo->referenceCount) {
+            externalInfo->referenceCount -= 1;
+        }
 
     return clearLastError(env);
 }
