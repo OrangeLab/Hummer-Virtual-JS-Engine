@@ -1581,7 +1581,7 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
     // 调用 finalizer
-    if (info && !SLIST_EMPTY(&info->finalizerHead)) {
+    if (info) {
         struct Finalizer *finalizer, *tempFinalizer;
         SLIST_FOREACH_SAFE(finalizer, &info->finalizerHead, node, tempFinalizer) {
             finalizer->finalizeCallback ? finalizer->finalizeCallback(info->env, info->data, finalizer->finalizeHint)
@@ -1774,7 +1774,7 @@ static void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHin
         HASH_DEL(env->activeReferenceValues, activeReferenceValue);
         free(activeReferenceValue);
     } else {
-        // 正常情况应该
+        // 正常销毁的时候应该存在
         assert(false);
     }
 }
@@ -1826,6 +1826,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         if (!addFinalizer(externalInfo, referenceFinalize, value)) {
             // 失败
             free(reference);
+            HASH_DEL(env->activeReferenceValues, activeReferenceValue);
             free(activeReferenceValue);
 
             return setLastErrorCode(env, NAPIMemoryError);
@@ -1851,6 +1852,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
             assert(false);
         } else {
             HASH_DEL(env->activeReferenceValues, activeReferenceValue);
+            free(activeReferenceValue);
         }
         JSValueUnprotect(env->context, ref->value);
     }
