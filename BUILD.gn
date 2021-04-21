@@ -4,9 +4,16 @@ config("napi") {
     ]
 }
 
+config("uthash") {
+    include_dirs = [
+        "third_party/uthash/src"
+    ]
+}
+
 static_library("napi_jsc") {
     public_configs = [
-        ":napi"
+        ":napi",
+        ":uthash"
     ]
 
     sources = [

@@ -72,11 +72,32 @@
 #include <stdlib.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
+#define HASH_NONFATAL_OOM 1
+
+static bool hashError = false;
+
+#define uthash_nonfatal_oom(elt) hashError = true;
+
+#include <uthash.h>
+
+struct OpaqueNAPIRef {
+    LIST_ENTRY(OpaqueNAPIRef) node;
+    JSValueRef value;
+    uint32_t count;
+};
+
+typedef struct {
+    JSValueRef value;
+    UT_hash_handle hh;
+} ActiveReferenceValue;
+
 struct OpaqueNAPIEnv {
     JSContextRef context;
     // undefined 和 null 实际上也可以当做 exception 抛出，所以异常检查只需要检查是否为 C NULL
     JSValueRef lastException;
     NAPIExtendedErrorInfo lastError;
+    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
+    ActiveReferenceValue *activeReferenceValues;
 };
 
 static inline NAPIStatus clearLastError(NAPIEnv env) {
@@ -132,7 +153,6 @@ static const char *errorMessages[] = {
         "An arraybuffer was expected",
         "A detachable arraybuffer was expected",
         "Main thread would deadlock",
-        "The function is not implemented",
         "Memory allocation error"
 };
 
@@ -274,11 +294,11 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
 }
 
 // 未实现
-NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result) {
-    CHECK_ENV(env);
-
-    return setLastErrorCode(env, NAPINotImplemented);
-}
+//NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str, size_t length, NAPIValue *result) {
+//    CHECK_ENV(env);
+//
+//    return setLastErrorCode(env, NAPINotImplemented);
+//}
 
 // JavaScriptCore 只能接受 \0 结尾的字符串
 // 传入 str NULL 则为 ""
@@ -576,11 +596,11 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
     return clearLastError(env);
 }
 
-NAPIStatus napi_get_value_string_latin1(NAPIEnv env, __attribute__((unused)) NAPIValue value,
-                                        __attribute__((unused)) char *buf, __attribute__((unused)) size_t bufsize,
-                                        __attribute__((unused)) size_t *result) {
-    return setLastErrorCode(env, NAPINotImplemented);
-}
+//NAPIStatus napi_get_value_string_latin1(NAPIEnv env, NAPIValue value,
+//                                        char *buf, size_t bufsize,
+//                                        size_t *result) {
+//    return setLastErrorCode(env, NAPINotImplemented);
+//}
 
 // 光计算长度实际上存在性能损耗
 // Copies a JavaScript string into a UTF-8 string buffer. The result is the
@@ -1532,6 +1552,18 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 
 // External
 
+struct Finalizer {
+    SLIST_ENTRY(Finalizer) node;
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
+};
+
+typedef struct {
+    NAPIEnv env;
+    void *data;
+    SLIST_HEAD(, Finalizer) finalizerHead;
+} ExternalInfo;
+
 static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPIValue prototype = NULL;
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
@@ -1545,30 +1577,6 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
 
     return clearLastError(env);
 }
-
-struct Finalizer {
-    SLIST_ENTRY(Finalizer) node;
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-};
-
-struct OpaqueNAPIRef {
-    JSValueRef value;
-    uint32_t count;
-    bool isValid;
-};
-
-struct Reference {
-    SLIST_ENTRY(Reference) node;
-    struct OpaqueNAPIRef data;
-};
-
-typedef struct {
-    NAPIEnv env;
-    void *data;
-    SLIST_HEAD(, Finalizer) finalizerHead;
-    SLIST_HEAD(, Reference) referenceHead;
-} ExternalInfo;
 
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
@@ -1613,7 +1621,6 @@ static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
         info->env = env;
         info->data = NULL;
         SLIST_INIT(&info->finalizerHead);
-        SLIST_INIT(&info->referenceHead);
 
         JSClassRef classRef = createExternalClass();
 
@@ -1715,7 +1722,6 @@ static NAPIStatus create(NAPIEnv env,
     info->env = env;
     info->data = data;
     SLIST_INIT(&info->finalizerHead);
-    SLIST_INIT(&info->referenceHead);
 
     JSClassRef classRef = createExternalClass();
     if (finalizeCB) {
@@ -1760,17 +1766,29 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
 }
 
 static void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint) {
-    ((NAPIRef) finalizeHint)->isValid = false;
+    ActiveReferenceValue *activeReferenceValue = NULL;
+    // finalizeHint 实际上就是 JSValueRef
+    // Allocation failure is possible only when adding elements to the hash table (including the ADD, REPLACE, and SELECT operations). uthash_free is not allowed to fail.
+    HASH_FIND_PTR(env->activeReferenceValues, &finalizeHint, activeReferenceValue);
+    if (activeReferenceValue) {
+        HASH_DEL(env->activeReferenceValues, activeReferenceValue);
+        free(activeReferenceValue);
+    } else {
+        // 正常情况应该
+        assert(false);
+    }
 }
+
+#define protect(reference) \
+    do {                   \
+        LIST_INSERT_HEAD(&env->strongReferenceHead, reference, node); \
+        JSValueProtect(env->context, (reference)->value);  \
+    } while (0)
 
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
-
-    // wrap
-    ExternalInfo *externalInfo = NULL;
-    CHECK_NAPI(wrap(env, value, &externalInfo));
 
     errno = 0;
     NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
@@ -1779,21 +1797,43 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
         return setLastErrorCode(env, NAPIMemoryError);
     }
-    reference->isValid = true;
     reference->value = (JSValueRef) value;
     reference->count = initialRefCount;
 
-    if (!addFinalizer(externalInfo, referenceFinalize, reference)) {
-        // 失败
-        free(reference);
+    ActiveReferenceValue *activeReferenceValue = NULL;
+    HASH_FIND_PTR(env->activeReferenceValues, &value, activeReferenceValue);
+    if (!activeReferenceValue) {
+        errno = 0;
+        activeReferenceValue = malloc(sizeof(ActiveReferenceValue));
+        if (errno == ENOMEM) {
+            errno = 0;
+            free(reference);
 
-        return setLastErrorCode(env, NAPIGenericFailure);
-    }
-    if (initialRefCount) {
-        if (!externalInfo->referenceCount) {
-            JSValueProtect(env->context, (JSValueRef) value);
+            return setLastErrorCode(env, NAPIMemoryError);
         }
-        externalInfo->referenceCount += initialRefCount;
+        hashError = false;
+        HASH_ADD_PTR(env->activeReferenceValues, value, activeReferenceValue);
+        if (hashError) {
+            hashError = false;
+            free(reference);
+            free(activeReferenceValue);
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
+        // wrap
+        ExternalInfo *externalInfo = NULL;
+        CHECK_NAPI(wrap(env, value, &externalInfo));
+        if (!addFinalizer(externalInfo, referenceFinalize, value)) {
+            // 失败
+            free(reference);
+            free(activeReferenceValue);
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
+    }
+
+    if (initialRefCount) {
+        protect(reference);
     }
 
     return clearLastError(env);
@@ -1803,16 +1843,18 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
     CHECK_ENV(env);
     CHECK_ARG(env, ref);
 
-    // 删除 finalizer
-    // unwrap
-    ExternalInfo *externalInfo = NULL;
-    CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
-    if (externalInfo && externalInfo->referenceCount) {
-        externalInfo->referenceCount -= ref->count;
-        if (!externalInfo->referenceCount) {
-            JSValueUnprotect(env->context, ref->value);
+    if (ref->count) {
+        ActiveReferenceValue *activeReferenceValue = NULL;
+        HASH_FIND_PTR(env->activeReferenceValues, &ref->value, activeReferenceValue);
+        if (!activeReferenceValue) {
+            // 引用计数未归零，但是 strongValue 数组中查找不到，说明出现问题了
+            assert(false);
+        } else {
+            HASH_DEL(env->activeReferenceValues, activeReferenceValue);
         }
+        JSValueUnprotect(env->context, ref->value);
     }
+
     free(ref);
 
     return clearLastError(env);
@@ -1822,28 +1864,34 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, ref);
 
-    ExternalInfo *externalInfo = NULL;
-    CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
-    if (externalInfo->referenceCount == 0) {
-        JSValueProtect(env->context, ref->value);
+    if (ref->count++ == 0) {
+        protect(ref);
     }
-    externalInfo->referenceCount += 1;
+
+    if (result) {
+        *result = ref->count;
+    }
 
     return clearLastError(env);
 }
+
+#define unprotect(reference) \
+    do { \
+        LIST_REMOVE(reference, node); \
+        JSValueProtect(env->context, (reference)->value); \
+    } while (0)
 
 NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, ref);
 
-    ExternalInfo *externalInfo = NULL;
-    CHECK_NAPI(unwrap(env, (NAPIValue) ref->value, &externalInfo));
-    if (externalInfo)
-        if (externalInfo->referenceCount == 1) {
-            JSValueUnprotect(env->context, ref->value);
-        } else if (externalInfo->referenceCount) {
-            externalInfo->referenceCount -= 1;
-        }
+    if (--ref->count == 0) {
+        unprotect(ref);
+    }
+
+    if (result) {
+        *result = ref->count;
+    }
 
     return clearLastError(env);
 }
@@ -1854,7 +1902,9 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
     CHECK_ARG(env, result);
 
     *result = NULL;
-    if (ref->isValid) {
+    ActiveReferenceValue *activeReferenceValue = NULL;
+    HASH_FIND_PTR(env->activeReferenceValues, &ref->value, activeReferenceValue);
+    if (activeReferenceValue) {
         *result = (NAPIValue) ref->value;
     }
 
@@ -2136,4 +2186,45 @@ NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8
     CHECK_JSC(env);
 
     return clearLastError(env);
+}
+
+static JSContextGroupRef virtualMachine = NULL;
+
+static uint32_t contextCount = 0;
+
+NAPIStatus NAPICreateEnv(NAPIEnv *env) {
+    CHECK_ENV(env);
+
+    errno = 0;
+    *env = malloc(sizeof(struct OpaqueNAPIEnv));
+    if (errno == ENOMEM) {
+        errno = 0;
+
+        return NAPIMemoryError;
+    }
+
+    if ((virtualMachine && !contextCount) || (!virtualMachine && contextCount)) {
+        assert(false);
+
+        return NAPIGenericFailure;
+    }
+
+    if (!virtualMachine) {
+        virtualMachine = JSContextGroupCreate();
+    }
+    contextCount += 1;
+    (*env)->context = JSGlobalContextCreateInGroup(virtualMachine, NULL);
+    (*env)->lastException = NULL;
+    (*env)->lastError.errorCode = NAPIOK;
+    (*env)->lastError.errorMessage = NULL;
+    (*env)->lastError.engineReserved = NULL;
+    (*env)->lastError.engineErrorCode = 0;
+    LIST_INIT(&(*env)->strongReferenceHead);
+    (*env)->activeReferenceValues = NULL;
+
+    return NAPIOK;
+}
+
+NAPIStatus NAPIFreeEnv(NAPIEnv *env) {
+
 }

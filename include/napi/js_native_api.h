@@ -45,9 +45,9 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result);
 
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result);
 
-NAPIStatus napi_create_string_latin1(NAPIEnv env, __attribute__((unused)) const char *str,
-                                     __attribute__((unused)) size_t length,
-                                     __attribute__((unused)) NAPIValue *result);
+//NAPIStatus napi_create_string_latin1(NAPIEnv env, const char *str,
+//                                     size_t length,
+//                                     NAPIValue *result);
 
 NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
 
@@ -80,9 +80,9 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result);
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result);
 
 // Copies LATIN-1 encoded bytes from a string into a buffer.
-NAPIStatus napi_get_value_string_latin1(NAPIEnv env, __attribute__((unused)) NAPIValue value,
-                                        __attribute__((unused)) char *buf, __attribute__((unused)) size_t bufsize,
-                                        __attribute__((unused)) size_t *result);
+//NAPIStatus napi_get_value_string_latin1(NAPIEnv env, NAPIValue value,
+//                                        char *buf, size_t bufsize,
+//                                        size_t *result);
 
 // Copies UTF-8 encoded bytes from a string into a buffer.
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result);
@@ -283,7 +283,7 @@ NAPIStatus napi_get_dataview_info(NAPIEnv env,
                                   */
 
 // version management
-//NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
+NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
 
 // Promises
 NAPIStatus napi_create_promise(NAPIEnv env,
@@ -312,9 +312,9 @@ NAPIStatus napi_run_script(NAPIEnv env,
 NAPIStatus
 NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8SourceUrl, NAPIValue *result);
 
-// NAPIStatus NAPICreateEnv(NAPIEnv *env);
+NAPIStatus NAPICreateEnv(NAPIEnv *env);
 
-// NAPIStatus NAPIFreeEnv(NAPIEnv *env);
+NAPIStatus NAPIFreeEnv(NAPIEnv *env);
 
 EXTERN_C_END
 
