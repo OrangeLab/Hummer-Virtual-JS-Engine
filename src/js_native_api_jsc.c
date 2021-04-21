@@ -92,7 +92,7 @@ typedef struct {
 } ActiveReferenceValue;
 
 struct OpaqueNAPIEnv {
-    JSContextRef context;
+    JSGlobalContextRef context;
     // undefined 和 null 实际上也可以当做 exception 抛出，所以异常检查只需要检查是否为 C NULL
     JSValueRef lastException;
     NAPIExtendedErrorInfo lastError;
@@ -1602,7 +1602,7 @@ static inline JSClassRef createExternalClass() {
     return classRef;
 }
 
-static NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
+static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPI_PREAMBLE(env);
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIGenericFailure);
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
@@ -1704,11 +1704,11 @@ NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     return clearLastError(env);
 }
 
-static NAPIStatus create(NAPIEnv env,
-                         void *data,
-                         NAPIFinalize finalizeCB,
-                         void *finalizeHint,
-                         NAPIValue *result) {
+static inline NAPIStatus create(NAPIEnv env,
+                                void *data,
+                                NAPIFinalize finalizeCB,
+                                void *finalizeHint,
+                                NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
@@ -1840,21 +1840,18 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     return clearLastError(env);
 }
 
+#define unprotect(reference) \
+    do { \
+        LIST_REMOVE(reference, node); \
+        JSValueProtect(env->context, (reference)->value); \
+    } while (0)
+
 NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
     CHECK_ENV(env);
     CHECK_ARG(env, ref);
 
     if (ref->count) {
-        ActiveReferenceValue *activeReferenceValue = NULL;
-        HASH_FIND_PTR(env->activeReferenceValues, &ref->value, activeReferenceValue);
-        if (!activeReferenceValue) {
-            // 引用计数未归零，但是 strongValue 数组中查找不到，说明出现问题了
-            assert(false);
-        } else {
-            HASH_DEL(env->activeReferenceValues, activeReferenceValue);
-            free(activeReferenceValue);
-        }
-        JSValueUnprotect(env->context, ref->value);
+        unprotect(ref);
     }
 
     free(ref);
@@ -1876,12 +1873,6 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
 
     return clearLastError(env);
 }
-
-#define unprotect(reference) \
-    do { \
-        LIST_REMOVE(reference, node); \
-        JSValueProtect(env->context, (reference)->value); \
-    } while (0)
 
 NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     CHECK_ENV(env);
@@ -2195,6 +2186,7 @@ static JSContextGroupRef virtualMachine = NULL;
 static uint32_t contextCount = 0;
 
 NAPIStatus NAPICreateEnv(NAPIEnv *env) {
+    // *env 才是 NAPIEnv
     CHECK_ENV(env);
 
     errno = 0;
@@ -2227,6 +2219,30 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     return NAPIOK;
 }
 
-NAPIStatus NAPIFreeEnv(NAPIEnv *env) {
+NAPIStatus NAPIFreeEnv(NAPIEnv env) {
+    CHECK_ENV(env);
 
+    ActiveReferenceValue *element, *temp;
+    HASH_ITER(hh, env->activeReferenceValues, element, temp) {
+        HASH_DEL(env->activeReferenceValues, element);
+        free(element);
+    }
+
+    NAPIRef reference, tempReference;
+
+    LIST_FOREACH_SAFE(reference, &env->strongReferenceHead, node, tempReference) {
+        LIST_REMOVE(reference, node);
+        if (reference->count) {
+            unprotect(reference);
+        }
+        free(reference);
+    }
+    JSGlobalContextRelease(env->context);
+    if (--contextCount == 0 && virtualMachine) {
+        // virtualMachine 不能为 NULL
+        JSContextGroupRelease(virtualMachine);
+    }
+    free(env);
+
+    return NAPIOK;
 }

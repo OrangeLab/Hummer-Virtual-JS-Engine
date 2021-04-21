@@ -314,7 +314,7 @@ NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8
 
 NAPIStatus NAPICreateEnv(NAPIEnv *env);
 
-NAPIStatus NAPIFreeEnv(NAPIEnv *env);
+NAPIStatus NAPIFreeEnv(NAPIEnv env);
 
 EXTERN_C_END
 
