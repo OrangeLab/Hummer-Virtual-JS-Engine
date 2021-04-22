@@ -2,7 +2,12 @@ toolchain("clang") {
     tool("cc") {
         depfile = "{{output}}.d"
         # depsformat = "gcc"
-        command = "clang -Os -flto -g -fembed-bitcode=all -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        command = "clang -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        if (!is_debug) {
+            command = string_join(" ", [command, "-Os", "-fembed-bitcode", "-flto"])
+        } else {
+            command = string_join(" ", [command, "-fembed-bitcode-marker"])
+        }
         outputs = [
             "{{source_out_dir}}/{{source_name_part}}.o"
         ]
@@ -10,7 +15,12 @@ toolchain("clang") {
 
     tool("cxx") {
         depfile = "{{output}}.d"
-        command = "clang++ -std=c++11 -stdlib=libc++ -fembed-bitcode=all -Os -flto -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        command = "clang++ -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        if (!is_debug) {
+            command = string_join(" ", [command, "-Os", "-fembed-bitcode", "-flto"])
+        } else {
+            command = string_join(" ", [command, "-fembed-bitcode-marker"])
+        }
         outputs = [
             "{{source_out_dir}}/{{source_name_part}}.o"
         ]
@@ -21,9 +31,9 @@ toolchain("clang") {
     }
 
     tool("link") {
-        rspfile_content = "{{inputs}}"
+        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
         rspfile = "{{output}}.rsp"
-        command = "clang -o {{output}} {{libs}} @$rspfile"
+        command = "clang -fembed-bitcode -o {{output}} -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o @$rspfile"
         default_output_dir = "{{root_out_dir}}"
         outputs = [
             "{{output_dir}}/{{target_output_name}}{{output_extension}}"

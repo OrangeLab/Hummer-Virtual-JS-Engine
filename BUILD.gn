@@ -11,10 +11,15 @@ config("uthash") {
 }
 
 static_library("napi_jsc") {
-    public_configs = [
-        ":napi",
+    configs = [
         ":uthash"
     ]
+
+    public_configs = [
+        ":napi",
+    ]
+
+    frameworks = [ "JavaScriptCore.framework" ]
 
     sources = [
         "src/js_native_api_jsc.c"
@@ -25,10 +30,13 @@ executable("test") {
     testonly = true
 
     sources = [
-        "test/test.cpp"
+        "test/2_function_arguments.cc",
     ]
 
-    deps = [ ":gtest_main" ]
+    deps = [
+        ":gtest_main",
+        ":napi_jsc"
+    ]
 }
 
 config("gtest_config") {
