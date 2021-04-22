@@ -4,7 +4,7 @@ toolchain("clang") {
         # depsformat = "gcc"
         command = "clang -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-fembed-bitcode", "-flto"])
+            command = string_join(" ", [command, "-Os", "-flto"])
         } else {
             command = string_join(" ", [command, "-fembed-bitcode-marker"])
         }
@@ -17,7 +17,7 @@ toolchain("clang") {
         depfile = "{{output}}.d"
         command = "clang++ -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-fembed-bitcode", "-flto"])
+            command = string_join(" ", [command, "-Os", "-flto"])
         } else {
             command = string_join(" ", [command, "-fembed-bitcode-marker"])
         }
@@ -33,7 +33,9 @@ toolchain("clang") {
     tool("link") {
         rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
         rspfile = "{{output}}.rsp"
-        command = "clang -fembed-bitcode -o {{output}} -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o @$rspfile"
+        # 目前只用于单元测试，可以关闭 -fembed-bitcode
+        # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
+        command = "clang -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o -o {{output}} @$rspfile"
         default_output_dir = "{{root_out_dir}}"
         outputs = [
             "{{output_dir}}/{{target_output_name}}{{output_extension}}"
