@@ -1211,7 +1211,8 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
 }
 
 NAPIStatus
-napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result) {
+napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *napi_define_properties
+) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, recv);
     if (argc > 0) {
@@ -1772,7 +1773,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
     return clearLastError(env);
 }
 
-static void referenceFinalize(NAPIEnv env, __attribute__((unused)) void *finalizeData, void *finalizeHint) {
+static void referenceFinalize(NAPIEnv env, __attribute((unused)) void *finalizeData, void *finalizeHint) {
     ActiveReferenceValue *activeReferenceValue = NULL;
     // finalizeHint 实际上就是 JSValueRef
     // Allocation failure is possible only when adding elements to the hash table (including the ADD, REPLACE, and SELECT operations). uthash_free is not allowed to fail.
@@ -1954,25 +1955,11 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
     return clearLastError(env);
 }
 
-static JSValueRef errorValue = NULL;
-
-static JSValueRef errorFunction(__attribute__((unused)) JSContextRef ctx, __attribute__((unused)) JSObjectRef function,
-                                __attribute__((unused)) JSObjectRef thisObject,
-                                __attribute__((unused)) size_t argumentCount,
-                                __attribute__((unused)) const JSValueRef arguments[], JSValueRef *exception) {
-    *exception = errorValue;
-    errorValue = NULL;
-
-    return NULL;
-}
-
 NAPIStatus napi_throw(NAPIEnv env, NAPIValue error) {
     CHECK_ENV(env);
     CHECK_ARG(env, error);
 
-    JSObjectRef throwFunc = JSObjectMakeFunctionWithCallback(env->context, NULL, errorFunction);
-    errorValue = (JSValueRef) error;
-    JSObjectCallAsFunction(env->context, throwFunc, NULL, 0, NULL, NULL);
+    env->lastException = (JSValueRef) error;
 
     return clearLastError(env);
 }
@@ -2064,7 +2051,7 @@ typedef struct {
     NAPIValue reject;
 } Wrapper;
 
-static NAPIValue callback(__attribute__((unused)) NAPIEnv env, NAPICallbackInfo callbackInfo) {
+static NAPIValue callback(__attribute((unused)) NAPIEnv env, NAPICallbackInfo callbackInfo) {
     Wrapper *wrapper = (Wrapper *) callbackInfo->data;
     wrapper->resolve = (NAPIValue) callbackInfo->argv[0];
     wrapper->reject = (NAPIValue) callbackInfo->argv[1];

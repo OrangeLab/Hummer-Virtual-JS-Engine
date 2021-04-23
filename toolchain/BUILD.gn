@@ -15,6 +15,7 @@ toolchain("clang") {
 
     tool("cxx") {
         depfile = "{{output}}.d"
+        # 目前只用于单元测试，所以不考虑异常模型
         command = "clang++ -Wall -Wextra -Werror -Wpedantic -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         if (!is_debug) {
             command = string_join(" ", [command, "-Os", "-flto", "-DNDEBUG"])

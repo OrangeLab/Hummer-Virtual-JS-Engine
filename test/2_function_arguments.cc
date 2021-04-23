@@ -34,20 +34,20 @@ static NAPIValue add(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST(FunctionArguments, add) {
+TEST(FunctionArguments, Add) {
     NAPIEnv env = nullptr;
     ASSERT_EQ(NAPICreateEnv(&env), NAPIOK);
 
     NAPIValue global = nullptr;
     ASSERT_EQ(napi_get_global(env, &global), NAPIOK);
 
-    EXPECT_EQ(initAssert(env, global), NAPIOK);
-
     NAPIPropertyDescriptor desc = DECLARE_NAPI_PROPERTY("add", add);
     EXPECT_EQ(napi_define_properties(env, global, 1, &desc), NAPIOK);
 
+    EXPECT_EQ(initAssert(env, global), NAPIOK);
+
     NAPIValue result = nullptr;
-    EXPECT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () { assert(add(3, 5) === 8); })();",
+    ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () { globalThis.assert.strictEqual(add(3, 5), 8); })();",
                                          "https://n-api.com/2_function_arguments.js",
                                          &result), NAPIOK);
     NAPIValueType valueType;

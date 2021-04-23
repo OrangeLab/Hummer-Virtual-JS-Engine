@@ -36,7 +36,13 @@ executable("test") {
     sources = [
         "test/2_function_arguments.cc",
         "test/3_callbacks.cc",
-        "test/4_object_factory.cc"
+        "test/4_object_factory.cc",
+        "test/5_function_factory.cc",
+        "test/6_object_wrap.cc",
+        # 涉及 GC 和 setImmediate
+#        "test/7_factory_wrap.cc",
+#        "test/8_passing_wrapped.cc",
+#        "test/test_array.cc"
     ]
 
     deps = [

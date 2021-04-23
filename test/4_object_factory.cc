@@ -19,26 +19,26 @@ static NAPIValue createObject(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST(ObjectFactory, createObject) {
+TEST(ObjectFactory, CreateObject) {
     NAPIEnv env = nullptr;
     ASSERT_EQ(NAPICreateEnv(&env), NAPIOK);
 
     NAPIValue global = nullptr;
     ASSERT_EQ(napi_get_global(env, &global), NAPIOK);
 
-    EXPECT_EQ(initAssert(env, global), NAPIOK);
-
     const char *exportsString = "exports";
     NAPIValue exports = nullptr;
     ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createObject, NULL, &exports), NAPIOK);
     EXPECT_EQ(napi_set_named_property(env, global, exportsString, exports), NAPIOK);
 
+    EXPECT_EQ(initAssert(env, global), NAPIOK);
+
     NAPIValue result = nullptr;
-    EXPECT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
-                                              "    const obj1 = exports('hello');\n"
-                                              "    const obj2 = exports('world');\n"
-                                              "    assert(`${obj1.msg} ${obj2.msg}` === 'hello world');\n"
-                                              "})();", "https://n-api.com/3_callbacks.js",
+    ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
+                                              "    const obj1 = globalThis.exports('hello');\n"
+                                              "    const obj2 = globalThis.exports('world');\n"
+                                              "    globalThis.assert.strictEqual(`${obj1.msg} ${obj2.msg}`, 'hello world');\n"
+                                              "})();", "https://n-api.com/4_object_factory.js",
                                          &result), NAPIOK);
     NAPIValueType valueType;
     EXPECT_EQ(napi_typeof(env, result, &valueType), NAPIOK);
