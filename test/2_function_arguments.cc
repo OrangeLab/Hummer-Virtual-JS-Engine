@@ -1,53 +1,8 @@
 #include <gtest/gtest.h>
 #include <napi/js_native_api.h>
+#include <common.h>
 
 EXTERN_C_START
-
-#define GET_AND_THROW_LAST_ERROR(env)                                    \
-  do {                                                                   \
-    const NAPIExtendedErrorInfo *errorInfo;                          \
-    napi_get_last_error_info((env), &errorInfo);                        \
-    bool isPending;                                                     \
-    napi_is_exception_pending((env), &isPending);                       \
-    /* If an exception is already pending, don't rethrow it */           \
-    if (!isPending) {                                                   \
-      const char* errorMessage = errorInfo->errorMessage != NULL ?    \
-        errorInfo->errorMessage :                                      \
-        "empty error message";                                           \
-      napi_throw_error((env), NULL, errorMessage);                      \
-    }                                                                    \
-  } while (0)
-
-#define NAPI_CALL_BASE(env, theCall, retVal)                           \
-  do {                                                                   \
-    if ((theCall) != NAPIOK) {                                         \
-      GET_AND_THROW_LAST_ERROR((env));                                   \
-      return retVal;                                                    \
-    }                                                                    \
-  } while (0)
-
-// Returns NULL if the_call doesn't return napi_ok.
-#define NAPI_CALL(env, theCall)                                         \
-  NAPI_CALL_BASE(env, theCall, NULL)
-
-#define NAPI_ASSERT_BASE(env, assertion, message, retVal)               \
-  do {                                                                   \
-    if (!(assertion)) {                                                  \
-      napi_throw_error(                                                  \
-          (env),                                                         \
-        NULL,                                                            \
-          "assertion (" #assertion ") failed: " message);                \
-      return retVal;                                                    \
-    }                                                                    \
-  } while (0)
-
-// Returns NULL on failed assertion.
-// This is meant to be used inside napi_callback methods.
-#define NAPI_ASSERT(env, assertion, message)                             \
-  NAPI_ASSERT_BASE(env, assertion, message, NULL)
-
-#define DECLARE_NAPI_PROPERTY(name, func)                                \
-  { (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL }
 
 static NAPIValue add(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc = 2;
@@ -77,23 +32,6 @@ static NAPIValue add(NAPIEnv env, NAPICallbackInfo info) {
     return sum;
 }
 
-static NAPIValue assertFunction(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
-
-    NAPI_ASSERT(env, argc >= 1, "Wrong number of arguments");
-
-    NAPIValue value;
-    NAPI_CALL(env, napi_coerce_to_bool(env, args[0], &value));
-
-    bool result = false;
-    NAPI_CALL(env, napi_get_value_bool(env, value, &result));
-    assert(result);
-
-    return nullptr;
-}
-
 EXTERN_C_END
 
 TEST(FunctionArguments, add) {
@@ -103,14 +41,18 @@ TEST(FunctionArguments, add) {
     NAPIValue global = nullptr;
     ASSERT_EQ(napi_get_global(env, &global), NAPIOK);
 
-    NAPIPropertyDescriptor desc = DECLARE_NAPI_PROPERTY("assert", assertFunction);
-    ASSERT_EQ(napi_define_properties(env, global, 1, &desc), NAPIOK);
+    EXPECT_EQ(initAssert(env, global), NAPIOK);
 
-    desc = DECLARE_NAPI_PROPERTY("add", add);
-    ASSERT_EQ(napi_define_properties(env, global, 1, &desc), NAPIOK);
+    NAPIPropertyDescriptor desc = DECLARE_NAPI_PROPERTY("add", add);
+    EXPECT_EQ(napi_define_properties(env, global, 1, &desc), NAPIOK);
 
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "assert(add(3, 5) === 8);", "https://n-api.com/2_function_arguments.js",
-                                         nullptr), NAPIOK);
+    NAPIValue result = nullptr;
+    EXPECT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () { assert(add(3, 5) === 8); })();",
+                                         "https://n-api.com/2_function_arguments.js",
+                                         &result), NAPIOK);
+    NAPIValueType valueType;
+    EXPECT_EQ(napi_typeof(env, result, &valueType), NAPIOK);
+    EXPECT_EQ(valueType, NAPIUndefined);
 
     ASSERT_EQ(NAPIFreeEnv(env), NAPIOK);
 }

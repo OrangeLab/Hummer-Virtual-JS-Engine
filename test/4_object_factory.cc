@@ -1,0 +1,48 @@
+#include <gtest/gtest.h>
+#include <napi/js_native_api.h>
+#include <common.h>
+
+EXTERN_C_START
+
+static NAPIValue createObject(NAPIEnv env, NAPICallbackInfo info) {
+    size_t argc = 1;
+    NAPIValue args[1];
+    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+    NAPIValue obj;
+    NAPI_CALL(env, napi_create_object(env, &obj));
+
+    NAPI_CALL(env, napi_set_named_property(env, obj, "msg", args[0]));
+
+    return obj;
+}
+
+EXTERN_C_END
+
+TEST(ObjectFactory, createObject) {
+    NAPIEnv env = nullptr;
+    ASSERT_EQ(NAPICreateEnv(&env), NAPIOK);
+
+    NAPIValue global = nullptr;
+    ASSERT_EQ(napi_get_global(env, &global), NAPIOK);
+
+    EXPECT_EQ(initAssert(env, global), NAPIOK);
+
+    const char *exportsString = "exports";
+    NAPIValue exports = nullptr;
+    ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createObject, NULL, &exports), NAPIOK);
+    EXPECT_EQ(napi_set_named_property(env, global, exportsString, exports), NAPIOK);
+
+    NAPIValue result = nullptr;
+    EXPECT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
+                                              "    const obj1 = exports('hello');\n"
+                                              "    const obj2 = exports('world');\n"
+                                              "    assert(`${obj1.msg} ${obj2.msg}` === 'hello world');\n"
+                                              "})();", "https://n-api.com/3_callbacks.js",
+                                         &result), NAPIOK);
+    NAPIValueType valueType;
+    EXPECT_EQ(napi_typeof(env, result, &valueType), NAPIOK);
+    EXPECT_EQ(valueType, NAPIUndefined);
+
+    ASSERT_EQ(NAPIFreeEnv(env), NAPIOK);
+}

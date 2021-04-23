@@ -29,8 +29,14 @@ static_library("napi_jsc") {
 executable("test") {
     testonly = true
 
+    include_dirs = [
+        "test/include"
+    ]
+
     sources = [
         "test/2_function_arguments.cc",
+        "test/3_callbacks.cc",
+        "test/4_object_factory.cc"
     ]
 
     deps = [
@@ -63,7 +69,7 @@ source_set("gtest") {
 
     # Some files include "src/gtest-internal-inl.h".
     include_dirs = [ "third_party/googletest/googletest" ]
-        
+
     public_configs = [ ":gtest_config" ]
 }
 

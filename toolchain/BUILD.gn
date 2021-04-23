@@ -2,9 +2,9 @@ toolchain("clang") {
     tool("cc") {
         depfile = "{{output}}.d"
         # depsformat = "gcc"
-        command = "clang -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        command = "clang -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-flto"])
+            command = string_join(" ", [command, "-Os", "-flto", "-DNDEBUG"])
         } else {
             command = string_join(" ", [command, "-fembed-bitcode-marker"])
         }
@@ -15,9 +15,9 @@ toolchain("clang") {
 
     tool("cxx") {
         depfile = "{{output}}.d"
-        command = "clang++ -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
+        command = "clang++ -Wall -Wextra -Werror -Wpedantic -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
         if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-flto"])
+            command = string_join(" ", [command, "-Os", "-flto", "-DNDEBUG"])
         } else {
             command = string_join(" ", [command, "-fembed-bitcode-marker"])
         }
