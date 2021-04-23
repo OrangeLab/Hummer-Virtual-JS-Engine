@@ -1211,8 +1211,7 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
 }
 
 NAPIStatus
-napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *napi_define_properties
-) {
+napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, recv);
     if (argc > 0) {
@@ -1222,6 +1221,9 @@ napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, con
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) func), NAPIObjectExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) func, &env->lastException);
+
+    RETURN_STATUS_IF_FALSE(env, JSObjectIsFunction(env->context, objectRef), NAPIFunctionExpected);
+
     JSObjectRef thisObjectRef = NULL;
     if (JSValueIsObject(env->context, (JSValueRef) recv)) {
         thisObjectRef = JSValueToObject(env->context, (JSValueRef) recv, &env->lastException);

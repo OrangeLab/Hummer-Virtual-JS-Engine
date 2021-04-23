@@ -34,7 +34,7 @@ static NAPIValue runCallback(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue cb = args[0];
     NAPI_CALL(env, napi_call_function(env, global, cb, 1, argv, nullptr));
 
-    return NULL;
+    return nullptr;
 }
 
 static NAPIValue runCallbackWithRecv(NAPIEnv env, NAPICallbackInfo info) {
@@ -46,7 +46,7 @@ static NAPIValue runCallbackWithRecv(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue recv = args[1];
     NAPI_CALL(env, napi_call_function(env, recv, cb, 0, nullptr, nullptr));
 
-    return NULL;
+    return nullptr;
 }
 
 EXTERN_C_END
@@ -67,10 +67,26 @@ TEST(Callbacks, RunCallback) {
     EXPECT_EQ(initAssert(env, global), NAPIOK);
 
     NAPIValue result = nullptr;
+
+//    "    testRecv(undefined);\n"
+//    "    testRecv(null);\n"
+//    "    testRecv(5);\n"
+//    "    testRecv(true);\n"
+//    "    testRecv('Hello');\n"
+    // V8 支持原样传递 this，但是 JavaScriptCore 只支持对象，undefined/null 会报错，数字、字符串、布尔会被转换为对象，但是无法通过 === 判断
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
                                               "    globalThis.runCallback(function (msg) {\n"
-                                              "        globalThis.assert.strictEqual(msg, 'hello world');\n"
+                                              "        assert.strictEqual(msg, 'hello world');\n"
                                               "    });\n"
+                                              "\n"
+                                              "    function testRecv(desiredRecv) {\n"
+                                              "        globalThis.runCallbackWithRecv(function () {\n"
+                                              "            assert.strictEqual(this, desiredRecv);\n"
+                                              "        }, desiredRecv);\n"
+                                              "    }\n"
+                                              "\n"
+                                              "    testRecv([]);\n"
+                                              "    testRecv({});\n"
                                               "})();", "https://n-api.com/3_callbacks.js",
                                          &result), NAPIOK);
     NAPIValueType valueType;

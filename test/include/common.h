@@ -76,7 +76,7 @@ EXTERN_C_START
 static NAPIValue strictEqual(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc = 2;
     NAPIValue args[2];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
+    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 
     NAPI_ASSERT(env, argc >= 2, "Wrong number of arguments");
 
@@ -84,13 +84,13 @@ static NAPIValue strictEqual(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_strict_equals(env, args[0], args[1], &result));
     NAPI_ASSERT(env, result, "assert.strictEqual()");
 
-    return NULL;
+    return nullptr;
 }
 
 static NAPIValue throws(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc = 1;
     NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
+    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 
     NAPI_ASSERT(env, argc >= 1, "Wrong number of arguments");
 
@@ -98,14 +98,13 @@ static NAPIValue throws(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_typeof(env, args[0], &valueType));
     NAPI_ASSERT(env, valueType == NAPIFunction, "Argument is not function");
 
-    bool result = false;
-    NAPI_ASSERT(env, napi_is_exception_pending(env, &result), "napi_is_exception_pending()");
-    NAPI_ASSERT(env, !result, "napi_typeof() or before function throw exception");
+    NAPIStatus status = napi_call_function(env, nullptr, args[0], 0, nullptr, nullptr);
+    NAPI_ASSERT(env, status == NAPIPendingException, "assert.throws() not throw exception");
+    NAPIValue exception = nullptr;
+    NAPI_CALL(env, napi_get_and_clear_last_exception(env, &exception));
+    NAPI_ASSERT(env, exception, "assert.throws() not throw exception");
 
-    NAPIStatus status = napi_call_function(env, NULL, args[0], 0, NULL, NULL);
-    NAPI_ASSERT(env, status == NAPIPendingException, "assert.throws()");
-
-    return NULL;
+    return nullptr;
 }
 
 static inline NAPIStatus initAssert(NAPIEnv env, NAPIValue global) {

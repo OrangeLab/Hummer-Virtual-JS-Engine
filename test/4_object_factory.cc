@@ -26,9 +26,9 @@ TEST(ObjectFactory, CreateObject) {
     NAPIValue global = nullptr;
     ASSERT_EQ(napi_get_global(env, &global), NAPIOK);
 
-    const char *exportsString = "exports";
     NAPIValue exports = nullptr;
-    ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createObject, NULL, &exports), NAPIOK);
+    const char *exportsString = "exports";
+    ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createObject, nullptr, &exports), NAPIOK);
     EXPECT_EQ(napi_set_named_property(env, global, exportsString, exports), NAPIOK);
 
     EXPECT_EQ(initAssert(env, global), NAPIOK);
@@ -37,7 +37,7 @@ TEST(ObjectFactory, CreateObject) {
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
                                               "    const obj1 = globalThis.exports('hello');\n"
                                               "    const obj2 = globalThis.exports('world');\n"
-                                              "    globalThis.assert.strictEqual(`${obj1.msg} ${obj2.msg}`, 'hello world');\n"
+                                              "    assert.strictEqual(`${obj1.msg} ${obj2.msg}`, 'hello world');\n"
                                               "})();", "https://n-api.com/4_object_factory.js",
                                          &result), NAPIOK);
     NAPIValueType valueType;
