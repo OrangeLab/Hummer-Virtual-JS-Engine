@@ -38,15 +38,15 @@ MyObject::~MyObject() { napi_delete_reference(env_, wrapper_); }
 
 void MyObject::Destructor(
         NAPIEnv /*env*/, void *nativeObject, void * /*finalize_hint*/) {
-    MyObject *obj = static_cast<MyObject *>(nativeObject);
+    auto obj = static_cast<MyObject *>(nativeObject);
     delete obj;
 }
 
 void MyObject::Init(NAPIEnv env, NAPIValue exports) {
     NAPIPropertyDescriptor properties[] = {
-            {"value", nullptr, nullptr, GetValue, SetValue, 0, NAPIDefault, 0},
-            {"valueReadonly", nullptr, nullptr, GetValue, nullptr, 0, NAPIDefault,
-             0},
+            {"value", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIDefault, nullptr},
+            {"valueReadonly", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIDefault,
+             nullptr},
             DECLARE_NAPI_PROPERTY("plusOne", PlusOne),
             DECLARE_NAPI_PROPERTY("multiply", Multiply),
     };
@@ -84,7 +84,7 @@ NAPIValue MyObject::New(NAPIEnv env, NAPICallbackInfo info) {
             NAPI_CALL(env, napi_get_value_double(env, args[0], &value));
         }
 
-        MyObject *obj = new MyObject(value);
+        auto obj = new MyObject(value);
 
         obj->env_ = env;
         NAPI_CALL(env, napi_wrap(env,
@@ -190,6 +190,7 @@ TEST(ObjectWrap, MyObject) {
 
     NAPIValue exports;
     ASSERT_EQ(napi_create_object(env, &exports), NAPIOK);
+    ASSERT_EQ(napi_set_named_property(env, global, "exports", exports), NAPIOK);
 
     MyObject::Init(env, exports);
 
@@ -199,7 +200,18 @@ TEST(ObjectWrap, MyObject) {
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
                                               "    const valueDescriptor = Object.getOwnPropertyDescriptor(\n"
                                               "        globalThis.exports.MyObject.prototype, 'value');\n"
+                                              "    const valueReadonlyDescriptor = Object.getOwnPropertyDescriptor(\n"
+                                              "        addon.MyObject.prototype, 'valueReadonly');\n"
                                               "    assert.strictEqual(typeof valueDescriptor.get, 'function');\n"
+                                              "    assert.strictEqual(typeof valueDescriptor.set, 'function');\n"
+                                              "    assert.strictEqual(valueDescriptor.value, undefined);\n"
+                                              "    assert.strictEqual(valueDescriptor.enumerable, false);\n"
+                                              "    assert.strictEqual(valueDescriptor.configurable, false);\n"
+                                              "    assert.strictEqual(typeof valueReadonlyDescriptor.get, 'function');\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.set, undefined);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.value, undefined);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.enumerable, false);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.configurable, false);\n"
                                               "})();",
                                          "https://n-api.com/6_object_wrap.js",
                                          &result), NAPIOK);
