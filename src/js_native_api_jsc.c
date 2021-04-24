@@ -424,21 +424,25 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     functionInfo->unused = NULL;
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
-    // 使用 Object.prototype 作为实例的 [[prototype]]
+    // 使用 Object.prototype 作为 instance.[[prototype]]
+    // CallbackObject
     classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
+    // 最重要的是提供 finalize
     classDefinition.finalize = functionFinalize;
     JSClassRef classRef = JSClassCreate(&classDefinition);
     JSObjectRef prototype = JSObjectMake(env->context, classRef, functionInfo);
     JSClassRelease(classRef);
 
-    // 函数名如果为 NULL 则为匿名函数
+    // 函数名如果为 NULL 则为 function anonymous() {}
     JSStringRef stringRef = utf8name ? JSStringCreateWithUTF8CString(utf8name) : NULL;
     JSObjectRef functionObjectRef = JSObjectMakeFunctionWithCallback(env->context, stringRef, callAsFunction);
     *result = (NAPIValue) functionObjectRef;
     if (stringRef) {
+        // JSStringRelease 不能传入 NULL
         JSStringRelease(stringRef);
     }
 
+    // 修改原型链
     JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, functionObjectRef));
     JSObjectSetPrototype(env->context, functionObjectRef, prototype);
 
@@ -1358,6 +1362,62 @@ static void constructorFinalize(JSObjectRef object) {
     free(info);
 }
 
+struct Finalizer {
+    SLIST_ENTRY(Finalizer) node;
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
+};
+
+typedef struct {
+    NAPIEnv env;
+    void *data;
+    SLIST_HEAD(, Finalizer) finalizerHead;
+} ExternalInfo;
+
+static void ExternalFinalize(JSObjectRef object) {
+    ExternalInfo *info = JSObjectGetPrivate(object);
+    // 调用 finalizer
+    if (info) {
+        struct Finalizer *finalizer, *tempFinalizer;
+        SLIST_FOREACH_SAFE(finalizer, &info->finalizerHead, node, tempFinalizer) {
+            if (finalizer->finalizeCallback) {
+                finalizer->finalizeCallback(info->env, info->data, finalizer->finalizeHint);
+            }
+            free(finalizer);
+        }
+    }
+    free(info);
+}
+
+static inline JSClassRef createExternalClass() {
+    JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
+    classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
+    classDefinition.className = "External";
+    classDefinition.finalize = ExternalFinalize;
+    JSClassRef classRef = JSClassCreate(&classDefinition);
+
+    return classRef;
+}
+
+static inline bool createExternalInfo(NAPIEnv env, void *data, ExternalInfo **result) {
+    if (!result) {
+        return false;
+    }
+    errno = 0;
+    ExternalInfo *externalInfo = malloc(sizeof(ExternalInfo));
+    if (errno == ENOMEM) {
+        errno = 0;
+
+        return false;
+    }
+    externalInfo->env = env;
+    externalInfo->data = data;
+    SLIST_INIT(&externalInfo->finalizerHead);
+    *result = externalInfo;
+
+    return true;
+}
+
 static JSObjectRef callAsConstructor(JSContextRef ctx,
                                      JSObjectRef constructor,
                                      size_t argumentCount,
@@ -1388,7 +1448,19 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     // Make sure any errors encountered last time we were in N-API are gone.
     clearLastError(constructorInfo->env);
 
+    errno = 0;
+    ExternalInfo *externalInfo;
+    if (!createExternalInfo(constructorInfo->env, NULL, &externalInfo)) {
+        return NULL;
+    }
+
+    JSClassRef classRef = createExternalClass();
+    JSObjectRef external = JSObjectMake(ctx, classRef, externalInfo);
+    JSClassRelease(classRef);
+    // 默认 instance.[[prototype]] 为 CallbackObject，JSObjectGetPrivate 不是 NULL，所以需要创建 External 插入原型链
     JSObjectRef instance = JSObjectMake(ctx, constructorInfo->classRef, NULL);
+    JSObjectSetPrototype(ctx, external, JSObjectGetPrototype(constructorInfo->env->context, instance));
+    JSObjectSetPrototype(ctx, instance, external);
 
     struct OpaqueNAPICallbackInfo callbackInfo = {
             NULL,
@@ -1443,20 +1515,21 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     constructorInfo->data = data;
     constructorInfo->unused = NULL;
 
+    // JavaScriptCore Function 特殊点
+    // 1. Function.prototype 不存在
+
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
+    // 提供 className 可以让 instance 显示类名
+    // 不能使用 kJSClassAttributeNoAutomaticPrototype，因为所有 instance 应当共享 Constructor.prototype
     classDefinition.className = utf8name;
     constructorInfo->classRef = JSClassCreate(&classDefinition);
 
     classDefinition = kJSClassDefinitionEmpty;
     classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
-    classDefinition.className = utf8name;
     classDefinition.finalize = constructorFinalize;
     JSClassRef prototypeClassRef = JSClassCreate(&classDefinition);
 
     // 正常原型链见 https://stackoverflow.com/questions/32928810/function-prototype-is-a-function
-
-    // JavaScriptCore Function 特殊点
-    // 1. Function.prototype 不存在
 
     // JavaScriptCore Constructor 特殊点
     // 1. Constructor.prototype 为 CallbackObject，CallbackObject.[[prototype]] 为 Object.prototype
@@ -1469,8 +1542,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     // 2. Constructor.prototype.constructor == Constructor
     // 3. Constructor.name 为类名
 
-    // 插入析构函数逻辑如下
-    // 1. Constructor.[[prototype]] 正常应当指向 Function.prototype
+    // Constructor.[[prototype]] 正常应当指向 Function.prototype
     // 但是 JavaScriptCore 实现逻辑如下
     // 1. Constructor.[[prototype]] 会指向 Object.prototype，因为 typeof Constructor === 'object'
     // 2. Constructor instanceof Function === false
@@ -1482,10 +1554,10 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, function));
     JSObjectSetPrototype(env->context, function, prototype);
 
-    JSStringRef stringRef = JSStringCreateWithUTF8CString("constructor");
-    JSObjectSetProperty(env->context, prototype, stringRef, function,
-                        kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &env->lastException);
-    JSStringRelease(stringRef);
+//    JSStringRef stringRef = JSStringCreateWithUTF8CString("constructor");
+//    JSObjectSetProperty(env->context, prototype, stringRef, function,
+//                        kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &env->lastException);
+//    JSStringRelease(stringRef);
     if (env->lastException) {
         JSClassRelease(constructorInfo->classRef);
         free(constructorInfo);
@@ -1588,18 +1660,6 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 
 // External
 
-struct Finalizer {
-    SLIST_ENTRY(Finalizer) node;
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-};
-
-typedef struct {
-    NAPIEnv env;
-    void *data;
-    SLIST_HEAD(, Finalizer) finalizerHead;
-} ExternalInfo;
-
 static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPIValue prototype = NULL;
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
@@ -1614,31 +1674,6 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
     return clearLastError(env);
 }
 
-static void ExternalFinalize(JSObjectRef object) {
-    ExternalInfo *info = JSObjectGetPrivate(object);
-    // 调用 finalizer
-    if (info) {
-        struct Finalizer *finalizer, *tempFinalizer;
-        SLIST_FOREACH_SAFE(finalizer, &info->finalizerHead, node, tempFinalizer) {
-            if (finalizer->finalizeCallback) {
-                finalizer->finalizeCallback(info->env, info->data, finalizer->finalizeHint);
-            }
-            free(finalizer);
-        }
-    }
-    free(info);
-}
-
-static inline JSClassRef createExternalClass() {
-    JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
-    classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
-    classDefinition.className = "External";
-    classDefinition.finalize = ExternalFinalize;
-    JSClassRef classRef = JSClassCreate(&classDefinition);
-
-    return classRef;
-}
-
 static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPI_PREAMBLE(env);
     RETURN_STATUS_IF_FALSE(env, JSValueIsObject(env->context, (JSValueRef) object), NAPIGenericFailure);
@@ -1649,19 +1684,13 @@ static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **resu
     CHECK_NAPI(unwrap(env, object, &info));
     if (!info) {
         errno = 0;
-        info = malloc(sizeof(ExternalInfo));
-        if (errno == ENOMEM) {
-            errno = 0;
-
+        if (!createExternalInfo(env, NULL, &info)) {
             return setLastErrorCode(env, NAPIMemoryError);
         }
-        info->env = env;
-        info->data = NULL;
-        SLIST_INIT(&info->finalizerHead);
 
         JSClassRef classRef = createExternalClass();
-
         JSObjectRef prototype = JSObjectMake(env->context, classRef, info);
+        JSClassRelease(classRef);
         JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, objectRef));
         JSObjectSetPrototype(env->context, objectRef, prototype);
     }
@@ -1750,15 +1779,10 @@ static inline NAPIStatus create(NAPIEnv env,
     CHECK_ARG(env, result);
 
     errno = 0;
-    ExternalInfo *info = malloc(sizeof(ExternalInfo));
-    if (errno == ENOMEM) {
-        errno = 0;
-
+    ExternalInfo *info;
+    if (!createExternalInfo(env, data, &info)) {
         return setLastErrorCode(env, NAPIMemoryError);
     }
-    info->env = env;
-    info->data = data;
-    SLIST_INIT(&info->finalizerHead);
 
     JSClassRef classRef = createExternalClass();
     if (finalizeCB) {
@@ -1777,8 +1801,8 @@ static inline NAPIStatus create(NAPIEnv env,
 
 NAPIStatus
 napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result) {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+//    CHECK_ENV(env);
+//    CHECK_ARG(env, result);
 
     CHECK_NAPI(create(env, data, finalizeCB, finalizeHint, result));
 
@@ -2247,15 +2271,8 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
 
 NAPIStatus NAPIFreeEnv(NAPIEnv env) {
     CHECK_ENV(env);
-
-    ActiveReferenceValue *element, *temp;
-    HASH_ITER(hh, env->activeReferenceValues, element, temp) {
-        HASH_DEL(env->activeReferenceValues, element);
-        free(element);
-    }
-
+    
     NAPIRef reference, tempReference;
-
     LIST_FOREACH_SAFE(reference, &env->strongReferenceHead, node, tempReference) {
         LIST_REMOVE(reference, node);
         if (reference->count) {
@@ -2263,12 +2280,20 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env) {
         }
         free(reference);
     }
+    
     JSGlobalContextRelease(env->context);
     if (--contextCount == 0 && virtualMachine) {
         // virtualMachine 不能为 NULL
         JSContextGroupRelease(virtualMachine);
         virtualMachine = NULL;
     }
+
+    ActiveReferenceValue *element, *temp;
+    HASH_ITER(hh, env->activeReferenceValues, element, temp) {
+        HASH_DEL(env->activeReferenceValues, element);
+        free(element);
+    }
+
     free(env);
 
     return NAPIOK;
