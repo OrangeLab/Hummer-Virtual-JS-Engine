@@ -355,8 +355,9 @@ struct OpaqueNAPICallbackInfo {
 
 typedef struct {
     NAPIEnv env;
-    NAPICallback callback;
     void *data;
+    void *unused;
+    NAPICallback callback;
 } FunctionInfo;
 
 // 所有参数都会存在，返回值可以为 NULL
@@ -420,6 +421,7 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     functionInfo->env = env;
     functionInfo->callback = cb;
     functionInfo->data = data;
+    functionInfo->unused = NULL;
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     // 使用 Object.prototype 作为实例的 [[prototype]]
@@ -1342,9 +1344,10 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
 
 typedef struct {
     NAPIEnv env;
-    JSClassRef classRef;
-    NAPICallback callback;
     void *data;
+    void *unused;
+    NAPICallback callback;
+    JSClassRef classRef;
 } ConstructorInfo;
 
 static void constructorFinalize(JSObjectRef object) {
@@ -1401,7 +1404,7 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     callbackInfo.data = constructorInfo->data;
 
     JSValueRef returnValue = (JSValueRef) constructorInfo->callback(constructorInfo->env, &callbackInfo);
-    if (JSValueIsObject(ctx, returnValue)) {
+    if (!JSValueIsObject(ctx, returnValue)) {
         assert(false);
 
         return NULL;
@@ -1438,17 +1441,41 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     constructorInfo->env = env;
     constructorInfo->callback = constructor;
     constructorInfo->data = data;
+    constructorInfo->unused = NULL;
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     classDefinition.className = utf8name;
     constructorInfo->classRef = JSClassCreate(&classDefinition);
 
-    JSClassDefinition prototypeClassDefinition = kJSClassDefinitionEmpty;
-    prototypeClassDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
-    prototypeClassDefinition.className = utf8name;
-    prototypeClassDefinition.finalize = constructorFinalize;
-    JSClassRef prototypeClassRef = JSClassCreate(&prototypeClassDefinition);
+    classDefinition = kJSClassDefinitionEmpty;
+    classDefinition.attributes = kJSClassAttributeNoAutomaticPrototype;
+    classDefinition.className = utf8name;
+    classDefinition.finalize = constructorFinalize;
+    JSClassRef prototypeClassRef = JSClassCreate(&classDefinition);
 
+    // 正常原型链见 https://stackoverflow.com/questions/32928810/function-prototype-is-a-function
+
+    // JavaScriptCore Function 特殊点
+    // 1. Function.prototype 不存在
+
+    // JavaScriptCore Constructor 特殊点
+    // 1. Constructor.prototype 为 CallbackObject，CallbackObject.[[prototype]] 为 Object.prototype
+    // 2. Constructor -> CallbackObject -> Object
+    // 3. CallbackObject 是一个不存在的类的实例
+    // 4. CallbackObject 存在 privateData，会对 wrap 造成影响
+
+    // 构造正常的原型链，应当如下
+    // 1. Constructor.prototype 应当为 Object 的一个对象
+    // 2. Constructor.prototype.constructor == Constructor
+    // 3. Constructor.name 为类名
+
+    // 插入析构函数逻辑如下
+    // 1. Constructor.[[prototype]] 正常应当指向 Function.prototype
+    // 但是 JavaScriptCore 实现逻辑如下
+    // 1. Constructor.[[prototype]] 会指向 Object.prototype，因为 typeof Constructor === 'object'
+    // 2. Constructor instanceof Function === false
+
+    // 之所以区分 callAsConstructor 和 callAsFunction，主要就是为了 newTarget
     JSObjectRef function = JSObjectMakeConstructor(env->context, constructorInfo->classRef, callAsConstructor);
     JSObjectRef prototype = JSObjectMake(env->context, prototypeClassRef, constructorInfo);
     JSClassRelease(prototypeClassRef);

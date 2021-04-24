@@ -6,14 +6,14 @@ EXTERN_C_START
 
 static NAPIValue myFunction(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPIValue str;
-    NAPI_CALL(env, napi_create_string_utf8(env, "hello world", NAPI_AUTO_LENGTH, &str));
+    NAPI_CALL(env, napi_create_string_utf8(env, "hello world", -1, &str));
     return str;
 }
 
 static NAPIValue createFunction(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPIValue fn;
     NAPI_CALL(env,
-              napi_create_function(env, "theFunction", NAPI_AUTO_LENGTH, myFunction, nullptr, &fn));
+              napi_create_function(env, "theFunction", -1, myFunction, nullptr, &fn));
     return fn;
 }
 
@@ -28,7 +28,7 @@ TEST(FunctionFactory, CreateFunction) {
 
     NAPIValue exports;
     const char *exportsString = "exports";
-    ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createFunction, nullptr, &exports), NAPIOK);
+    ASSERT_EQ(napi_create_function(env, exportsString, -1, createFunction, nullptr, &exports), NAPIOK);
     ASSERT_EQ(napi_set_named_property(env, global, exportsString, exports), NAPIOK);
 
     EXPECT_EQ(initAssert(env, global), NAPIOK);

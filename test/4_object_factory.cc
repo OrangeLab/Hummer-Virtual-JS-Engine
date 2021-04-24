@@ -28,7 +28,7 @@ TEST(ObjectFactory, CreateObject) {
 
     NAPIValue exports = nullptr;
     const char *exportsString = "exports";
-    ASSERT_EQ(napi_create_function(env, exportsString, NAPI_AUTO_LENGTH, createObject, nullptr, &exports), NAPIOK);
+    ASSERT_EQ(napi_create_function(env, exportsString, -1, createObject, nullptr, &exports), NAPIOK);
     EXPECT_EQ(napi_set_named_property(env, global, exportsString, exports), NAPIOK);
 
     EXPECT_EQ(initAssert(env, global), NAPIOK);
