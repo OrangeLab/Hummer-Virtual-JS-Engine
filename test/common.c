@@ -6,7 +6,7 @@
 void add_returned_status(NAPIEnv env,
                          const char *key,
                          NAPIValue object,
-                         char *expected_message,
+                         const char *expected_message,
                          NAPIStatus expected_status,
                          NAPIStatus actual_status) {
 

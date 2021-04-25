@@ -64,9 +64,9 @@ EXTERN_C_START
 void add_returned_status(NAPIEnv env,
                          const char *key,
                          NAPIValue object,
-                         char *expected_message,
+                         const char *expected_message,
                          NAPIStatus expected_status,
-                         NAPIStatus actual_status);
+                         NAPIStatus actual_status); // expected_message 没做修改，添加 const
 
 void add_last_status(NAPIEnv env, const char *key, NAPIValue return_value);
 

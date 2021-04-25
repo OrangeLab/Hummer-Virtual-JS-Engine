@@ -1552,6 +1552,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     // 2. Constructor -> CallbackObject -> Object
     // 3. CallbackObject 是一个不存在的类的实例
     // 4. CallbackObject 存在 privateData，会对 wrap 造成影响
+    // 5. Constructor.name 不存在
 
     // 构造正常的原型链，应当如下
     // 1. Constructor.prototype 应当为 Object 的一个对象
@@ -1570,16 +1571,14 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, function));
     JSObjectSetPrototype(env->context, function, prototype);
 
-//    JSStringRef stringRef = JSStringCreateWithUTF8CString("constructor");
-//    JSObjectSetProperty(env->context, prototype, stringRef, function,
-//                        kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &env->lastException);
-//    JSStringRelease(stringRef);
-    if (env->lastException) {
-        JSClassRelease(constructorInfo->classRef);
-        free(constructorInfo);
-
-        return setLastErrorCode(env, NAPIPendingException);
-    }
+    // 如果传入 NULL 类名，使用 ""
+    NAPIValue nameValue;
+    napi_create_string_utf8(env, utf8name, NAPI_AUTO_LENGTH, &nameValue);
+    // configurable: true
+    // 忽略错误
+    napi_set_named_property(env, (NAPIValue) function, "name", nameValue);
+    clearLastError(env);
+    env->lastException = NULL;
 
     int instancePropertyCount = 0;
     int staticPropertyCount = 0;
