@@ -1,9 +1,9 @@
 #ifndef common_h
 #define common_h
 
-#include <napi/js_native_api_types.h>
-
 EXTERN_C_START
+
+#include <napi/js_native_api.h>
 
 // Empty value so that macros here are able to return NULL or void
 #define NAPI_RETVAL_NOTHING  // Intentionally blank #define
@@ -61,90 +61,14 @@ EXTERN_C_START
 #define DECLARE_NAPI_GETTER(name, func)                                  \
   { (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL }
 
-// This does not call napi_set_last_error because the expression
-// is assumed to be a NAPI function call that already did.
-#define CHECK_NAPI(expr)            \
-    do                              \
-    {                               \
-        NAPIStatus status = expr; \
-        if (status != NAPIOK)       \
-        {                           \
-            return status;          \
-        }                           \
-    } while (0)
+void add_returned_status(NAPIEnv env,
+                         const char *key,
+                         NAPIValue object,
+                         char *expected_message,
+                         NAPIStatus expected_status,
+                         NAPIStatus actual_status);
 
-static NAPIValue strictEqual(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 2;
-    NAPIValue args[2];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
-
-    // "Wrong number of arguments"
-    assert(argc >= 2);
-
-    bool result = false;
-    assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
-    // !==
-    assert(result);
-
-    return nullptr;
-}
-
-static NAPIValue notStrictEqual(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 2;
-    NAPIValue args[2];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
-
-    // "Wrong number of arguments"
-    assert(argc >= 2);
-
-    bool result = false;
-    assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
-    // ===
-    assert(!result);
-
-    return nullptr;
-}
-
-static NAPIValue throws(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
-
-    // "Wrong number of arguments"
-    assert(argc >= 1);
-
-    NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
-    // Argument is not function
-    assert(valueType == NAPIFunction);
-
-    NAPIValue global;
-    assert(napi_get_global(env, &global) == NAPIOK);
-
-    // throw
-    assert(napi_call_function(env, global, args[0], 0, nullptr, nullptr) == NAPIPendingException);
-    NAPIValue exception = nullptr;
-    assert(napi_get_and_clear_last_exception(env, &exception) == NAPIOK);
-    // throw
-    assert(exception);
-
-    return nullptr;
-}
-
-static inline NAPIStatus initAssert(NAPIEnv env, NAPIValue global) {
-    NAPIValue value;
-    CHECK_NAPI(napi_create_object(env, &value));
-    CHECK_NAPI(napi_set_named_property(env, global, "assert", value));
-
-    NAPIPropertyDescriptor desc[] = {
-            DECLARE_NAPI_PROPERTY("strictEqual", strictEqual),
-            DECLARE_NAPI_PROPERTY("notStrictEqual", notStrictEqual),
-            DECLARE_NAPI_PROPERTY("throws", throws)
-    };
-    CHECK_NAPI(napi_define_properties(env, value, 3, desc));
-
-    return NAPIOK;
-}
+void add_last_status(NAPIEnv env, const char *key, NAPIValue return_value);
 
 EXTERN_C_END
 

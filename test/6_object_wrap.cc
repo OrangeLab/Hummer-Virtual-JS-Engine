@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <napi/js_native_api.h>
-#include <common.h>
+#include <napi_assert.h>
 
 class MyObject {
 public:

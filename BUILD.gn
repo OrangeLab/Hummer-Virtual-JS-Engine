@@ -42,7 +42,8 @@ executable("test") {
         # 涉及 GC 和 setImmediate
 #        "test/7_factory_wrap.cc",
 #        "test/8_passing_wrapped.cc",
-#        "test/test_array.cc"
+        "test/test_array.cc",
+        "test/common.c"
     ]
 
     deps = [

@@ -390,7 +390,17 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
     callbackInfo.argv = arguments;
     callbackInfo.data = functionInfo->data;
 
-    return (JSValueRef) functionInfo->callback(functionInfo->env, &callbackInfo);
+    JSValueRef returnValue = (JSValueRef) functionInfo->callback(functionInfo->env, &callbackInfo);
+
+    bool isPending = false;
+    napi_is_exception_pending(functionInfo->env, &isPending);
+    if (isPending) {
+        napi_get_and_clear_last_exception(functionInfo->env, (NAPIValue *) exception);
+
+        return NULL;
+    }
+
+    return returnValue;
 }
 
 static void functionFinalize(JSObjectRef object) {
@@ -1473,6 +1483,15 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     callbackInfo.data = constructorInfo->data;
 
     JSValueRef returnValue = (JSValueRef) constructorInfo->callback(constructorInfo->env, &callbackInfo);
+
+    bool isPending = false;
+    napi_is_exception_pending(constructorInfo->env, &isPending);
+    if (isPending) {
+        napi_get_and_clear_last_exception(constructorInfo->env, (NAPIValue *) exception);
+
+        return NULL;
+    }
+
     if (!JSValueIsObject(ctx, returnValue)) {
         assert(false);
 
