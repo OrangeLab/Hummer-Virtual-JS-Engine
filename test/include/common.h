@@ -76,13 +76,31 @@ EXTERN_C_START
 static NAPIValue strictEqual(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc = 2;
     NAPIValue args[2];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
 
-    NAPI_ASSERT(env, argc >= 2, "Wrong number of arguments");
+    // "Wrong number of arguments"
+    assert(argc >= 2);
 
     bool result = false;
-    NAPI_CALL(env, napi_strict_equals(env, args[0], args[1], &result));
-    NAPI_ASSERT(env, result, "assert.strictEqual()");
+    assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
+    // !==
+    assert(result);
+
+    return nullptr;
+}
+
+static NAPIValue notStrictEqual(NAPIEnv env, NAPICallbackInfo info) {
+    size_t argc = 2;
+    NAPIValue args[2];
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+
+    // "Wrong number of arguments"
+    assert(argc >= 2);
+
+    bool result = false;
+    assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
+    // ===
+    assert(!result);
 
     return nullptr;
 }
@@ -90,19 +108,25 @@ static NAPIValue strictEqual(NAPIEnv env, NAPICallbackInfo info) {
 static NAPIValue throws(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc = 1;
     NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
 
-    NAPI_ASSERT(env, argc >= 1, "Wrong number of arguments");
+    // "Wrong number of arguments"
+    assert(argc >= 1);
 
     NAPIValueType valueType;
-    NAPI_CALL(env, napi_typeof(env, args[0], &valueType));
-    NAPI_ASSERT(env, valueType == NAPIFunction, "Argument is not function");
+    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    // Argument is not function
+    assert(valueType == NAPIFunction);
 
-    NAPIStatus status = napi_call_function(env, nullptr, args[0], 0, nullptr, nullptr);
-    NAPI_ASSERT(env, status == NAPIPendingException, "assert.throws() not throw exception");
+    NAPIValue global;
+    assert(napi_get_global(env, &global) == NAPIOK);
+
+    // throw
+    assert(napi_call_function(env, global, args[0], 0, nullptr, nullptr) == NAPIPendingException);
     NAPIValue exception = nullptr;
-    NAPI_CALL(env, napi_get_and_clear_last_exception(env, &exception));
-    NAPI_ASSERT(env, exception, "assert.throws() not throw exception");
+    assert(napi_get_and_clear_last_exception(env, &exception) == NAPIOK);
+    // throw
+    assert(exception);
 
     return nullptr;
 }
@@ -112,11 +136,12 @@ static inline NAPIStatus initAssert(NAPIEnv env, NAPIValue global) {
     CHECK_NAPI(napi_create_object(env, &value));
     CHECK_NAPI(napi_set_named_property(env, global, "assert", value));
 
-    NAPIPropertyDescriptor desc = DECLARE_NAPI_PROPERTY("strictEqual", strictEqual);
-    CHECK_NAPI(napi_define_properties(env, value, 1, &desc));
-
-    desc = DECLARE_NAPI_PROPERTY("throws", throws);
-    CHECK_NAPI(napi_define_properties(env, value, 1, &desc));
+    NAPIPropertyDescriptor desc[] = {
+            DECLARE_NAPI_PROPERTY("strictEqual", strictEqual),
+            DECLARE_NAPI_PROPERTY("notStrictEqual", notStrictEqual),
+            DECLARE_NAPI_PROPERTY("throws", throws)
+    };
+    CHECK_NAPI(napi_define_properties(env, value, 3, desc));
 
     return NAPIOK;
 }

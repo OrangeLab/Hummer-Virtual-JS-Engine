@@ -74,6 +74,7 @@
 
 #define HASH_NONFATAL_OOM 1
 
+// 先 hashError = false; 再判断是否变为 true，发生错误需要回滚内存分配
 static bool hashError = false;
 
 #define uthash_nonfatal_oom(elt) hashError = true;
@@ -86,18 +87,12 @@ struct OpaqueNAPIRef {
     uint32_t count;
 };
 
-typedef struct {
-    JSValueRef value;
-    UT_hash_handle hh;
-} ActiveReferenceValue;
-
 struct OpaqueNAPIEnv {
     JSGlobalContextRef context;
     // undefined 和 null 实际上也可以当做 exception 抛出，所以异常检查只需要检查是否为 C NULL
     JSValueRef lastException;
     NAPIExtendedErrorInfo lastError;
     LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
-    ActiveReferenceValue *activeReferenceValues;
 };
 
 static inline NAPIStatus clearLastError(NAPIEnv env) {
@@ -1137,6 +1132,7 @@ napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, con
             CHECK_NAPI(napi_create_function(env, p->utf8name, NAPI_AUTO_LENGTH, p->method, p->data, &method));
             CHECK_NAPI(napi_set_named_property(env, descriptor, "value", method));
         } else {
+            // value
             RETURN_STATUS_IF_FALSE(env, p->value, NAPIInvalidArg);
 
             NAPIValue writable;
@@ -1385,6 +1381,7 @@ static void ExternalFinalize(JSObjectRef object) {
             }
             free(finalizer);
         }
+//        SLIST_EMPTY(&info->finalizerHead);
     }
     free(info);
 }
@@ -1826,13 +1823,22 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
     return clearLastError(env);
 }
 
-static void referenceFinalize(NAPIEnv env, __attribute((unused)) void *finalizeData, void *finalizeHint) {
+typedef struct {
+    JSValueRef value;
+    UT_hash_handle hh;
+} ActiveReferenceValue;
+
+static ActiveReferenceValue *activeReferenceValues;
+
+static void
+referenceFinalize(__attribute((unused)) NAPIEnv env, __attribute((unused)) void *finalizeData, void *finalizeHint) {
+    // 这里很可能 env 已经不存在了，不要使用 env
     ActiveReferenceValue *activeReferenceValue = NULL;
     // finalizeHint 实际上就是 JSValueRef
     // Allocation failure is possible only when adding elements to the hash table (including the ADD, REPLACE, and SELECT operations). uthash_free is not allowed to fail.
-    HASH_FIND_PTR(env->activeReferenceValues, &finalizeHint, activeReferenceValue);
+    HASH_FIND_PTR(activeReferenceValues, &finalizeHint, activeReferenceValue);
     if (activeReferenceValue) {
-        HASH_DEL(env->activeReferenceValues, activeReferenceValue);
+        HASH_DEL(activeReferenceValues, activeReferenceValue);
         free(activeReferenceValue);
     } else {
         // 正常销毁的时候应该存在
@@ -1840,11 +1846,15 @@ static void referenceFinalize(NAPIEnv env, __attribute((unused)) void *finalizeD
     }
 }
 
-#define protect(reference) \
-    do {                   \
-        LIST_INSERT_HEAD(&env->strongReferenceHead, reference, node); \
-        JSValueProtect(env->context, (reference)->value);  \
-    } while (0)
+static inline void protect(NAPIEnv env, NAPIRef reference) {
+    if (!env) {
+        assert(false);
+
+        return;
+    }
+    LIST_INSERT_HEAD(&env->strongReferenceHead, reference, node);
+    JSValueProtect(env->context, (reference)->value);
+}
 
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result) {
     CHECK_ENV(env);
@@ -1862,7 +1872,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     reference->count = initialRefCount;
 
     ActiveReferenceValue *activeReferenceValue = NULL;
-    HASH_FIND_PTR(env->activeReferenceValues, &value, activeReferenceValue);
+    HASH_FIND_PTR(activeReferenceValues, &value, activeReferenceValue);
     if (!activeReferenceValue) {
         errno = 0;
         activeReferenceValue = malloc(sizeof(ActiveReferenceValue));
@@ -1872,8 +1882,9 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
             return setLastErrorCode(env, NAPIMemoryError);
         }
+        activeReferenceValue->value = (JSValueRef) value;
         hashError = false;
-        HASH_ADD_PTR(env->activeReferenceValues, value, activeReferenceValue);
+        HASH_ADD_PTR(activeReferenceValues, value, activeReferenceValue);
         if (hashError) {
             hashError = false;
             free(reference);
@@ -1887,7 +1898,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         if (!addFinalizer(externalInfo, referenceFinalize, value)) {
             // 失败
             free(reference);
-            HASH_DEL(env->activeReferenceValues, activeReferenceValue);
+            HASH_DEL(activeReferenceValues, activeReferenceValue);
             free(activeReferenceValue);
 
             return setLastErrorCode(env, NAPIMemoryError);
@@ -1895,24 +1906,29 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     }
 
     if (initialRefCount) {
-        protect(reference);
+        protect(env, reference);
     }
+    *result = reference;
 
     return clearLastError(env);
 }
 
-#define unprotect(reference) \
-    do { \
-        LIST_REMOVE(reference, node); \
-        JSValueProtect(env->context, (reference)->value); \
-    } while (0)
+static inline void unprotect(NAPIEnv env, NAPIRef reference) {
+    if (!env) {
+        assert(false);
+
+        return;
+    }
+    LIST_REMOVE(reference, node);
+    JSValueUnprotect(env->context, (reference)->value);
+}
 
 NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
     CHECK_ENV(env);
     CHECK_ARG(env, ref);
 
     if (ref->count) {
-        unprotect(ref);
+        unprotect(env, ref);
     }
 
     free(ref);
@@ -1925,7 +1941,7 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     CHECK_ARG(env, ref);
 
     if (ref->count++ == 0) {
-        protect(ref);
+        protect(env, ref);
     }
 
     if (result) {
@@ -1940,7 +1956,7 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
     CHECK_ARG(env, ref);
 
     if (--ref->count == 0) {
-        unprotect(ref);
+        unprotect(env, ref);
     }
 
     if (result) {
@@ -1957,7 +1973,7 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 
     *result = NULL;
     ActiveReferenceValue *activeReferenceValue = NULL;
-    HASH_FIND_PTR(env->activeReferenceValues, &ref->value, activeReferenceValue);
+    HASH_FIND_PTR(activeReferenceValues, &ref->value, activeReferenceValue);
     if (activeReferenceValue) {
         *result = (NAPIValue) ref->value;
     }
@@ -2239,6 +2255,13 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     // *env 才是 NAPIEnv
     CHECK_ENV(env);
 
+    if ((virtualMachine && !contextCount) || (!virtualMachine && contextCount) ||
+        (!virtualMachine && activeReferenceValues) || (!activeReferenceValues && virtualMachine)) {
+        assert(false);
+
+        return NAPIGenericFailure;
+    }
+
     errno = 0;
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
     if (errno == ENOMEM) {
@@ -2247,14 +2270,9 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
         return NAPIMemoryError;
     }
 
-    if ((virtualMachine && !contextCount) || (!virtualMachine && contextCount)) {
-        assert(false);
-
-        return NAPIGenericFailure;
-    }
-
     if (!virtualMachine) {
         virtualMachine = JSContextGroupCreate();
+        activeReferenceValues = NULL;
     }
     contextCount += 1;
     (*env)->context = JSGlobalContextCreateInGroup(virtualMachine, NULL);
@@ -2264,34 +2282,37 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     (*env)->lastError.engineReserved = NULL;
     (*env)->lastError.engineErrorCode = 0;
     LIST_INIT(&(*env)->strongReferenceHead);
-    (*env)->activeReferenceValues = NULL;
 
     return NAPIOK;
 }
 
 NAPIStatus NAPIFreeEnv(NAPIEnv env) {
     CHECK_ENV(env);
-    
+
     NAPIRef reference, tempReference;
     LIST_FOREACH_SAFE(reference, &env->strongReferenceHead, node, tempReference) {
         LIST_REMOVE(reference, node);
         if (reference->count) {
-            unprotect(reference);
+            unprotect(env, reference);
         }
         free(reference);
     }
-    
+    // LIST_REMOVE 会清空 head，所以不需要 LIST_EMPTY
+//    LIST_EMPTY(&env->strongReferenceHead);
+
     JSGlobalContextRelease(env->context);
     if (--contextCount == 0 && virtualMachine) {
         // virtualMachine 不能为 NULL
         JSContextGroupRelease(virtualMachine);
         virtualMachine = NULL;
-    }
 
-    ActiveReferenceValue *element, *temp;
-    HASH_ITER(hh, env->activeReferenceValues, element, temp) {
-        HASH_DEL(env->activeReferenceValues, element);
-        free(element);
+        ActiveReferenceValue *element, *temp;
+        HASH_ITER(hh, activeReferenceValues, element, temp) {
+            HASH_DEL(activeReferenceValues, element);
+            free(element);
+        }
+        // 默认会变 NULL
+//        activeReferenceValues = NULL;
     }
 
     free(env);

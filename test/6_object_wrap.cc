@@ -43,19 +43,19 @@ void MyObject::Destructor(
 }
 
 void MyObject::Init(NAPIEnv env, NAPIValue exports) {
-//    NAPIPropertyDescriptor properties[] = {
-//            {"value", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIDefault, nullptr},
-//            {"valueReadonly", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIDefault,
-//             nullptr},
-//            DECLARE_NAPI_PROPERTY("plusOne", PlusOne),
-//            DECLARE_NAPI_PROPERTY("multiply", Multiply),
-//    };
+    NAPIPropertyDescriptor properties[] = {
+            {"value", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIDefault, nullptr},
+            {"valueReadonly", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIDefault,
+             nullptr},
+            DECLARE_NAPI_PROPERTY("plusOne", PlusOne),
+            DECLARE_NAPI_PROPERTY("multiply", Multiply),
+    };
 
     NAPIValue cons;
     NAPI_CALL_RETURN_VOID(env, napi_define_class(
             env, "MyObject", -1, New, nullptr,
-            0,
-            nullptr, &cons));
+            sizeof(properties) / sizeof(NAPIPropertyDescriptor),
+            properties, &cons));
 
     NAPI_CALL_RETURN_VOID(env, napi_create_reference(env, cons, 1, &constructor));
 
@@ -194,11 +194,52 @@ TEST(ObjectWrap, MyObject) {
 
     MyObject::Init(env, exports);
 
-//    EXPECT_EQ(initAssert(env, global), NAPIOK);
+    EXPECT_EQ(initAssert(env, global), NAPIOK);
 
     NAPIValue result = nullptr;
+    // The napi_writable attribute is ignored for accessor descriptors, but
+    // V8 would throw `TypeError`s on assignment with nonexistence of a setter.
+    // JavaScriptCore 通过 Object.defineProperty 实现，因此不会抛出异常
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(env, "(function () {\n"
+                                              "    const valueDescriptor = Object.getOwnPropertyDescriptor(\n"
+                                              "        globalThis.exports.MyObject.prototype, 'value');\n"
+                                              "    const valueReadonlyDescriptor = Object.getOwnPropertyDescriptor(\n"
+                                              "        globalThis.exports.MyObject.prototype, 'valueReadonly');\n"
+                                              "    const plusOneDescriptor = Object.getOwnPropertyDescriptor(\n"
+                                              "        globalThis.exports.MyObject.prototype, 'plusOne');\n"
+                                              "    assert.strictEqual(typeof valueDescriptor.get, 'function');\n"
+                                              "    assert.strictEqual(typeof valueDescriptor.set, 'function');\n"
+                                              "    assert.strictEqual(valueDescriptor.value, undefined);\n"
+                                              "    assert.strictEqual(valueDescriptor.enumerable, false);\n"
+                                              "    assert.strictEqual(valueDescriptor.configurable, false);\n"
+                                              "    assert.strictEqual(typeof valueReadonlyDescriptor.get, 'function');\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.set, undefined);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.value, undefined);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.enumerable, false);\n"
+                                              "    assert.strictEqual(valueReadonlyDescriptor.configurable, false);\n"
+                                              "\n"
+                                              "    assert.strictEqual(plusOneDescriptor.get, undefined);\n"
+                                              "    assert.strictEqual(plusOneDescriptor.set, undefined);\n"
+                                              "    assert.strictEqual(typeof plusOneDescriptor.value, 'function');\n"
+                                              "    assert.strictEqual(plusOneDescriptor.enumerable, false);\n"
+                                              "    assert.strictEqual(plusOneDescriptor.configurable, false);\n"
+                                              "\n"
                                               "    const obj = new globalThis.exports.MyObject(9);\n"
+                                              "    assert.strictEqual(obj.value, 9);\n"
+                                              "    obj.value = 10;\n"
+                                              "    assert.strictEqual(obj.value, 10);\n"
+                                              "    assert.strictEqual(obj.valueReadonly, 10);\n"
+                                              "    assert.strictEqual(obj.plusOne(), 11);\n"
+                                              "    assert.strictEqual(obj.plusOne(), 12);\n"
+                                              "    assert.strictEqual(obj.plusOne(), 13);\n"
+                                              "\n"
+                                              "    assert.strictEqual(obj.multiply().value, 13);\n"
+                                              "    assert.strictEqual(obj.multiply(10).value, 130);\n"
+                                              "\n"
+                                              "    const newobj = obj.multiply(-1);\n"
+                                              "    assert.strictEqual(newobj.value, -13);\n"
+                                              "    assert.strictEqual(newobj.valueReadonly, -13);\n"
+                                              "    assert.notStrictEqual(obj, newobj);\n"
                                               "})();",
                                          "https://n-api.com/6_object_wrap.js",
                                          &result), NAPIOK);
