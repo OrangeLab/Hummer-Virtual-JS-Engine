@@ -952,9 +952,13 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
 }
 
 NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, key);
     CHECK_ARG(env, result);
+
+    NAPIValueType valueType;
+    CHECK_NAPI(napi_typeof(env, key, &valueType));
+    RETURN_STATUS_IF_FALSE(env, valueType == NAPIString || valueType == NAPISymbol, NAPINameExpected);
 
     NAPIValue global, objectCtor, function, value;
     CHECK_NAPI(napi_get_global(env, &global));

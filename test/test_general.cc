@@ -248,7 +248,7 @@ static NAPIValue env_cleanup_wrap(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST(FunctionArguments, Add) {
+TEST(TestGeneral, Test) {
     NAPIEnv env = nullptr;
     ASSERT_EQ(NAPICreateEnv(&env), NAPIOK);
 
