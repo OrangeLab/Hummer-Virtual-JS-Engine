@@ -46,7 +46,9 @@ executable("test") {
         "test/common.c",
         "test/test_constructor.cc",
         "test/test_conversions.cc",
-        "test/test_error.cc"
+        "test/test_error.cc",
+        "test/test_exception.cc",
+        "test/test_function.cc"
     ]
 
     deps = [
