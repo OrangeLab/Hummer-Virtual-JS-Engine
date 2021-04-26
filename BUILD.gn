@@ -50,7 +50,8 @@ executable("test") {
         "test/test_handle_scope.cc",
         "test/test_new_target.cc",
         "test/test_number.cc",
-        "test/test_object.cc"
+        "test/test_object.cc",
+        "test/test_promise.cc"
     ]
 
     deps = [
