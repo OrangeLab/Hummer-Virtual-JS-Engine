@@ -115,6 +115,9 @@ static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode) {
 }
 
 static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code) {
+    if (!code) {
+        return clearLastError(env);
+    }
     CHECK_ENV(env);
 
     // JSValueIsString 传入 NULL context，返回 false，传入 NULL value，转化为 JS null
