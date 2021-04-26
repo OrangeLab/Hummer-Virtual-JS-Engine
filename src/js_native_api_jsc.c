@@ -1218,7 +1218,7 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
 }
 
 NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result) {
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, lhs);
     CHECK_ARG(env, rhs);
     CHECK_ARG(env, result);
@@ -1452,6 +1452,7 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
                                      size_t argumentCount,
                                      const JSValueRef arguments[],
                                      JSValueRef *exception) {
+    // constructor 为当初定义的 JSObjectRef，而不是子类的构造函数
     JSValueRef prototype = JSObjectGetPrototype(ctx, constructor);
     if (!JSValueIsObject(ctx, prototype)) {
         // 正常不应当出现
