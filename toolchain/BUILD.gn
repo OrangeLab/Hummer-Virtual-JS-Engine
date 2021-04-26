@@ -1,30 +1,43 @@
 toolchain("clang") {
+    # compiler tools
+    depfile = "{{output}}.d"
+    # all tools except "action"
+    rspfile_name = "{{output}}.rsp"
+    # all tools except "action" (required when "rspfile" is used)
+    rspfile_compiler_content = "{{include_dirs}}"
+    # https://stackoverflow.com/questions/60840386/how-do-i-produce-a-graphical-code-profile-report-for-c-code-compiled-with-clan
+    compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
+    if (is_debug) {
+        compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
+    } else {
+        # NDEBUG for assert.h
+        compiler_command = string_join(" ", ["-Os -flto -DNDEBUG", compiler_command])
+    }
+    if (code_coverage) {
+        compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
+    }
+    compiler_outputs = [
+        "{{source_out_dir}}/{{source_name_part}}.o"
+    ]
+    linker_outputs = [
+        "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+    ]
+
     tool("cc") {
-        depfile = "{{output}}.d"
+        rspfile = rspfile_name
+        rspfile_content = rspfile_compiler_content
         # depsformat = "gcc"
-        command = "clang -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
-        if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-flto", "-DNDEBUG"])
-        } else {
-            command = string_join(" ", [command, "-fembed-bitcode-marker"])
-        }
-        outputs = [
-            "{{source_out_dir}}/{{source_name_part}}.o"
-        ]
+        command = string_join(" ", ["clang", compiler_command])
+        outputs = compiler_outputs
     }
 
     tool("cxx") {
-        depfile = "{{output}}.d"
+        rspfile = rspfile_name
+        rspfile_content = rspfile_compiler_content
         # 目前只用于单元测试，所以不考虑异常模型
-        command = "clang++ -Wall -Wextra -Werror -Wpedantic -std=c++11 -stdlib=libc++ -g -MMD -MF $depfile {{include_dirs}} -c {{source}} -o {{output}}"
-        if (!is_debug) {
-            command = string_join(" ", [command, "-Os", "-flto", "-DNDEBUG"])
-        } else {
-            command = string_join(" ", [command, "-fembed-bitcode-marker"])
-        }
-        outputs = [
-            "{{source_out_dir}}/{{source_name_part}}.o"
-        ]
+        # 默认 C++98 + libc++ gtest 要求 C++11
+        command = string_join(" ", ["clang++ -std=c++11", compiler_command])
+        outputs = compiler_outputs
     }
 
     tool("stamp") {
@@ -32,25 +45,25 @@ toolchain("clang") {
     }
 
     tool("link") {
-        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
-        rspfile = "{{output}}.rsp"
-        # 目前只用于单元测试，可以关闭 -fembed-bitcode
+        rspfile_content = "{{inputs}} {{frameworks}}"
+        rspfile = rspfile_name
+        # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
-        command = "clang -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o -o {{output}} @$rspfile"
+        # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
+        command = "clang++ -o {{output}} @$rspfile"
+        if (code_coverage) {
+            command = string_join(" ", [command, "-fprofile-instr-generate"])
+        }
         default_output_dir = "{{root_out_dir}}"
-        outputs = [
-            "{{output_dir}}/{{target_output_name}}{{output_extension}}"
-        ]
+        outputs = linker_outputs
     }
 
     tool("alink") {
         rspfile_content = "{{inputs}}"
-        rspfile = "{{output}}.rsp"
+        rspfile = rspfile_name
         command = "libtool -static -o {{output}} @$rspfile"
         default_output_dir = "{{target_out_dir}}"
-        outputs = [
-            "{{output_dir}}/{{target_output_name}}{{output_extension}}"
-        ]
+        outputs = linker_outputs
         default_output_extension = ".a"
         output_prefix = "lib"
     }

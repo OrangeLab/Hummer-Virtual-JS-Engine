@@ -63,9 +63,9 @@ executable("test") {
 }
 
 config("gtest_config") {
-    libs = [
-        "c++"
-    ]
+    # libs = [
+    #     "c++"
+    # ]
     include_dirs = [
         "third_party/googletest/googletest/include"
     ]

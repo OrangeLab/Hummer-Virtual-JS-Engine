@@ -1,5 +1,6 @@
 declare_args() {
     is_debug = false
+    code_coverage = false
 }
 
 set_default_toolchain("//toolchain:clang")

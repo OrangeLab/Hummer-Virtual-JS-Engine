@@ -536,7 +536,7 @@ static NAPIValue TestGetProperty(NAPIEnv env,
 
 EXTERN_C_END
 
-TEST(TestNumber, Test) {
+TEST(TestObject, Test) {
     NAPIEnv env = nullptr;
     ASSERT_EQ(NAPICreateEnv(&env), NAPIOK);
 
