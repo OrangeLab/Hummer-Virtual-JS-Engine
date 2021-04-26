@@ -2046,11 +2046,22 @@ NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope) {
     return clearLastError(env);
 }
 
+struct OpaqueNAPIEscapableHandleScope {
+    bool escapeCalled;
+};
+
 NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIEscapableHandleScope) 1;
+    errno = 0;
+    *result = malloc(sizeof(struct OpaqueNAPIEscapableHandleScope));
+    if (errno == ENOMEM) {
+        errno = 0;
+
+        return setLastErrorCode(env, NAPIMemoryError);
+    }
+    (*result)->escapeCalled = false;
 
     return clearLastError(env);
 }
@@ -2058,6 +2069,8 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
 NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope) {
     CHECK_ENV(env);
     CHECK_ARG(env, scope);
+
+    free(scope);
 
     return clearLastError(env);
 }
@@ -2068,6 +2081,10 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
     CHECK_ARG(env, escapee);
     CHECK_ARG(env, result);
 
+    if (scope->escapeCalled) {
+        return setLastErrorCode(env, NAPIEscapeCalledTwice);
+    }
+    scope->escapeCalled = true;
     *result = escapee;
 
     return clearLastError(env);

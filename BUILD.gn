@@ -46,7 +46,8 @@ executable("test") {
         "test/test_error.cc",
         "test/test_exception.cc",
         "test/test_function.cc",
-        "test/test_general.cc"
+        "test/test_general.cc",
+        "test/test_handle_scope.cc"
     ]
 
     deps = [
