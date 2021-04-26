@@ -52,7 +52,8 @@ executable("test") {
         "test/test_number.cc",
         "test/test_object.cc",
         "test/test_promise.cc",
-        "test/test_properties.cc"
+        "test/test_properties.cc",
+        "test/test_string.cc"
     ]
 
     deps = [
