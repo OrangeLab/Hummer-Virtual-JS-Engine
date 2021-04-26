@@ -307,6 +307,11 @@ NAPIStatus napi_run_script(NAPIEnv env,
                            NAPIValue script,
                            NAPIValue *result);
 
+// Memory management
+NAPIStatus napi_adjust_external_memory(NAPIEnv env,
+                                       int64_t change_in_bytes,
+                                       int64_t *adjusted_value);
+
 // 自定义函数
 
 NAPIStatus

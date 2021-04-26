@@ -352,9 +352,13 @@ struct OpaqueNAPICallbackInfo {
 };
 
 typedef struct {
+    // ExternalInfo
     NAPIEnv env;
     void *data;
     void *unused;
+    void *unused1;
+    void *unused2;
+    // FunctionInfo
     NAPICallback callback;
 } FunctionInfo;
 
@@ -430,6 +434,8 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     functionInfo->callback = cb;
     functionInfo->data = data;
     functionInfo->unused = NULL;
+    functionInfo->unused1 = NULL;
+    functionInfo->unused2 = NULL;
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     // 使用 Object.prototype 作为 instance.[[prototype]]
@@ -1356,10 +1362,15 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
 // Constructor
 
 typedef struct {
+    // ExternalInfo
     NAPIEnv env;
     void *data;
     void *unused;
+    void *unused1;
+    void *unused2;
+    // FunctionInfo
     NAPICallback callback;
+    // ConstructorInfo
     JSClassRef classRef;
 } ConstructorInfo;
 
@@ -1381,12 +1392,18 @@ typedef struct {
     NAPIEnv env;
     void *data;
     SLIST_HEAD(, Finalizer) finalizerHead;
+    // napi_wrap
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
 } ExternalInfo;
 
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
     // 调用 finalizer
     if (info) {
+        if (info->finalizeCallback) {
+            info->finalizeCallback(info->env, info->data, info->finalizeHint);
+        }
         struct Finalizer *finalizer, *tempFinalizer;
         SLIST_FOREACH_SAFE(finalizer, &info->finalizerHead, node, tempFinalizer) {
             if (finalizer->finalizeCallback) {
@@ -1423,6 +1440,8 @@ static inline bool createExternalInfo(NAPIEnv env, void *data, ExternalInfo **re
     externalInfo->env = env;
     externalInfo->data = data;
     SLIST_INIT(&externalInfo->finalizerHead);
+    externalInfo->finalizeCallback = NULL;
+    externalInfo->finalizeHint = NULL;
     *result = externalInfo;
 
     return true;
@@ -1533,6 +1552,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     constructorInfo->callback = constructor;
     constructorInfo->data = data;
     constructorInfo->unused = NULL;
+    constructorInfo->unused1 = NULL;
+    constructorInfo->unused2 = NULL;
 
     // JavaScriptCore Function 特殊点
     // 1. Function.prototype 不存在
@@ -1746,11 +1767,16 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
 
     ExternalInfo *info = NULL;
     CHECK_NAPI(wrap(env, jsObject, &info));
+    // If we've already wrapped this object, we error out.
     RETURN_STATUS_IF_FALSE(env, !info->data, NAPIInvalidArg);
-    if (finalizeCallback) {
-        RETURN_STATUS_IF_FALSE(env, addFinalizer(info, finalizeCallback, finalizeHint), NAPIMemoryError);
-    }
+    RETURN_STATUS_IF_FALSE(env, !info->finalizeCallback, NAPIInvalidArg);
+    RETURN_STATUS_IF_FALSE(env, !info->finalizeHint, NAPIInvalidArg);
     info->data = nativeObject;
+
+    if (finalizeCallback) {
+        info->finalizeCallback = finalizeCallback;
+        info->finalizeHint = finalizeHint;
+    }
 
     // 当 napi_create_reference 失败的时候可以不回滚前面的 wrap 过程，因为这实际上是两步骤
     if (result) {
@@ -1778,12 +1804,14 @@ NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     CHECK_ARG(env, jsObject);
     CHECK_ARG(env, result);
 
-    // Once an object is wrapped, it stays wrapped in order to support finalizer callbacks.
     ExternalInfo *info = NULL;
     CHECK_NAPI(unwrap(env, jsObject, &info));
     RETURN_STATUS_IF_FALSE(env, info && info->data, NAPIInvalidArg);
     *result = info->data;
     info->data = NULL;
+    // 清除回调
+    info->finalizeCallback = NULL;
+    info->finalizeHint = NULL;
 
     return clearLastError(env);
 }
@@ -1819,8 +1847,8 @@ static inline NAPIStatus create(NAPIEnv env,
 
 NAPIStatus
 napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result) {
-//    CHECK_ENV(env);
-//    CHECK_ARG(env, result);
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
 
     CHECK_NAPI(create(env, data, finalizeCB, finalizeHint, result));
 
@@ -2246,6 +2274,18 @@ NAPIStatus napi_run_script(NAPIEnv env,
     *result = (NAPIValue) JSEvaluateScript(
             env->context, script_str, NULL, NULL, 1, &env->lastException);
     CHECK_JSC(env);
+
+    return clearLastError(env);
+}
+
+NAPIStatus napi_adjust_external_memory(NAPIEnv env,
+                                       int64_t change_in_bytes,
+                                       int64_t *adjusted_value) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, adjusted_value);
+
+    // For now, we can lie and say that we always adjusted more memory
+    *adjusted_value = change_in_bytes;
 
     return clearLastError(env);
 }

@@ -39,16 +39,14 @@ executable("test") {
         "test/4_object_factory.cc",
         "test/5_function_factory.cc",
         "test/6_object_wrap.cc",
-        # 涉及 GC 和 setImmediate
-        #        "test/7_factory_wrap.cc",
-        #        "test/8_passing_wrapped.cc",
         "test/test_array.cc",
         "test/common.c",
         "test/test_constructor.cc",
         "test/test_conversions.cc",
         "test/test_error.cc",
         "test/test_exception.cc",
-        "test/test_function.cc"
+        "test/test_function.cc",
+        "test/test_general.cc"
     ]
 
     deps = [

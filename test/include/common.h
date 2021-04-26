@@ -55,6 +55,11 @@ EXTERN_C_START
 #define NAPI_ASSERT(env, assertion, message)                             \
   NAPI_ASSERT_BASE(env, assertion, message, NULL)
 
+// Returns empty on failed assertion.
+// This is meant to be used inside functions with void return type.
+#define NAPI_ASSERT_RETURN_VOID(env, assertion, message)                 \
+  NAPI_ASSERT_BASE(env, assertion, message, NAPI_RETVAL_NOTHING)
+
 #define DECLARE_NAPI_PROPERTY(name, func)                                \
   { (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL }
 
