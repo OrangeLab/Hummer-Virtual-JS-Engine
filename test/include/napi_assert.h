@@ -47,12 +47,26 @@ static NAPIValue strictEqual(NAPIEnv
     NAPIValue args[2];
     assert(napi_get_cb_info(env, info, &argc, args, NULL, NULL) == NAPIOK);
 
-// "Wrong number of arguments"
+    // "Wrong number of arguments"
     assert(argc >= 2);
 
-    bool result = false;
-    assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
-// !==
+    // NaN !== NaN
+    NAPIValue global;
+    assert(napi_get_global(env, &global) == NAPIOK);
+    NAPIValue objectValue;
+    assert(napi_get_named_property(env, global, "Object", &objectValue) == NAPIOK);
+    NAPIValue isFunction;
+    assert(napi_get_named_property(env, objectValue, "is", &isFunction) == NAPIOK);
+
+    NAPIValue result;
+    assert(napi_call_function(env, objectValue, isFunction, 2, args, &result) == NAPIOK);
+
+    NAPIValueType valueType;
+    assert(napi_typeof(env, result, &valueType) == NAPIOK);
+    assert(valueType == NAPIBoolean);
+
+    bool isStrictEqual = false;
+    assert(napi_get_value_bool(env, result, &isStrictEqual) == NAPIOK);
     assert(result);
 
     return NULL;
@@ -71,7 +85,6 @@ static NAPIValue notStrictEqual(NAPIEnv
 
     bool result = false;
     assert(napi_strict_equals(env, args[0], args[1], &result) == NAPIOK);
-// ===
     assert(!result);
 
     return NULL;
