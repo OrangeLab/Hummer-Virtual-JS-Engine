@@ -5,7 +5,6 @@ toolchain("clang") {
     rspfile_name = "{{output}}.rsp"
     # all tools except "action" (required when "rspfile" is used)
     rspfile_compiler_content = "{{include_dirs}}"
-    # https://stackoverflow.com/questions/60840386/how-do-i-produce-a-graphical-code-profile-report-for-c-code-compiled-with-clan
     compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
     if (is_debug) {
         compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
