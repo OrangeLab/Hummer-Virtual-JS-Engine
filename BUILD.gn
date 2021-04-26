@@ -44,7 +44,8 @@ executable("test") {
         #        "test/8_passing_wrapped.cc",
         "test/test_array.cc",
         "test/common.c",
-        "test/test_constructor.cc"
+        "test/test_constructor.cc",
+        "test/test_conversions.cc"
     ]
 
     deps = [
