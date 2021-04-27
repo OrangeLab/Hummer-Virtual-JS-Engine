@@ -1,6 +1,8 @@
 declare_args() {
-    is_debug = false
+    debug = false
     code_coverage = false
+    asan = false
+    ubsan = false
 }
 
 set_default_toolchain("//toolchain:clang")

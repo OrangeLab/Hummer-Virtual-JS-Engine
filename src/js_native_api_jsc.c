@@ -1,10 +1,3 @@
-//
-//  js_native_api_jsc.c
-//  NAPI
-//
-//  Created by 唐佳诚 on 2021/2/23.
-//
-
 // 如果一个函数返回的 NAPIStatus 为 NAPIOK，则没有异常被挂起，并且不需要做任何处理
 // 如果 NAPIStatus 是除了 NAPIOK 或者 NAPIPendingException，为了尝试恢复并继续执行，而不是直接返回，必须调用 napi_is_exception_pending 来确定是否存在挂起的异常
 
@@ -426,6 +419,7 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     // malloc(0) 依然会分配 16 字节
     FunctionInfo *functionInfo = malloc(sizeof(FunctionInfo));
     if (errno == ENOMEM) {
+        free(functionInfo);
         errno = 0;
 
         return setLastErrorCode(env, NAPIMemoryError);
@@ -652,19 +646,15 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
             JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
             CHECK_JSC(env);
 
-            // 本质上是 UNICODE length * 3 + 1 \0
+            // NOTE: By definition, maxBytes >= 1 since the null terminator is included.
             size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
-            if (!length) {
-                assert(false);
 
-                JSStringRelease(stringRef);
-
-                return setLastErrorCode(env, NAPIGenericFailure);
-            }
+            // TODO(ChasonTang): 栈分配
             errno = 0;
             char *buffer = malloc(sizeof(char) * length);
             if (errno == ENOMEM) {
                 // malloc 失败，无法发生复制，则无法计算实际长度
+                free(buffer);
                 *result = 0;
                 errno = 0;
                 JSStringRelease(stringRef);
@@ -673,18 +663,52 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
             }
             // 返回值一定带 \0
             *result = JSStringGetUTF8CString(stringRef, buffer, length) - 1;
-            // 虽然是 GetUTF8CString，但实际上是复制，所以需要 free
             free(buffer);
             JSStringRelease(stringRef);
         } else {
+            // JSStringGetUTFCString 如果实际为 ASCII/Latin1，则不会考虑 bufferSize
             JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
             CHECK_JSC(env);
-            size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
-            if (result) {
-                // JSStringGetUTF8CString returns size with null terminator.
-                *result = copied - 1;
+
+            size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
+            if (length > bufsize) {
+                // TODO(ChasonTang): 栈分配
+                errno = 0;
+                char *buffer = malloc(sizeof(char) * length);
+                if (errno == ENOMEM) {
+                    // malloc 失败，无法发生复制，则无法计算实际长度
+                    free(buffer);
+                    errno = 0;
+                    JSStringRelease(stringRef);
+
+                    return clearLastError(env);
+                }
+                length = JSStringGetUTF8CString(stringRef, buffer, length);
+                if (length > bufsize) {
+                    // 截断
+                    buffer[bufsize - 1] = '\0';
+                    memcpy(buf, buffer, bufsize);
+                    if (result) {
+                        // JSStringGetUTF8CString returns size with null terminator.
+                        *result = bufsize - 1;
+                    }
+                } else {
+                    memcpy(buf, buffer, length);
+                    if (result) {
+                        // JSStringGetUTF8CString returns size with null terminator.
+                        *result = length - 1;
+                    }
+                }
+                free(buffer);
+                JSStringRelease(stringRef);
+            } else {
+                size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
+                if (result) {
+                    // JSStringGetUTF8CString returns size with null terminator.
+                    *result = copied - 1;
+                }
+                JSStringRelease(stringRef);
             }
-            JSStringRelease(stringRef);
         }
     }
 
@@ -1437,6 +1461,7 @@ static inline bool createExternalInfo(NAPIEnv env, void *data, ExternalInfo **re
     errno = 0;
     ExternalInfo *externalInfo = malloc(sizeof(ExternalInfo));
     if (errno == ENOMEM) {
+        free(externalInfo);
         errno = 0;
 
         return false;
@@ -1549,6 +1574,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     errno = 0;
     ConstructorInfo *constructorInfo = malloc(sizeof(ConstructorInfo));
     if (errno == ENOMEM) {
+        free(constructorInfo);
         errno = 0;
 
         return setLastErrorCode(env, NAPIGenericFailure);
@@ -1619,12 +1645,14 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         }
     }
 
+    // TODO(ChasonTang): 栈分配
     NAPIPropertyDescriptor *staticDescriptors = NULL;
     if (staticPropertyCount > 0) {
         errno = 0;
         staticDescriptors = malloc(
                 sizeof(NAPIPropertyDescriptor) * staticPropertyCount);
         if (errno == ENOMEM) {
+            free(staticDescriptors);
             errno = 0;
             JSClassRelease(constructorInfo->classRef);
             free(constructorInfo);
@@ -1633,12 +1661,14 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         }
     }
 
+    // TODO(ChasonTang): 栈分配
     NAPIPropertyDescriptor *instanceDescriptors = NULL;
     if (instancePropertyCount > 0) {
         errno = 0;
         instanceDescriptors = malloc(
                 sizeof(NAPIPropertyDescriptor) * instancePropertyCount);
         if (errno == ENOMEM) {
+            free(instanceDescriptors);
             errno = 0;
             JSClassRelease(constructorInfo->classRef);
             free(constructorInfo);
@@ -1752,6 +1782,8 @@ static bool addFinalizer(ExternalInfo *externalInfo, NAPIFinalize finalize, void
     errno = 0;
     struct Finalizer *finalizer = malloc(sizeof(struct Finalizer));
     if (errno == ENOMEM) {
+        free(finalizer);
+
         return false;
     }
     finalizer->finalizeCallback = finalize;
@@ -1918,6 +1950,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     errno = 0;
     NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
     if (errno == ENOMEM) {
+        free(reference);
         errno = 0;
 
         return setLastErrorCode(env, NAPIMemoryError);
@@ -1931,6 +1964,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         errno = 0;
         activeReferenceValue = malloc(sizeof(ActiveReferenceValue));
         if (errno == ENOMEM) {
+            free(activeReferenceValue);
             errno = 0;
             free(reference);
 
@@ -1948,7 +1982,15 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         }
         // wrap
         ExternalInfo *externalInfo = NULL;
-        CHECK_NAPI(wrap(env, value, &externalInfo));
+        NAPIStatus status = wrap(env, value, &externalInfo);
+        if (status != NAPIOK) {
+            // 失败
+            free(reference);
+            HASH_DEL(activeReferenceValues, activeReferenceValue);
+            free(activeReferenceValue);
+
+            return status;
+        }
         if (!addFinalizer(externalInfo, referenceFinalize, value)) {
             // 失败
             free(reference);
@@ -2389,13 +2431,16 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env) {
         JSContextGroupRelease(virtualMachine);
         virtualMachine = NULL;
 
+        // https://github.com/troydhanson/uthash/issues/221
+        ActiveReferenceValue *first = activeReferenceValues;
         ActiveReferenceValue *element, *temp;
         HASH_ITER(hh, activeReferenceValues, element, temp) {
-            HASH_DEL(activeReferenceValues, element);
-            free(element);
+            if (element != first) {
+                free(element);
+            }
         }
-        // 默认会变 NULL
-//        activeReferenceValues = NULL;
+        HASH_CLEAR(hh, activeReferenceValues);
+        free(first);
     }
 
     free(env);

@@ -64,3 +64,4 @@ out
 .vscode
 .idea
 clion
+static_analyze_report

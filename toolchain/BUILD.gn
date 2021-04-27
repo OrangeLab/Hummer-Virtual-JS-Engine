@@ -1,19 +1,25 @@
 toolchain("clang") {
-    # compiler tools
+# compiler tools
     depfile = "{{output}}.d"
     # all tools except "action"
     rspfile_name = "{{output}}.rsp"
     # all tools except "action" (required when "rspfile" is used)
     rspfile_compiler_content = "{{include_dirs}}"
     compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
-    if (is_debug) {
+    if (debug) {
         compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
     } else {
-        # NDEBUG for assert.h
+    # NDEBUG for assert.h
         compiler_command = string_join(" ", ["-Os -flto -DNDEBUG", compiler_command])
     }
     if (code_coverage) {
         compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
+    }
+    if (asan) {
+        compiler_command = string_join(" ", ["-fsanitize=address", compiler_command])
+    }
+    if (ubsan) {
+        compiler_command = string_join(" ", ["-fsanitize=undefined", compiler_command])
     }
     compiler_outputs = [
         "{{source_out_dir}}/{{source_name_part}}.o"
@@ -52,6 +58,12 @@ toolchain("clang") {
         command = "clang++ -o {{output}} @$rspfile"
         if (code_coverage) {
             command = string_join(" ", [command, "-fprofile-instr-generate"])
+        }
+        if (asan) {
+            command = string_join(" ", [command, "-fsanitize=address"])
+        }
+        if (ubsan) {
+            command = string_join(" ", [command, "-fsanitize=undefined"])
         }
         default_output_dir = "{{root_out_dir}}"
         outputs = linker_outputs
