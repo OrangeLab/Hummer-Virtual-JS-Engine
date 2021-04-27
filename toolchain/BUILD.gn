@@ -21,6 +21,16 @@ toolchain("clang") {
     if (ubsan) {
         compiler_command = string_join(" ", ["-fsanitize=undefined", compiler_command])
     }
+    if (build_ios) {
+        target_option = "-target $ios_archtecture-apple-ios9.0"
+        if (ios_simulator) {
+            target_option = string_join("-", [target_option, "simulator"])
+            compiler_command = string_join(" ", [compiler_command, "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk"])
+        } else {
+            compiler_command = string_join(" ", [compiler_command, "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"])
+        }
+        compiler_command = string_join(" ", [compiler_command, target_option])
+    }
     compiler_outputs = [
         "{{source_out_dir}}/{{source_name_part}}.o"
     ]
@@ -46,6 +56,7 @@ toolchain("clang") {
     }
 
     tool("stamp") {
+    # source_set
         command = "touch {{output}}"
     }
 

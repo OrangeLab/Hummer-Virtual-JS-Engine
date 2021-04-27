@@ -27,3 +27,10 @@
 
 ### VSCode
 1. C/C++ 插件
+
+## 交叉编译 iOS 静态库
+1. gn gen out --args="build_ios=true ios_archtecture=\"x86_64\""
+2. ninja -C out napi_jsc
+3. 编译模拟器 i386 架构
+4. 编译真机 armv7 arm64 架构（添加 ios_simulator=false 参数开启真机编译）
+5. libtool 创建 Universal 包

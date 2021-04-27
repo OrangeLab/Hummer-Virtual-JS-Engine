@@ -3,6 +3,10 @@ declare_args() {
     code_coverage = false
     asan = false
     ubsan = false
+    # iOS 交叉编译
+    build_ios = false
+    ios_simulator = true
+    ios_archtecture = "x86_64"
 }
 
 set_default_toolchain("//toolchain:clang")
