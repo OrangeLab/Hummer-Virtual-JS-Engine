@@ -29,11 +29,12 @@
 1. C/C++ 插件
 
 ## 交叉编译 iOS 静态库
-1. gn gen out --args="build_ios=true ios_archtecture=\"x86_64\""
-2. ninja -C out napi_jsc
-3. 编译模拟器 i386 架构
-4. 编译真机 armv7 arm64 架构（添加 ios_simulator=false 参数开启真机编译）
-5. libtool 创建 Universal 包
+1. gn gen x86_64 --args="build_ios=true ios_archtecture=\"x86_64\"" && ninja -C x86_64 napi_jsc
+2. gn gen i386 --args="build_ios=true ios_archtecture=\"i386\"" && ninja -C i386 napi_jsc
+3. gn gen armv7 --args="build_ios=true ios_simulator=false ios_archtecture=\"armv7\"" && ninja -C armv7 napi_jsc
+4. gn gen arm64 --args="build_ios=true ios_simulator=false ios_archtecture=\"arm64\"" && ninja -C arm64 napi_jsc
+5. mkdir universal && lipo -create x86_64/obj/libnapi_jsc.a i386/obj/libnapi_jsc.a armv7/obj/libnapi_jsc.a arm64/obj/libnapi_jsc.a -output universal/libnapi_jsc.a
+6. out/libnapi_jsc.a 即为最终产物
 
 ## 注意事项
 1. 只能在单一线程执行，不跨多线程执行，JavaScriptCore 通过锁机制保证同步，但是其他引擎很可能没有该保证

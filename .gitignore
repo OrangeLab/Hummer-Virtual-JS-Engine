@@ -65,3 +65,8 @@ out
 .idea
 clion
 static_analyze_report
+x86_64
+i386
+armv7
+arm64
+universal
