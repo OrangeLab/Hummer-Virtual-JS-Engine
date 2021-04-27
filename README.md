@@ -34,3 +34,6 @@
 3. 编译模拟器 i386 架构
 4. 编译真机 armv7 arm64 架构（添加 ios_simulator=false 参数开启真机编译）
 5. libtool 创建 Universal 包
+
+## 注意事项
+1. 只能在单一线程执行，不跨多线程执行，JavaScriptCore 通过锁机制保证同步，但是其他引擎很可能没有该保证
