@@ -8,6 +8,9 @@
 1. debug -O0/s
 2. code_coverage 代码覆盖率
 3. asan/ubsan -fsanitize=undefined/address
+4. build_ios = false 开启后下面两个参数生效
+5. ios_simulator = true 是否为编译模拟器
+6. ios_archtecture = "x86_64" 字符串会添加到 -target [ios_archtecture]-apple-ios9.0-[ios_simulator]
 
 ## 代码静态分析
 1. 静态分析 clang --analyze src/js_native_api_jsc.c --analyzer-output html -Wall -Wextra -Werror -Wpedantic -g -I./include -I./third_party/uthash/src
