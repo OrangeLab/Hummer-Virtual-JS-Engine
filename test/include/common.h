@@ -1,6 +1,8 @@
 #ifndef common_h
 #define common_h
 
+#include <napi/js_native_api_types.h>
+
 EXTERN_C_START
 
 #include <napi/js_native_api.h>
@@ -63,15 +65,13 @@ EXTERN_C_START
 #define DECLARE_NAPI_PROPERTY(name, func)                                \
   { (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL }
 
-#define DECLARE_NAPI_GETTER(name, func)                                  \
-  { (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL }
-
+// expected_message 没做修改，添加 const
 void add_returned_status(NAPIEnv env,
                          const char *key,
                          NAPIValue object,
                          const char *expected_message,
                          NAPIStatus expected_status,
-                         NAPIStatus actual_status); // expected_message 没做修改，添加 const
+                         NAPIStatus actual_status);
 
 void add_last_status(NAPIEnv env, const char *key, NAPIValue return_value);
 

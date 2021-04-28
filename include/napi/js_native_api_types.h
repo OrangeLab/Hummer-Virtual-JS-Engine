@@ -1,10 +1,3 @@
-//
-//  js_native_api_types.h
-//  NAPI
-//
-//  Created by 唐佳诚 on 2021/2/23.
-//
-
 #ifndef js_native_api_types_h
 #define js_native_api_types_h
 

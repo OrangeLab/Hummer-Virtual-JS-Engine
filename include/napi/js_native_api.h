@@ -1,10 +1,3 @@
-//
-//  js_native_api.h
-//  NAPI
-//
-//  Created by 唐佳诚 on 2021/2/23.
-//
-
 #ifndef js_native_api_h
 #define js_native_api_h
 
@@ -283,7 +276,7 @@ NAPIStatus napi_get_dataview_info(NAPIEnv env,
                                   */
 
 // version management
-NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
+//NAPIStatus napi_get_version(NAPIEnv env, uint32_t *result);
 
 // Promises
 NAPIStatus napi_create_promise(NAPIEnv env,
