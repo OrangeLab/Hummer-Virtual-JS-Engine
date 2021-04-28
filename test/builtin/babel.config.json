@@ -1,0 +1,33 @@
+{
+    "targets": {
+        "ios": 14
+    },
+    "presets": [
+        [
+            "@babel/preset-env",
+            {
+                "bugfixes": true
+            }
+        ],
+        [
+            "@babel/preset-typescript",
+            {
+                "allowDeclareFields": true
+            }
+        ]
+    ],
+    "plugins": [
+        [
+            "@babel/plugin-transform-runtime",
+            {
+                "version": "^7.13.17"
+            }
+        ],
+        [
+            "polyfill-corejs3",
+            {
+                "method": "usage-pure"
+            }
+        ]
+    ]
+}
