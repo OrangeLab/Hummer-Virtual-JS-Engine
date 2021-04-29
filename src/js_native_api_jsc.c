@@ -12,6 +12,7 @@
 
 #include <sys/queue.h>
 
+// setLastErrorCode 会处理 env == NULL 问题
 #define RETURN_STATUS_IF_FALSE(env, condition, status) \
     do                                                 \
     {                                                  \
@@ -110,8 +111,8 @@ static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode) {
 
 static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code) {
     // 应当允许 code 为 NULL
+    // 这是 Node.js 单元测试的要求
     if (!code) {
-        // clearLastError 自身会检查 env
         return clearLastError(env);
     }
     CHECK_ENV(env);
@@ -169,7 +170,7 @@ NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **r
         env->lastError.errorMessage = errorMessages[env->lastError.errorCode];
     } else {
         // Release 模式会添加 NDEBUG 关闭 C 断言
-        // 顶多缺失 errorMessage，尽量不要 Abort
+        // 顶多缺失 errorMessage，尽量不要 Crash
         assert(false);
     }
 
@@ -245,7 +246,7 @@ NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *
     RETURN_STATUS_IF_FALSE(env, *result, NAPIMemoryError);
 
     JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
-    // JSObjectSetProperty 传入 NULL 会崩溃
+    // JSObjectSetProperty 传入 lengthStringRef == NULL 会崩溃
     RETURN_STATUS_IF_FALSE(env, lengthStringRef, NAPIMemoryError);
     JSObjectSetProperty(env->context, (JSObjectRef) *result, lengthStringRef,
                         JSValueMakeNumber(env->context, (double) length),
@@ -334,7 +335,7 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
 
     NAPIValue global, symbolFunc;
     CHECK_NAPI(napi_get_global(env, &global));
-    // iOS 9
+    // iOS 9 支持 Symbol
     CHECK_NAPI(napi_get_named_property(env, global, "Symbol", &symbolFunc));
     CHECK_NAPI(napi_call_function(env, global, symbolFunc, 1, &description, result));
 
