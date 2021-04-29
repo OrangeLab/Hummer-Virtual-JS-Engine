@@ -353,12 +353,17 @@ struct OpaqueNAPICallbackInfo {
 };
 
 typedef struct {
-    // ExternalInfo
     NAPIEnv env;
     void *data;
-    void *unused;
-    void *unused1;
-    void *unused2;
+    SLIST_HEAD(, Finalizer) finalizerHead;
+    // napi_wrap
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
+} ExternalInfo;
+
+typedef struct {
+    // ExternalInfo
+    ExternalInfo externalInfo;
     // FunctionInfo
     NAPICallback callback;
 } FunctionInfo;
@@ -381,7 +386,7 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
         return NULL;
     }
     FunctionInfo *functionInfo = JSObjectGetPrivate(prototypeObjectRef);
-    if (!functionInfo || !functionInfo->callback || !functionInfo->env) {
+    if (!functionInfo || !functionInfo->callback || !functionInfo->externalInfo.env) {
         // 正常不应当出现
         assert(false);
 
@@ -389,7 +394,7 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
     }
 
     // Make sure any errors encountered last time we were in N-API are gone.
-    if (clearLastError(functionInfo->env) != NAPIOK) {
+    if (clearLastError(functionInfo->externalInfo.env) != NAPIOK) {
         assert(false);
 
         return NULL;
@@ -400,19 +405,19 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
     callbackInfo.thisArg = thisObject;
     callbackInfo.argc = argumentCount;
     callbackInfo.argv = arguments;
-    callbackInfo.data = functionInfo->data;
+    callbackInfo.data = functionInfo->externalInfo.data;
 
-    JSValueRef returnValue = (JSValueRef) functionInfo->callback(functionInfo->env, &callbackInfo);
+    JSValueRef returnValue = (JSValueRef) functionInfo->callback(functionInfo->externalInfo.env, &callbackInfo);
 
     bool isPending = false;
-    if (napi_is_exception_pending(functionInfo->env, &isPending) != NAPIOK) {
+    if (napi_is_exception_pending(functionInfo->externalInfo.env, &isPending) != NAPIOK) {
         assert(false);
 
         return NULL;
     }
     if (isPending) {
         // 直接提取
-        napi_get_and_clear_last_exception(functionInfo->env, (NAPIValue *) exception);
+        napi_get_and_clear_last_exception(functionInfo->externalInfo.env, (NAPIValue *) exception);
 
         return NULL;
     }
@@ -441,12 +446,12 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
 
         return setLastErrorCode(env, NAPIMemoryError);
     }
-    functionInfo->env = env;
+    functionInfo->externalInfo.env = env;
     functionInfo->callback = cb;
-    functionInfo->data = data;
-    functionInfo->unused = NULL;
-    functionInfo->unused1 = NULL;
-    functionInfo->unused2 = NULL;
+    functionInfo->externalInfo.data = data;
+    functionInfo->externalInfo.finalizeCallback = NULL;
+    functionInfo->externalInfo.finalizeHint = NULL;
+    SLIST_INIT(&functionInfo->externalInfo.finalizerHead);
 
     JSClassDefinition classDefinition = kJSClassDefinitionEmpty;
     // 使用 Object.prototype 作为 instance.[[prototype]]
@@ -1435,13 +1440,7 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
 
 typedef struct {
     // ExternalInfo
-    NAPIEnv env;
-    void *data;
-    void *unused;
-    void *unused1;
-    void *unused2;
-    // FunctionInfo
-    NAPICallback callback;
+    FunctionInfo functionInfo;
     // ConstructorInfo
     JSClassRef classRef;
 } ConstructorInfo;
@@ -1459,15 +1458,6 @@ struct Finalizer {
     NAPIFinalize finalizeCallback;
     void *finalizeHint;
 };
-
-typedef struct {
-    NAPIEnv env;
-    void *data;
-    SLIST_HEAD(, Finalizer) finalizerHead;
-    // napi_wrap
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-} ExternalInfo;
 
 static void ExternalFinalize(JSObjectRef object) {
     ExternalInfo *info = JSObjectGetPrivate(object);
@@ -1549,11 +1539,11 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     }
 
     // Make sure any errors encountered last time we were in N-API are gone.
-    clearLastError(constructorInfo->env);
+    clearLastError(constructorInfo->functionInfo.externalInfo.env);
 
     errno = 0;
     ExternalInfo *externalInfo;
-    if (!createExternalInfo(constructorInfo->env, NULL, &externalInfo)) {
+    if (!createExternalInfo(constructorInfo->functionInfo.externalInfo.env, NULL, &externalInfo)) {
         return NULL;
     }
 
@@ -1562,7 +1552,7 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     JSClassRelease(classRef);
     // 默认 instance.[[prototype]] 为 CallbackObject，JSObjectGetPrivate 不是 NULL，所以需要创建 External 插入原型链
     JSObjectRef instance = JSObjectMake(ctx, constructorInfo->classRef, NULL);
-    JSObjectSetPrototype(ctx, external, JSObjectGetPrototype(constructorInfo->env->context, instance));
+    JSObjectSetPrototype(ctx, external, JSObjectGetPrototype(constructorInfo->functionInfo.externalInfo.env->context, instance));
     JSObjectSetPrototype(ctx, instance, external);
 
     struct OpaqueNAPICallbackInfo callbackInfo = {
@@ -1576,14 +1566,14 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     callbackInfo.thisArg = instance;
     callbackInfo.argc = argumentCount;
     callbackInfo.argv = arguments;
-    callbackInfo.data = constructorInfo->data;
+    callbackInfo.data = constructorInfo->functionInfo.externalInfo.data;
 
-    JSValueRef returnValue = (JSValueRef) constructorInfo->callback(constructorInfo->env, &callbackInfo);
+    JSValueRef returnValue = (JSValueRef) constructorInfo->functionInfo.callback(constructorInfo->functionInfo.externalInfo.env, &callbackInfo);
 
     bool isPending = false;
-    napi_is_exception_pending(constructorInfo->env, &isPending);
+    napi_is_exception_pending(constructorInfo->functionInfo.externalInfo.env, &isPending);
     if (isPending) {
-        napi_get_and_clear_last_exception(constructorInfo->env, (NAPIValue *) exception);
+        napi_get_and_clear_last_exception(constructorInfo->functionInfo.externalInfo.env, (NAPIValue *) exception);
 
         return NULL;
     }
@@ -1623,12 +1613,12 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 
         return setLastErrorCode(env, NAPIGenericFailure);
     }
-    constructorInfo->env = env;
-    constructorInfo->callback = constructor;
-    constructorInfo->data = data;
-    constructorInfo->unused = NULL;
-    constructorInfo->unused1 = NULL;
-    constructorInfo->unused2 = NULL;
+    constructorInfo->functionInfo.externalInfo.env = env;
+    constructorInfo->functionInfo.callback = constructor;
+    constructorInfo->functionInfo.externalInfo.data = data;
+    constructorInfo->functionInfo.externalInfo.finalizeCallback = NULL;
+    constructorInfo->functionInfo.externalInfo.finalizeHint = NULL;
+    SLIST_INIT(&constructorInfo->functionInfo.externalInfo.finalizerHead);
 
     // JavaScriptCore Function 特殊点
     // 1. Function.prototype 不存在
