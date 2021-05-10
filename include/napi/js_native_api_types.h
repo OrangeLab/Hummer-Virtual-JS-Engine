@@ -86,6 +86,7 @@ typedef enum {
     NAPIArrayBufferExpected,
     NAPIDetachableArrayBufferExpected,
     NAPIWouldDeadLock, // unused
+    // 自定义添加错误
     NAPIMemoryError
 } NAPIStatus;
 // Note: when adding a new enum value to `napi_status`, please also update
@@ -113,13 +114,6 @@ typedef struct {
     NAPIPropertyAttributes attributes;
     void *data;
 } NAPIPropertyDescriptor;
-
-typedef struct {
-    const char *errorMessage;
-    void *engineReserved;
-    uint32_t engineErrorCode;
-    NAPIStatus errorCode;
-} NAPIExtendedErrorInfo;
 
 EXTERN_C_END
 

@@ -12,7 +12,7 @@ EXTERN_C_START
 
 #define NAPI_AUTO_LENGTH SIZE_MAX
 
-NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
+//NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
 
 // Getters for defined singletons
 NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result);
