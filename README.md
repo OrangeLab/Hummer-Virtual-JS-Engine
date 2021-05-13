@@ -1,6 +1,6 @@
 ## macOS 编译
 1. gn gen out（如果希望编译 Debug 版本，需要加上 --args="debug=true" 参数）
-2. ninja -C out
+2. ninja -C out napi_jsc
 3. mv out/obj/libnapi_jsc.a .
 4. include/napi 即为头文件
 
@@ -18,7 +18,8 @@
 
 ## 单元测试
 1. gn gen out --args="debug=true"
-2. ./out/test
+2. ninja -C out test
+3. ./out/test
 
 ## 编辑器配置
 1. 推荐使用 CLion
