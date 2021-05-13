@@ -59,7 +59,7 @@ TEST(TestNewTarget, Test) {
             DECLARE_NAPI_PROPERTY("OrdinaryFunction", OrdinaryFunction),
             {"Constructor", NULL, NULL, NULL, NULL, constructor, NAPIDefault, NULL}
     };
-    ASSERT_EQ(napi_define_properties(env, exports, 3, desc), NAPIOK);
+    ASSERT_EQ(napi_define_properties(env, exports, 2, desc), NAPIOK);
 
     EXPECT_EQ(initAssert(env, global), NAPIOK);
 

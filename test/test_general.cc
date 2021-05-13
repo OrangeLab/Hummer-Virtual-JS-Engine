@@ -197,16 +197,6 @@ static NAPIValue finalize_was_called(NAPIEnv env, NAPICallbackInfo /*info*/) {
     return it_was_called;
 }
 
-static NAPIValue testAdjustExternalMemory(NAPIEnv env, NAPICallbackInfo /*info*/) {
-    NAPIValue result;
-    int64_t adjustedValue;
-
-    NAPI_CALL(env, napi_adjust_external_memory(env, 1, &adjustedValue));
-    NAPI_CALL(env, napi_create_double(env, (double) adjustedValue, &result));
-
-    return result;
-}
-
 static NAPIValue testNapiRun(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue script, result;
     size_t argc = 1;
@@ -276,7 +266,6 @@ TEST(TestGeneral, Test) {
             DECLARE_NAPI_PROPERTY("testFinalizeWrap", test_finalize_wrap),
             DECLARE_NAPI_PROPERTY("finalizeWasCalled", finalize_was_called),
             DECLARE_NAPI_PROPERTY("derefItemWasCalled", deref_item_was_called),
-            DECLARE_NAPI_PROPERTY("testAdjustExternalMemory", testAdjustExternalMemory)
     };
 
     ASSERT_EQ(napi_define_properties(
@@ -344,11 +333,6 @@ TEST(TestGeneral, Test) {
                                               "    globalThis.exports.wrap(y);\n"
                                               "    // Clean up here, otherwise derefItemWasCalled() will be polluted.\n"
                                               "    globalThis.exports.removeWrap(y);\n"
-                                              "\n"
-                                              "    // Test napi_adjust_external_memory\n"
-                                              "    const adjustedValue = globalThis.exports.testAdjustExternalMemory();\n"
-                                              "    assert.strictEqual(typeof adjustedValue, 'number');\n"
-                                              "    assert(adjustedValue > 0);\n"
                                               "})();",
                                          "https://n-api.com/test_general_test.js",
                                          &result), NAPIOK);

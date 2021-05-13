@@ -18,7 +18,7 @@
     {                                                  \
         if (!(condition))                              \
         {                                              \
-            return (status);  \
+            return setLastErrorCode(env, status);  \
         }                                              \
     } while (0)
 
@@ -42,7 +42,7 @@
     {                              \
         if (!(env))         \
         {                          \
-            return NAPIInvalidArg; \
+            return setLastErrorCode(env, NAPIInvalidArg); \
         }                          \
     } while (0)
 
@@ -51,6 +51,13 @@
     {                                                                              \
         CHECK_ENV(env);                                                            \
         RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException); \
+    } while (0)
+
+#define NAPI_PREAMBLE(env)                                                                     \
+    do                                                                                         \
+    {                                                                                          \
+        CHECK_JSC(env); \
+        clearLastError(env);                                                                 \
     } while (0)
 
 #include <napi/js_native_api_types.h>
@@ -79,21 +86,41 @@ struct OpaqueNAPIEnv {
     JSGlobalContextRef context;
     // undefined 和 null 实际上也可以当做 exception 抛出，所以异常检查只需要检查是否为 C NULL
     JSValueRef lastException;
+    NAPIExtendedErrorInfo lastError;
     LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
 };
+
+static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode) {
+    CHECK_ENV(env);
+    env->lastError.errorCode = errorCode;
+
+    return errorCode;
+}
+
+static inline NAPIStatus clearLastError(NAPIEnv env) {
+    // env 空指针检查
+    CHECK_ENV(env);
+    env->lastError.errorCode = NAPIOK;
+
+    // TODO(boingoing): Should this be a callback?
+    env->lastError.engineErrorCode = 0;
+    env->lastError.engineReserved = NULL;
+
+    return NAPIOK;
+}
 
 static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code) {
     // 应当允许 code 为 NULL
     // 这是 Node.js 单元测试的要求
     if (!code) {
-        return NAPIOK;
+        return clearLastError(env);
     }
     CHECK_ENV(env);
 
     RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) code), NAPIStringExpected);
     CHECK_NAPI(napi_set_named_property(env, error, "code", code));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static inline bool checkIsExceptionPendingAndClear(NAPIEnv env) {
@@ -111,6 +138,62 @@ static inline bool checkIsExceptionPendingAndClear(NAPIEnv env) {
     return isPending;
 }
 
+// Warning: Keep in-sync with NAPIStatus enum
+static const char *errorMessages[] = {
+        NULL,
+        "Invalid argument",
+        "An object was expected",
+        "A string was expected",
+        "A string or symbol was expected",
+        "A function was expected",
+        "A number was expected",
+        "A boolean was expected",
+        "An array was expected",
+        "Unknown failure",
+        "An exception is pending",
+        "The async work item was cancelled",
+        "napi_escape_handle already called on scope",
+        "Invalid handle scope usage",
+        "Invalid callback scope usage",
+        "Thread-safe function queue is full",
+        "Thread-safe function handle is closing",
+        "A bigint was expected",
+        "A date was expected",
+        "An arraybuffer was expected",
+        "A detachable arraybuffer was expected",
+        "Main thread would deadlock",
+        "Memory allocation error"
+};
+
+// The value of the constant below must be updated to reference the last
+// message in the `napi_status` enum each time a new error message is added.
+// We don't have a napi_status_last as this would result in an ABI
+// change each time a message was added.
+#define LAST_STATUS NAPIMemoryError
+
+NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    static_assert(sizeof(errorMessages) / sizeof(*errorMessages) == LAST_STATUS + 1,
+                  "Count of error messages must match count of error values");
+
+    if (env->lastError.errorCode <= LAST_STATUS) {
+        // Wait until someone requests the last error information to fetch the error
+        // message string
+        env->lastError.errorMessage = errorMessages[env->lastError.errorCode];
+    } else {
+        // Release 模式会添加 NDEBUG 关闭 C 断言
+        // 顶多缺失 errorMessage，尽量不要 Crash
+        assert(false);
+    }
+
+    *result = &(env->lastError);
+
+    // 这里不能使用 clearLastError(env);
+    return NAPIOK;
+}
+
 NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
@@ -118,7 +201,7 @@ NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeUndefined(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result) {
@@ -128,7 +211,7 @@ NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeNull(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result) {
@@ -138,7 +221,7 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result) {
     *result = (NAPIValue) JSContextGetGlobalObject(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result) {
@@ -148,7 +231,7 @@ NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeBoolean(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result) {
@@ -158,23 +241,23 @@ NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result) {
     *result = (NAPIValue) JSObjectMake(env->context, NULL, NULL);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_array(NAPIEnv env, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     *result = (NAPIValue) JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // 本质为 const array = new Array(); array.length = length;
 NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     *result = (NAPIValue) JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
@@ -191,7 +274,7 @@ NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *
     JSStringRelease(lengthStringRef);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result) {
@@ -201,7 +284,7 @@ NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result) {
@@ -211,7 +294,7 @@ NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result) {
@@ -221,7 +304,7 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
@@ -231,7 +314,7 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
     *result = (NAPIValue) JSValueMakeNumber(env->context, (double) value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // JavaScriptCore 只能接受 \0 结尾的字符串
@@ -252,7 +335,7 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
     }
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // V8 引擎传入 NULL 返回 ""
@@ -271,7 +354,7 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
     }
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result) {
@@ -286,7 +369,7 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
 
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // Function
@@ -343,6 +426,8 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
         return NULL;
     }
 
+    clearLastError(functionInfo->externalInfo.env);
+
     // JavaScriptCore 参数都不是 NULL
     struct OpaqueNAPICallbackInfo callbackInfo;
     callbackInfo.newTarget = NULL;
@@ -392,7 +477,6 @@ static inline void finalizeExternalInfo(ExternalInfo *info) {
             }
             free(finalizer);
         }
-        free(info);
     }
 }
 
@@ -413,7 +497,7 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     // 不检查 errno，因为 errno 不可移植
     FunctionInfo *functionInfo = malloc(sizeof(FunctionInfo));
     if (!functionInfo) {
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
     functionInfo->externalInfo.env = env;
     functionInfo->callback = cb;
@@ -431,14 +515,14 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     if (!classRef) {
         free(functionInfo);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
     JSObjectRef prototype = JSObjectMake(env->context, classRef, functionInfo);
     JSClassRelease(classRef);
     if (!prototype) {
         free(functionInfo);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
 
     // utf8name 会被当做函数的 .name 属性
@@ -458,11 +542,11 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, functionObjectRef));
     JSObjectSetPrototype(env->context, functionObjectRef, prototype);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, msg);
     CHECK_ARG(env, result);
 
@@ -471,7 +555,7 @@ NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIVal
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     CHECK_NAPI(setErrorCode(env, *result, code));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
@@ -487,7 +571,7 @@ NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NA
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     CHECK_NAPI(setErrorCode(env, *result, code));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
@@ -503,11 +587,11 @@ NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, N
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     CHECK_NAPI(setErrorCode(env, *result, code));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -550,14 +634,14 @@ NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result) {
         default:
             // Should not get here unless V8 has added some new kind of value.
             assert(false);
-            return NAPIInvalidArg;
+            return setLastErrorCode(env, NAPIInvalidArg);
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -565,13 +649,12 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result) {
 
     *result = JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -579,15 +662,14 @@ NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result) {
 
     *result = (int32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_uint32(NAPIEnv env,
                                  NAPIValue value,
                                  uint32_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -595,13 +677,12 @@ NAPIStatus napi_get_value_uint32(NAPIEnv env,
 
     *result = (uint32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -609,9 +690,8 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
 
     *result = (int64_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
@@ -621,9 +701,8 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
 
     RETURN_STATUS_IF_FALSE(JSValueIsBoolean(env->context, (JSValueRef) value), NAPINumberExpected);
     *result = JSValueToBoolean(env->context, (JSValueRef) value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // 光计算长度实际上存在性能损耗
@@ -636,7 +715,7 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
 // via the result parameter.
 // The result argument is optional unless buf is NULL.
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
 
     RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) value), NAPIStringExpected);
@@ -666,7 +745,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
                 // malloc 失败，无法发生复制，则无法计算实际长度
                 JSStringRelease(stringRef);
 
-                return NAPIMemoryError;
+                return setLastErrorCode(env, NAPIMemoryError);
             }
             // 返回值一定带 \0
             size_t copied = JSStringGetUTF8CString(stringRef, buffer, length);
@@ -675,7 +754,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
                 // 失败
                 JSStringRelease(stringRef);
 
-                return NAPIMemoryError;
+                return setLastErrorCode(env, NAPIMemoryError);
             }
             *result = copied - 1;
         } else {
@@ -686,14 +765,14 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
                 if (!buffer) {
                     JSStringRelease(stringRef);
 
-                    return NAPIOK;
+                    return clearLastError(env);
                 }
                 length = JSStringGetUTF8CString(stringRef, buffer, length);
                 if (!length) {
                     JSStringRelease(stringRef);
                     free(buffer);
 
-                    return NAPIMemoryError;
+                    return setLastErrorCode(env, NAPIMemoryError);
                 }
                 if (length > bufsize) {
                     // 截断
@@ -719,7 +798,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
                 if (!copied) {
                     JSStringRelease(stringRef);
 
-                    return NAPIMemoryError;
+                    return setLastErrorCode(env, NAPIMemoryError);
                 }
                 if (result) {
                     // JSStringGetUTF8CString returns size with null terminator.
@@ -730,7 +809,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
         JSStringRelease(stringRef);
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // Copies a JavaScript string into a UTF-16 string buffer. The result is the
@@ -742,7 +821,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 // code units) via the result parameter.
 // The result argument is optional unless buf is NULL.
 NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t bufsize, size_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
 
     RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) value), NAPIStringExpected);
@@ -776,7 +855,7 @@ NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *b
         JSStringRelease(stringRef);
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result) {
@@ -787,11 +866,11 @@ NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result) 
     *result = (NAPIValue) JSValueMakeBoolean(env->context, JSValueToBoolean(env->context, (JSValueRef) value));
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -801,11 +880,11 @@ NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result
     *result = (NAPIValue) JSValueMakeNumber(env->context, doubleValue);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -813,11 +892,11 @@ NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -828,11 +907,11 @@ NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result
     JSStringRelease(stringRef);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -844,7 +923,7 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result) 
     *result = (NAPIValue) JSObjectGetPrototype(env->context, objectRef);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *result) {
@@ -852,7 +931,7 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     // 1. 包含原型链
     // 2. 可枚举，不包括 Symbol
     // 3. number 转换为 string
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     // 应当检查参数是否为对象
@@ -871,12 +950,12 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     if (env->lastException) {
         JSPropertyNameArrayRelease(propertyNameArrayRef);
 
-        return NAPIPendingException;
+        return setLastErrorCode(env, NAPIPendingException);
     }
     if (!*result) {
         JSPropertyNameArrayRelease(propertyNameArrayRef);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
 
     NAPIValue pushFunction;
@@ -896,7 +975,7 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
                 JSPropertyNameArrayRelease(propertyNameArrayRef);
 
                 // 尽量抛出异常
-                return NAPIPendingException;
+                return setLastErrorCode(env, NAPIPendingException);
             }
 
             // 传入 NULL 参数没关系，会转换成 JS Null
@@ -911,11 +990,11 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     }
     JSPropertyNameArrayRelease(propertyNameArrayRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, key);
     CHECK_ARG(env, value);
 
@@ -940,11 +1019,11 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     JSStringRelease(keyStringRef);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
     CHECK_ARG(env, key);
 
@@ -965,11 +1044,11 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
             keyStringRef);
     JSStringRelease(keyStringRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, key);
     CHECK_ARG(env, result);
 
@@ -993,7 +1072,7 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
@@ -1019,7 +1098,7 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
     JSStringRelease(keyStringRef);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
@@ -1038,11 +1117,11 @@ NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, b
     CHECK_NAPI(napi_call_function(env, object, function, 1, &key, &value));
     *result = (JSValueRef) JSValueToBoolean(env->context, (JSValueRef) value);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue value) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1064,11 +1143,11 @@ NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *ut
     JSStringRelease(stringRef);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_has_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, bool *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1086,11 +1165,11 @@ NAPIStatus napi_has_named_property(NAPIEnv env, NAPIValue object, const char *ut
             stringRef);
     JSStringRelease(stringRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1111,11 +1190,11 @@ NAPIStatus napi_get_named_property(NAPIEnv env, NAPIValue object, const char *ut
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue value) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1132,11 +1211,11 @@ NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
             &env->lastException);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1155,11 +1234,11 @@ NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool 
     // 不存在的属性会返回 undefined
     *result = !JSValueIsUndefined(env->context, value);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
@@ -1176,11 +1255,11 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
 
@@ -1201,12 +1280,12 @@ NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bo
     JSStringRelease(indexStringRef);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
 napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, const NAPIPropertyDescriptor *properties) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     if (property_count > 0) {
         CHECK_ARG(env, properties);
     }
@@ -1265,7 +1344,7 @@ napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, con
         CHECK_NAPI(napi_call_function(env, objectCtor, function, 3, args, NULL));
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result) {
@@ -1277,11 +1356,11 @@ NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result) {
             env->context,
             (JSValueRef) value);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -1304,7 +1383,7 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
     *result = (uint32_t) JSValueToNumber(env->context, length, &env->lastException);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result) {
@@ -1318,12 +1397,12 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
             (JSValueRef) lhs,
             (JSValueRef) rhs);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
 napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, recv);
     if (argc > 0) {
         CHECK_ARG(env, argv);
@@ -1356,12 +1435,12 @@ napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, con
         RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
 napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, constructor);
     if (argc > 0) {
         CHECK_ARG(env, argv);
@@ -1383,11 +1462,11 @@ napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIVal
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, object);
     CHECK_ARG(env, result);
 
@@ -1404,7 +1483,7 @@ NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor,
             &env->lastException);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
@@ -1441,7 +1520,7 @@ napi_get_cb_info(NAPIEnv env, NAPICallbackInfo cbinfo, size_t *argc, NAPIValue *
         *data = cbinfo->data;
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *result) {
@@ -1451,7 +1530,7 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
 
     *result = (NAPIValue) cbinfo->newTarget;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // Constructor
@@ -1539,6 +1618,8 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
         return NULL;
     }
 
+    clearLastError(constructorInfo->functionInfo.externalInfo.env);
+
     ExternalInfo *externalInfo;
     if (!createExternalInfo(constructorInfo->functionInfo.externalInfo.env, NULL, &externalInfo) || !externalInfo) {
         return NULL;
@@ -1620,7 +1701,7 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
 
 NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
                              size_t propertyCount, const NAPIPropertyDescriptor *properties, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
     CHECK_ARG(env, constructor);
 
@@ -1649,7 +1730,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     if (!constructorInfo->classRef) {
         free(constructorInfo);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
 
     classDefinition = kJSClassDefinitionEmpty;
@@ -1663,7 +1744,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         }
         free(constructorInfo);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
 
     // 正常原型链见 https://stackoverflow.com/questions/32928810/function-prototype-is-a-function
@@ -1695,7 +1776,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         }
         free(constructorInfo);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
     JSObjectRef function = JSObjectMakeConstructor(env->context, constructorInfo->classRef, callAsConstructor);
     RETURN_STATUS_IF_FALSE(function, NAPIMemoryError);
@@ -1739,7 +1820,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         staticDescriptors = malloc(
                 sizeof(NAPIPropertyDescriptor) * staticPropertyCount);
         if (!staticDescriptors) {
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
     }
 
@@ -1751,7 +1832,7 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
         if (!instanceDescriptors) {
             free(staticDescriptors);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
     }
 
@@ -1799,13 +1880,13 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 
     *result = (NAPIValue) function;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 // External
 
 static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
 
     NAPIValue prototype = NULL;
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
@@ -1816,11 +1897,11 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
 
     *result = JSObjectGetPrivate(objectRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
 
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
@@ -1830,21 +1911,21 @@ static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **resu
     CHECK_NAPI(unwrap(env, object, &info));
     if (!info) {
         if (!createExternalInfo(env, NULL, &info) || !info) {
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
 
         JSClassRef classRef = createExternalClass();
         if (!classRef) {
             free(info);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
         JSObjectRef prototype = JSObjectMake(env->context, classRef, info);
         JSClassRelease(classRef);
         if (!prototype) {
             free(info);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
         JSObjectSetPrototype(env->context, prototype, JSObjectGetPrototype(env->context, objectRef));
         JSObjectSetPrototype(env->context, objectRef, prototype);
@@ -1852,7 +1933,7 @@ static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **resu
 
     *result = info;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static bool addFinalizer(ExternalInfo *externalInfo, NAPIFinalize finalize, void *finalizeHint) {
@@ -1899,7 +1980,7 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
         CHECK_NAPI(napi_create_reference(env, jsObject, 0, result));
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue jsObject, void **result) {
@@ -1912,7 +1993,7 @@ NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     RETURN_STATUS_IF_FALSE(info && info->data, NAPIInvalidArg);
     *result = info->data;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
@@ -1929,7 +2010,7 @@ NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     info->finalizeCallback = NULL;
     info->finalizeHint = NULL;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static inline NAPIStatus create(NAPIEnv env,
@@ -1942,27 +2023,27 @@ static inline NAPIStatus create(NAPIEnv env,
 
     ExternalInfo *info;
     if (!createExternalInfo(env, data, &info) || !info) {
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
 
     JSClassRef classRef = createExternalClass();
     if (!classRef) {
         free(info);
 
-        return NAPIMemoryError;
+        return setLastErrorCode(env, NAPIMemoryError);
     }
     if (finalizeCB) {
         if (!addFinalizer(info, finalizeCB, finalizeHint)) {
             JSClassRelease(classRef);
             free(info);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
     }
     *result = (NAPIValue) JSObjectMake(env->context, classRef, info);
     JSClassRelease(classRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
@@ -1972,11 +2053,11 @@ napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *fin
 
     CHECK_NAPI(create(env, data, finalizeCB, finalizeHint, result));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
@@ -1988,7 +2069,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) 
     ExternalInfo *info = JSObjectGetPrivate(objectRef);
     *result = info ? info->data : NULL;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 typedef struct {
@@ -2041,7 +2122,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         if (!activeReferenceValue) {
             free(reference);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
         activeReferenceValue->value = (JSValueRef) value;
         hashError = false;
@@ -2051,7 +2132,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
             free(reference);
             free(activeReferenceValue);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
         // wrap
         ExternalInfo *externalInfo = NULL;
@@ -2070,7 +2151,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
             HASH_DEL(activeReferenceValues, activeReferenceValue);
             free(activeReferenceValue);
 
-            return NAPIMemoryError;
+            return setLastErrorCode(env, NAPIMemoryError);
         }
     }
 
@@ -2079,7 +2160,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     }
     *result = reference;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static inline void unprotect(NAPIEnv env, NAPIRef reference) {
@@ -2102,7 +2183,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref) {
 
     free(ref);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
@@ -2117,7 +2198,7 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
         *result = ref->count;
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
@@ -2132,7 +2213,7 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result) {
         *result = ref->count;
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result) {
@@ -2147,7 +2228,7 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
         *result = (NAPIValue) ref->value;
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result) {
@@ -2156,14 +2237,14 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result) {
 
     *result = (NAPIHandleScope) 1;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope) {
     CHECK_ENV(env);
     CHECK_ARG(env, scope);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 struct OpaqueNAPIEscapableHandleScope {
@@ -2178,7 +2259,7 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     (*result)->escapeCalled = false;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope) {
@@ -2187,7 +2268,7 @@ NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleSco
 
     free(scope);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result) {
@@ -2200,7 +2281,7 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
     scope->escapeCalled = true;
     *result = escapee;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_throw(NAPIEnv env, NAPIValue error) {
@@ -2209,7 +2290,7 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error) {
 
     env->lastException = (JSValueRef) error;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg) {
@@ -2280,7 +2361,7 @@ NAPIStatus napi_is_error(NAPIEnv env, NAPIValue value, bool *result) {
     CHECK_NAPI(napi_get_named_property(env, global, "Error", &errorCtor));
     CHECK_NAPI(napi_instanceof(env, value, errorCtor, result));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_is_exception_pending(NAPIEnv env, bool *result) {
@@ -2289,7 +2370,7 @@ NAPIStatus napi_is_exception_pending(NAPIEnv env, bool *result) {
 
     *result = env->lastException;
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result) {
@@ -2303,7 +2384,7 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result) {
         env->lastException = NULL;
     }
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 typedef struct {
@@ -2347,7 +2428,7 @@ NAPIStatus napi_create_promise(NAPIEnv env,
     CHECK_NAPI(napi_create_reference(env, deferredValue, 1, &deferredRef));
     *deferred = (NAPIDeferred) (deferredRef);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_resolve_deferred(NAPIEnv env,
@@ -2367,7 +2448,7 @@ NAPIStatus napi_resolve_deferred(NAPIEnv env,
     CHECK_NAPI(napi_call_function(env, undefined, resolve, 1, &resolution, NULL));
     CHECK_NAPI(napi_delete_reference(env, deferredRef));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_reject_deferred(NAPIEnv env,
@@ -2385,7 +2466,7 @@ NAPIStatus napi_reject_deferred(NAPIEnv env,
     CHECK_NAPI(napi_call_function(env, undefined, reject, 1, &rejection, NULL));
     CHECK_NAPI(napi_delete_reference(env, deferredRef));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_is_promise(NAPIEnv env,
@@ -2400,13 +2481,13 @@ NAPIStatus napi_is_promise(NAPIEnv env,
     CHECK_NAPI(napi_get_named_property(env, global, "Promise", &promiseCtor));
     CHECK_NAPI(napi_instanceof(env, value, promiseCtor, isPromise));
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus napi_run_script(NAPIEnv env,
                            NAPIValue script,
                            NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, script);
     CHECK_ARG(env, result);
 
@@ -2419,12 +2500,12 @@ NAPIStatus napi_run_script(NAPIEnv env,
             env->context, script_str, NULL, NULL, 1, &env->lastException);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 NAPIStatus
 NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8SourceUrl, NAPIValue *result) {
-    CHECK_JSC(env);
+    NAPI_PREAMBLE(env);
     CHECK_ARG(env, utf8Script);
     CHECK_ARG(env, result);
 
@@ -2437,7 +2518,7 @@ NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8
     *result = (NAPIValue) JSEvaluateScript(env->context, scriptStringRef, NULL, sourceUrl, 1, &env->lastException);
     CHECK_JSC(env);
 
-    return NAPIOK;
+    return clearLastError(env);
 }
 
 static JSContextGroupRef virtualMachine = NULL;
@@ -2446,7 +2527,9 @@ static uint32_t contextCount = 0;
 
 NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     // *env 才是 NAPIEnv
-    CHECK_ENV(env);
+    if (!env) {
+        return NAPIInvalidArg;
+    }
 
     if ((virtualMachine && !contextCount) || (!virtualMachine && contextCount) ||
         (!virtualMachine && activeReferenceValues) || (!activeReferenceValues && virtualMachine)) {
@@ -2456,7 +2539,9 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     }
 
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
-    RETURN_STATUS_IF_FALSE(*env, NAPIMemoryError);
+    if (!*env) {
+        return NAPIMemoryError;
+    }
 
     if (!virtualMachine) {
         virtualMachine = JSContextGroupCreate();

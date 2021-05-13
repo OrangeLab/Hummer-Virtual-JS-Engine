@@ -115,6 +115,13 @@ typedef struct {
     void *data;
 } NAPIPropertyDescriptor;
 
+typedef struct {
+    const char *errorMessage;
+    void *engineReserved;
+    uint32_t engineErrorCode;
+    NAPIStatus errorCode;
+} NAPIExtendedErrorInfo;
+
 EXTERN_C_END
 
 #endif /* js_native_api_types_h */
