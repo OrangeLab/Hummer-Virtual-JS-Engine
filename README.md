@@ -5,7 +5,7 @@
 4. include/napi 即为头文件
 
 ## 编译参数
-1. debug boolean true -O0/s
+1. debug boolean false -O0/s
 2. code_coverage boolean false 是否开启代码覆盖率插桩
 3. asan/ubsan boolean false -fsanitize=undefined/address
 4. build_ios boolean false 开启后下面两个参数生效
@@ -38,7 +38,7 @@
 3. gn gen armv7 --args="build_ios=true ios_simulator=false ios_archtecture=\"armv7\"" && ninja -C armv7 napi_jsc
 4. gn gen arm64 --args="build_ios=true ios_simulator=false ios_archtecture=\"arm64\"" && ninja -C arm64 napi_jsc
 5. mkdir universal && lipo -create x86_64/obj/libnapi_jsc.a i386/obj/libnapi_jsc.a armv7/obj/libnapi_jsc.a arm64/obj/libnapi_jsc.a -output universal/libnapi_jsc.a
-6. out/libnapi_jsc.a 即为最终产物
+6. universal/libnapi_jsc.a 即为最终产物
 
 ## 注意事项
 1. 只能在单一线程执行，不跨多线程执行，JavaScriptCore 通过锁机制保证同步，但是其他引擎很可能没有该保证
