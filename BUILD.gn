@@ -34,31 +34,32 @@ executable("test") {
     ]
 
     sources = [
-        "test/2_function_arguments.cc",
-        "test/3_callbacks.cc",
-        "test/4_object_factory.cc",
-        "test/5_function_factory.cc",
-        "test/6_object_wrap.cc",
-        "test/test_array.cc",
+        "test/js_native_api_test.cpp",
+        "test/2_function_arguments.cpp",
+        "test/3_callbacks.cpp",
+        "test/4_object_factory.cpp",
+        "test/5_function_factory.cpp",
+        "test/6_object_wrap.cpp",
+        "test/test_array.cpp",
         "test/common.c",
-        "test/test_constructor.cc",
-        "test/test_conversions.cc",
-        "test/test_error.cc",
-        "test/test_exception.cc",
-        "test/test_function.cc",
-        "test/test_general.cc",
-        "test/test_handle_scope.cc",
-        "test/test_new_target.cc",
-        "test/test_number.cc",
-        "test/test_object.cc",
-        "test/test_promise.cc",
-        "test/test_properties.cc",
-        "test/test_string.cc",
-        "test/test_symbol.cc"
+        "test/test_constructor.cpp",
+        "test/test_conversions.cpp",
+        "test/test_error.cpp",
+        "test/test_exception.cpp",
+        "test/test_function.cpp",
+        "test/test_general.cpp",
+        "test/test_handle_scope.cpp",
+        "test/test_new_target.cpp",
+        "test/test_number.cpp",
+        "test/test_object.cpp",
+        "test/test_promise.cpp",
+        "test/test_properties.cpp",
+        "test/test_string.cpp",
+        "test/test_symbol.cpp"
     ]
 
     deps = [
-        ":gtest_main",
+        ":gtest",
         ":napi_jsc"
     ]
 }

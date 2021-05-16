@@ -344,6 +344,16 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
     CHECK_ARG(env, result);
 
     static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
+    uint16_t value = 0x0102;
+    if (*((uint8_t *) &value) == 1) {
+        // 大端
+        char16_t *newStr = malloc(sizeof(char16_t) * length);
+        RETURN_STATUS_IF_FALSE(str, NAPIMemoryError);
+        for (size_t i = 0; i < length; ++i) {
+            newStr[i] = ((str[i] << 8) & 0xff00) | ((str[i] >> 8) & 0x00ff);
+        }
+        str = newStr;
+    }
 
     RETURN_STATUS_IF_FALSE(length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
@@ -660,7 +670,10 @@ NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result) {
 
     RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
 
-    *result = (int32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    // 缺少 int64_t 作为中间转换，会固定在 -2147483648
+    // TODO(ChasonTang): 是否该行为是 UB？
+    // 但是 uint32_t 不会
+    *result = (int32_t) (int64_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
 
     return clearLastError(env);
@@ -688,8 +701,22 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
 
     RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
 
-    *result = (int64_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    double doubleValue = JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
     CHECK_JSC(env);
+
+    if (isfinite(doubleValue)) {
+        if (isnan(doubleValue)) {
+            *result = 0;
+        } else if (doubleValue >= (double) QUAD_MAX) {
+            *result = QUAD_MAX;
+        } else if (doubleValue <= (double) QUAD_MIN) {
+            *result = QUAD_MIN;
+        } else {
+            *result = (int64_t) doubleValue;
+        }
+    } else {
+        *result = 0;
+    }
 
     return clearLastError(env);
 }
@@ -758,7 +785,8 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
             }
             *result = copied - 1;
         } else {
-            // JSStringGetUTFCString 如果实际为 ASCII/Latin1，则不会考虑传入的 bufferSize 参数，这是一个 bug
+            // JSStringGetUTFCString 如果实际为 ASCII，则不会考虑传入的 bufferSize 参数，如果是 Latin1，则会报错并返回 1 长度，这是一个 bug
+            // 不包含 \0
             if (length > bufsize) {
                 // TODO(ChasonTang): 栈分配
                 char *buffer = malloc(sizeof(char) * length);
@@ -774,22 +802,101 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 
                     return setLastErrorCode(env, NAPIMemoryError);
                 }
-                if (length > bufsize) {
-                    // 截断
-                    // bufsize 不等于 0
-                    buffer[bufsize - 1] = '\0';
-                    // 不要使用 memcpy
-                    memmove(buf, buffer, bufsize);
-                    if (result) {
-                        // JSStringGetUTF8CString returns size with null terminator.
-                        *result = bufsize - 1;
+                if (JSStringGetLength(stringRef) + 1 == length) {
+                    // ASCII
+                    if (length <= bufsize) {
+                        memmove(buf, buffer, length);
+                        if (result) {
+                            // JSStringGetUTF8CString returns size with null terminator.
+                            *result = length - 1;
+                        }
+                    } else {
+                        // 截断
+                        // bufsize 不等于 0
+                        buffer[bufsize - 1] = '\0';
+                        // 不要使用 memcpy
+                        memmove(buf, buffer, bufsize);
+                        if (result) {
+                            // JSStringGetUTF8CString returns size with null terminator.
+                            *result = bufsize - 1;
+                        }
                     }
                 } else {
-                    memmove(buf, buffer, length);
-                    if (result) {
-                        // JSStringGetUTF8CString returns size with null terminator.
-                        assert(length);
-                        *result = length - 1;
+                    bool is8Bit = true;
+                    size_t i = 0;
+                    while (i < length) {
+                        if (((uint8_t *) buffer)[i] < 0x80) {
+                            // ASCII
+                            ++i;
+                            continue;;
+                        } else if (((uint8_t *) buffer)[i] == 0xc2 || ((uint8_t *) buffer)[i] == 0xc3) {
+                            // 110xxxxx 10xxxxxx
+                            // 11000010 10000000 -> 11000011 10111111
+                            // 读取第二个字节
+                            // 越界检查
+                            if (++i >= length) {
+                                assert(false);
+                                JSStringRelease(stringRef);
+                                free(buffer);
+
+                                return setLastErrorCode(env, NAPIMemoryError);
+                            }
+                            // 校验
+                            if (((uint8_t *) buffer)[i] >> 6 != 2) {
+                                assert(false);
+                                JSStringRelease(stringRef);
+                                free(buffer);
+
+                                return setLastErrorCode(env, NAPIMemoryError);
+                            }
+                            if (((uint8_t *) buffer)[i] < 0x80 || ((uint8_t *) buffer)[i] > 0xbf) {
+                                is8Bit = false;
+                                break;
+                            }
+
+                            ++i;
+                            continue;;
+                        } else {
+                            is8Bit = false;
+                            break;
+                        }
+                    }
+                    if (is8Bit) {
+                        // latin1
+                        if (length <= bufsize) {
+                            memmove(buf, buffer, length);
+                            if (result) {
+                                // JSStringGetUTF8CString returns size with null terminator.
+                                *result = length - 1;
+                            }
+                        } else {
+                            buffer[bufsize - (bufsize % 2 ? 1 : 2)] = 0;
+                            // 不要使用 memcpy
+                            memmove(buf, buffer, bufsize);
+                            if (result) {
+                                // JSStringGetUTF8CString returns size with null terminator.
+                                *result = bufsize - 1;
+                            }
+                        }
+                    } else if (length <= bufsize) {
+                        memmove(buf, buffer, length);
+                        if (result) {
+                            // JSStringGetUTF8CString returns size with null terminator.
+                            *result = length - 1;
+                        }
+                    } else {
+                        // 重新复制
+                        length = JSStringGetUTF8CString(stringRef, buf, bufsize);
+                        if (!length) {
+                            JSStringRelease(stringRef);
+                            free(buffer);
+
+                            return setLastErrorCode(env, NAPIMemoryError);
+                        }
+                        if (result) {
+                            // JSStringGetUTF8CString returns size with null terminator.
+                            *result = length - 1;
+                        }
                     }
                 }
                 free(buffer);
@@ -847,6 +954,15 @@ NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *b
             size_t copied = length > bufsize - 1 ? bufsize - 1 : length;
             memmove(buf, chars, copied * sizeof(char16_t));
             buf[copied] = 0;
+
+            uint16_t checkValue = 0x0102;
+            if (*((uint8_t *) &checkValue) == 1) {
+                // 大端
+                for (size_t i = 0; i < length; ++i) {
+                    buf[i] = ((buf[i] << 8) & 0xff00) | ((buf[i] >> 8) & 0x00ff);
+                }
+            }
+
             if (result) {
                 *result = copied;
             }

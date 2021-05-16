@@ -25,30 +25,14 @@ EXTERN_C_START
     }                                                                    \
   } while (0)
 
-#define NAPI_CALL_BASE(env, theCall, retVal)                           \
-  do {                                                                   \
-    if ((theCall) != NAPIOK) {                                         \
-      GET_AND_THROW_LAST_ERROR((env));                                   \
-      return retVal;                                                    \
-    }                                                                    \
-  } while (0)
-
-// Returns NULL if the_call doesn't return napi_ok.
-#define NAPI_CALL(env, theCall)                                         \
-  NAPI_CALL_BASE(env, theCall, NULL)
-
-// Returns empty if the_call doesn't return napi_ok.
-#define NAPI_CALL_RETURN_VOID(env, the_call)                             \
-  NAPI_CALL_BASE(env, the_call, NAPI_RETVAL_NOTHING)
-
-#define NAPI_ASSERT_BASE(env, assertion, message, retVal)               \
+#define NAPI_ASSERT_BASE(env, assertion, message, ret_val)               \
   do {                                                                   \
     if (!(assertion)) {                                                  \
       napi_throw_error(                                                  \
           (env),                                                         \
         NULL,                                                            \
           "assertion (" #assertion ") failed: " message);                \
-      return retVal;                                                    \
+      return ret_val;                                                    \
     }                                                                    \
   } while (0)
 
@@ -62,8 +46,37 @@ EXTERN_C_START
 #define NAPI_ASSERT_RETURN_VOID(env, assertion, message)                 \
   NAPI_ASSERT_BASE(env, assertion, message, NAPI_RETVAL_NOTHING)
 
+#define NAPI_CALL_BASE(env, the_call, ret_val)                           \
+  do {                                                                   \
+    if ((the_call) != NAPIOK) {                                         \
+      GET_AND_THROW_LAST_ERROR((env));                                   \
+      return ret_val;                                                    \
+    }                                                                    \
+  } while (0)
+
+// Returns NULL if the_call doesn't return napi_ok.
+#define NAPI_CALL(env, the_call)                                         \
+  NAPI_CALL_BASE(env, the_call, NULL)
+
+// Returns empty if the_call doesn't return napi_ok.
+#define NAPI_CALL_RETURN_VOID(env, the_call)                             \
+  NAPI_CALL_BASE(env, the_call, NAPI_RETVAL_NOTHING)
+
 #define DECLARE_NAPI_PROPERTY(name, func)                                \
   { (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL }
+
+#define DECLARE_NAPI_GETTER(name, func)                                  \
+  { (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL }
+
+// Returns NULL on failed assertion.
+// This is meant to be used inside napi_callback methods.
+#define NAPI_ASSERT(env, assertion, message)                             \
+  NAPI_ASSERT_BASE(env, assertion, message, NULL)
+
+// Returns empty on failed assertion.
+// This is meant to be used inside functions with void return type.
+#define NAPI_ASSERT_RETURN_VOID(env, assertion, message)                 \
+  NAPI_ASSERT_BASE(env, assertion, message, NAPI_RETVAL_NOTHING)
 
 // expected_message 没做修改，添加 const
 void add_returned_status(NAPIEnv env,
