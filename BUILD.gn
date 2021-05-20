@@ -26,6 +26,25 @@ static_library("napi_jsc") {
     ]
 }
 
+static_library("napi_hermes") {
+    configs = [
+        ":uthash"
+    ]
+    arflags = [
+        "-Wall -Wextra -Wno-unused-parameter -Wwrite-strings -Wcast-qual -Wmissing-field-initializers -Wno-noexcept-type -Wnon-virtual-dtor -Wdelete-non-virtual-dtor -Wno-range-loop-analysis -gdwarf -fvisibility=hidden -Os -DNDEBUG"
+    ]
+    public_configs = [
+        ":napi"
+    ]
+    include_dirs = [
+        "third_party/hermes/include",
+        "third_party/hermes/public"
+    ]
+    sources = [
+        "third_party/hermes/API/hermes/hermes.cpp"
+    ]
+}
+
 executable("test") {
     testonly = true
 

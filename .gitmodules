@@ -4,3 +4,6 @@
 [submodule "third_party/uthash"]
 	path = third_party/uthash
 	url = git@github.com:troydhanson/uthash.git
+[submodule "third_party/hermes"]
+	path = third_party/hermes
+	url = git@github.com:facebook/hermes.git
