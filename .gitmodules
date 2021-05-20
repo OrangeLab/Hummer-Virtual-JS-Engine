@@ -4,3 +4,6 @@
 [submodule "third_party/uthash"]
 	path = third_party/uthash
 	url = git@github.com:troydhanson/uthash.git
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = git@github.com:bellard/quickjs.git
