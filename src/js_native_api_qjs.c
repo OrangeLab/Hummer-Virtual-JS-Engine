@@ -2,6 +2,7 @@
 #include <napi/js_native_api.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK_ENV(env)             \
     do                             \
@@ -36,6 +37,10 @@ NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode) {
 
     return errorCode;
 }
+
+//NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result) {
+
+//}
 
 static JSRuntime *runtime = NULL;
 
@@ -94,11 +99,38 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env) {
     return NAPIOK;
 }
 
+typedef union {
+    NAPIValue store;
+    JSValue value;
+} ConvertUnion;
+
+static inline NAPIStatus clearLastError(NAPIEnv env) {
+    // env 空指针检查
+    CHECK_ENV(env);
+    env->lastError.errorCode = NAPIOK;
+
+    // TODO(boingoing): Should this be a callback?
+    env->lastError.engineErrorCode = 0;
+    env->lastError.engineReserved = NULL;
+
+    return NAPIOK;
+}
+
 NAPIStatus
 NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8SourceUrl, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, utf8Script);
     CHECK_ARG(env, result);
 
-    JSValue JS_Eval()
+    ConvertUnion convertUnion = {.value = JS_Eval(env->context, utf8Script, strlen(utf8Script), utf8SourceUrl,
+                                                  JS_EVAL_TYPE_GLOBAL)};
+    RETURN_STATUS_IF_FALSE(env, !JS_IsException(convertUnion.value), NAPIPendingException);
+    for (int err = 1; err == 1;) {
+        JSContext *context;
+        err = JS_ExecutePendingJob(JS_GetRuntime(env->context), &context);
+        RETURN_STATUS_IF_FALSE(env, !err, NAPIPendingException);
+    }
+    *result = convertUnion.store;
+
+    return clearLastError(env);
 }
