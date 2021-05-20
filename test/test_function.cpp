@@ -79,8 +79,8 @@ static NAPIValue TestCallFunction(NAPIEnv env, NAPICallbackInfo info) {
     return result;
 }
 
-static NAPIValue TestFunctionName(NAPIEnv /*globalEnv*/, NAPICallbackInfo /*info*/) {
-    return nullptr;
+static NAPIValue TestFunctionName(NAPIEnv env, NAPICallbackInfo /*info*/) {
+    return getUndefined(env);
 }
 
 static void finalize_function(NAPIEnv env, void *data, void */*hint*/) {

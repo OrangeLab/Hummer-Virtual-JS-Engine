@@ -14,7 +14,7 @@ EXTERN_C_START
                         "Invalid argument",                               \
                         NAPIInvalidArg,                                 \
                         api(nullptr, return_value, &result));                \
-    api(env, nullptr, &result);                                              \
+    api(env, getUndefined(env), &result);                                              \
     add_last_status(env, "valueIsNull", return_value);                    \
     api(env, return_value, nullptr);                                         \
     add_last_status(env, "resultIsNull", return_value);                   \
@@ -46,7 +46,7 @@ GEN_NULL_CHECK_BINDING(CoerceToString, NAPIValue, napi_coerce_to_string)
                         api(nullptr, return_value, buf1, length1, &length1)); \
     arg_type buf2[4];                                                      \
     size_t length2 = 3;                                                    \
-    api(env, nullptr, buf2, length2, &length2);                               \
+    api(env, getUndefined(env), buf2, length2, &length2);                               \
     add_last_status(env, "valueIsNull", return_value);                     \
     api(env, return_value, nullptr, 3, nullptr);                                 \
     add_last_status(env, "wrongTypeIn", return_value);                     \
@@ -71,164 +71,236 @@ GEN_NULL_CHECK_STRING_BINDING(GetValueStringUtf16,
                               char16_t,
                               napi_get_value_string_utf16)
 
-static void init_test_null(NAPIEnv env, NAPIValue exports) {
-    NAPIValue test_null;
+static void init_test_null(NAPIEnv
+env,
+NAPIValue exports
+) {
+NAPIValue test_null;
 
-    const NAPIPropertyDescriptor test_null_props[] = {
-            DECLARE_NAPI_PROPERTY("getValueBool", GetValueBool),
-            DECLARE_NAPI_PROPERTY("getValueInt32", GetValueInt32),
-            DECLARE_NAPI_PROPERTY("getValueUint32", GetValueUint32),
-            DECLARE_NAPI_PROPERTY("getValueInt64", GetValueInt64),
-            DECLARE_NAPI_PROPERTY("getValueDouble", GetValueDouble),
-            DECLARE_NAPI_PROPERTY("coerceToBool", CoerceToBool),
-            DECLARE_NAPI_PROPERTY("coerceToObject", CoerceToObject),
-            DECLARE_NAPI_PROPERTY("coerceToString", CoerceToString),
-            DECLARE_NAPI_PROPERTY("getValueStringUtf8", GetValueStringUtf8),
+const NAPIPropertyDescriptor test_null_props[] = {
+        DECLARE_NAPI_PROPERTY("getValueBool", GetValueBool),
+        DECLARE_NAPI_PROPERTY("getValueInt32", GetValueInt32),
+        DECLARE_NAPI_PROPERTY("getValueUint32", GetValueUint32),
+        DECLARE_NAPI_PROPERTY("getValueInt64", GetValueInt64),
+        DECLARE_NAPI_PROPERTY("getValueDouble", GetValueDouble),
+        DECLARE_NAPI_PROPERTY("coerceToBool", CoerceToBool),
+        DECLARE_NAPI_PROPERTY("coerceToObject", CoerceToObject),
+        DECLARE_NAPI_PROPERTY("coerceToString", CoerceToString),
+        DECLARE_NAPI_PROPERTY("getValueStringUtf8", GetValueStringUtf8),
 //            DECLARE_NAPI_PROPERTY("getValueStringLatin1", GetValueStringLatin1),
-            DECLARE_NAPI_PROPERTY("getValueStringUtf16", GetValueStringUtf16),
-    };
+        DECLARE_NAPI_PROPERTY("getValueStringUtf16", GetValueStringUtf16),
+};
 
-    NAPI_CALL_RETURN_VOID(env, napi_create_object(env, &test_null));
-    NAPI_CALL_RETURN_VOID(env, napi_define_properties(
-            env, test_null, sizeof(test_null_props) / sizeof(*test_null_props),
-            test_null_props));
+NAPI_CALL_RETURN_VOID(env, napi_create_object(env, &test_null)
+);
+NAPI_CALL_RETURN_VOID(env, napi_define_properties(
+        env, test_null, sizeof(test_null_props) / sizeof(*test_null_props),
+        test_null_props)
+);
 
-    const NAPIPropertyDescriptor test_null_set = {
-            "testNull", nullptr, nullptr, nullptr, nullptr, test_null, NAPIEnumerable, nullptr
-    };
+const NAPIPropertyDescriptor test_null_set = {
+        "testNull", getUndefined(env), nullptr, nullptr, nullptr, test_null, NAPIEnumerable, nullptr
+};
 
-    NAPI_CALL_RETURN_VOID(env,
-                          napi_define_properties(env, exports, 1, &test_null_set));
+NAPI_CALL_RETURN_VOID(env,
+        napi_define_properties(env, exports, 1, &test_null_set)
+);
 }
 
-static NAPIValue AsBool(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsBool(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    bool value;
-    NAPI_CALL(env, napi_get_value_bool(env, args[0], &value));
+bool value;
+NAPI_CALL(env, napi_get_value_bool(env, args[0], &value)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_get_boolean(env, value, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_get_boolean(env, value, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue AsInt32(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsInt32(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    int32_t value;
-    NAPI_CALL(env, napi_get_value_int32(env, args[0], &value));
+int32_t value;
+NAPI_CALL(env, napi_get_value_int32(env, args[0], &value)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_create_int32(env, value, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_create_int32(env, value, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue AsUInt32(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsUInt32(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    uint32_t value;
-    NAPI_CALL(env, napi_get_value_uint32(env, args[0], &value));
+uint32_t value;
+NAPI_CALL(env, napi_get_value_uint32(env, args[0], &value)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_create_uint32(env, value, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_create_uint32(env, value, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue AsInt64(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsInt64(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    int64_t value;
-    NAPI_CALL(env, napi_get_value_int64(env, args[0], &value));
+int64_t value;
+NAPI_CALL(env, napi_get_value_int64(env, args[0], &value)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_create_int64(env, (double) value, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_create_int64(env, (double) value, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue AsDouble(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsDouble(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    double value;
-    NAPI_CALL(env, napi_get_value_double(env, args[0], &value));
+double value;
+NAPI_CALL(env, napi_get_value_double(env, args[0], &value)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_create_double(env, value, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_create_double(env, value, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue AsString(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue AsString(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    char value[100];
-    NAPI_CALL(env,
-              napi_get_value_string_utf8(env, args[0], value, sizeof(value), nullptr));
+char value[100];
+NAPI_CALL(env,
+        napi_get_value_string_utf8(env, args[0], value, sizeof(value), nullptr)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_create_string_utf8(
-            env, value, NAPI_AUTO_LENGTH, &output));
+NAPIValue output;
+NAPI_CALL(env, napi_create_string_utf8(
+        env, value, NAPI_AUTO_LENGTH, &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue ToBool(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue ToBool(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_coerce_to_bool(env, args[0], &output));
+NAPIValue output;
+NAPI_CALL(env, napi_coerce_to_bool(env, args[0], &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue ToNumber(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue ToNumber(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_coerce_to_number(env, args[0], &output));
+NAPIValue output;
+NAPI_CALL(env, napi_coerce_to_number(env, args[0], &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue ToObject(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue ToObject(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_coerce_to_object(env, args[0], &output));
+NAPIValue output;
+NAPI_CALL(env, napi_coerce_to_object(env, args[0], &output)
+);
 
-    return output;
+return
+output;
 }
 
-static NAPIValue ToString(NAPIEnv env, NAPICallbackInfo info) {
-    size_t argc = 1;
-    NAPIValue args[1];
-    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+static NAPIValue ToString(NAPIEnv
+env,
+NAPICallbackInfo info
+) {
+size_t argc = 1;
+NAPIValue args[1];
+NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr)
+);
 
-    NAPIValue output;
-    NAPI_CALL(env, napi_coerce_to_string(env, args[0], &output));
+NAPIValue output;
+NAPI_CALL(env, napi_coerce_to_string(env, args[0], &output)
+);
 
-    return output;
+return
+output;
 }
 
 EXTERN_C_END

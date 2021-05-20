@@ -36,10 +36,17 @@ EXTERN_C_START
     }                                                                    \
   } while (0)
 
+static inline NAPIValue getUndefined(NAPIEnv env) {
+    NAPIValue undefined;
+    napi_get_undefined(env, &undefined);
+
+    return undefined;
+}
+
 // Returns NULL on failed assertion.
 // This is meant to be used inside napi_callback methods.
 #define NAPI_ASSERT(env, assertion, message)                             \
-  NAPI_ASSERT_BASE(env, assertion, message, NULL)
+  NAPI_ASSERT_BASE(env, assertion, message, getUndefined(env))
 
 // Returns empty on failed assertion.
 // This is meant to be used inside functions with void return type.
@@ -56,27 +63,17 @@ EXTERN_C_START
 
 // Returns NULL if the_call doesn't return napi_ok.
 #define NAPI_CALL(env, the_call)                                         \
-  NAPI_CALL_BASE(env, the_call, NULL)
+  NAPI_CALL_BASE(env, the_call, getUndefined(env))
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NAPI_CALL_RETURN_VOID(env, the_call)                             \
   NAPI_CALL_BASE(env, the_call, NAPI_RETVAL_NOTHING)
 
 #define DECLARE_NAPI_PROPERTY(name, func)                                \
-  { (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL }
+  { (name), getUndefined(globalEnv), (func), NULL, NULL, getUndefined(globalEnv), NAPIDefault, NULL }
 
 #define DECLARE_NAPI_GETTER(name, func)                                  \
-  { (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL }
-
-// Returns NULL on failed assertion.
-// This is meant to be used inside napi_callback methods.
-#define NAPI_ASSERT(env, assertion, message)                             \
-  NAPI_ASSERT_BASE(env, assertion, message, NULL)
-
-// Returns empty on failed assertion.
-// This is meant to be used inside functions with void return type.
-#define NAPI_ASSERT_RETURN_VOID(env, assertion, message)                 \
-  NAPI_ASSERT_BASE(env, assertion, message, NAPI_RETVAL_NOTHING)
+  { (name), getUndefined(globalEnv), NULL, (func), NULL, getUndefined(globalEnv), NAPIDefault, NULL }
 
 // expected_message 没做修改，添加 const
 void add_returned_status(NAPIEnv env,

@@ -4,7 +4,7 @@ toolchain("clang") {
     # all tools except "action"
     rspfile_name = "{{output}}.rsp"
     # all tools except "action" (required when "rspfile" is used)
-    rspfile_compiler_content = "{{include_dirs}}"
+    rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}} "
     compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
     if (debug) {
         compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])

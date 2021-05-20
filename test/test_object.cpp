@@ -350,7 +350,7 @@ static NAPIValue Wrap(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
 
     NAPI_CALL(env, napi_wrap(env, arg, &test_value, nullptr, nullptr, nullptr));
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue Unwrap(NAPIEnv env, NAPICallbackInfo info) {
@@ -387,15 +387,15 @@ static NAPIValue TestSetProperty(NAPIEnv env,
                         NAPIInvalidArg,
                         status);
 
-    napi_set_property(env, nullptr, key, value);
+    napi_set_property(env, getUndefined(env), key, value);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_set_property(env, object, nullptr, value);
+    napi_set_property(env, object, getUndefined(env), value);
 
     add_last_status(env, "keyIsNull", object);
 
-    napi_set_property(env, object, key, nullptr);
+    napi_set_property(env, object, key, getUndefined(env));
 
     add_last_status(env, "valueIsNull", object);
 
@@ -421,11 +421,11 @@ static NAPIValue TestHasProperty(NAPIEnv env,
                         NAPIInvalidArg,
                         status);
 
-    napi_has_property(env, nullptr, key, &result);
+    napi_has_property(env, getUndefined(env), key, &result);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_has_property(env, object, nullptr, &result);
+    napi_has_property(env, object, getUndefined(env), &result);
 
     add_last_status(env, "keyIsNull", object);
 
@@ -456,11 +456,11 @@ static NAPIValue TestGetProperty(NAPIEnv env,
                         NAPIInvalidArg,
                         status);
 
-    napi_get_property(env, nullptr, key, &result);
+    napi_get_property(env, getUndefined(env), key, &result);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_get_property(env, object, nullptr, &result);
+    napi_get_property(env, object, getUndefined(env), &result);
 
     add_last_status(env, "keyIsNull", object);
 

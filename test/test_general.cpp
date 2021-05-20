@@ -70,7 +70,7 @@ static NAPIValue createNapiError(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPI_ASSERT(env, error_info->errorMessage,
                 "Last error info message should not be null");
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue testNapiErrorCleanup(NAPIEnv env, NAPICallbackInfo /*info*/) {
@@ -92,7 +92,7 @@ static NAPIValue testNapiTypeof(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValueType argument_type;
     NAPI_CALL(env, napi_typeof(env, args[0], &argument_type));
 
-    NAPIValue result = nullptr;
+    NAPIValue result;
     if (argument_type == NAPINumber) {
         NAPI_CALL(env, napi_create_string_utf8(
                 env, "number", NAPI_AUTO_LENGTH, &result));
@@ -165,7 +165,7 @@ static NAPIValue unwrap(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &wrapped, nullptr, nullptr));
     NAPI_CALL(env, napi_unwrap(env, wrapped, &data));
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue remove_wrap(NAPIEnv env, NAPICallbackInfo info) {
@@ -176,7 +176,7 @@ static NAPIValue remove_wrap(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &wrapped, nullptr, nullptr));
     NAPI_CALL(env, napi_remove_wrap(env, wrapped, &data));
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 static bool finalize_called = false;

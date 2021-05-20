@@ -10,6 +10,81 @@ config("uthash") {
     ]
 }
 
+config("quickjs_config") {
+    include_dirs = [
+        "third_party/quickjs"
+    ]
+}
+
+source_set("cutils") {
+    public_configs = [":quickjs_config"]
+    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    sources = [
+        "third_party/quickjs/cutils.c",
+    ]
+}
+
+source_set("unicode") {
+    public_configs = [":quickjs_config"]
+    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    sources = [
+        "third_party/quickjs/libunicode.c"
+    ]
+    deps = [":cutils"]
+}
+
+source_set("regexp") {
+    public_configs = [":quickjs_config"]
+    cflags_c = ["-Wno-sign-compare", "-Wno-zero-length-array"]
+    sources = [
+        "third_party/quickjs/libregexp.c"
+    ]
+    deps = [":unicode", ":cutils"]
+}
+
+source_set("bf") {
+    public_configs = [":quickjs_config"]
+    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    sources = [
+        "third_party/quickjs/libbf.c"
+    ]
+
+    deps = [":cutils"]
+}
+
+config("quickjs_build_config") {
+    cflags_c = ["-Wno-unused-parameter", "-Wno-pedantic"]
+}
+
+source_set("quickjs_source_set") {
+    public_configs = [":quickjs_config", ":quickjs_build_config"]
+    deps = [
+        ":cutils",
+        ":regexp",
+        ":unicode"
+    ]
+    defines = ["CONFIG_VERSION=\"2021-03-27\""]
+    cflags_c = ["-Wno-sign-compare"]
+    if (big_number) {
+        defines += ["CONFIG_BIGNUM"]
+        deps += [":bf",]
+    }
+
+    sources = [
+        "third_party/quickjs/quickjs.c"
+    ]
+}
+
+source_set("napi_qjs_source_set") {
+    public_configs = [
+        ":napi",
+    ]
+    sources = [
+        "src/js_native_api_qjs.c"
+    ]
+    deps = [":quickjs_source_set"]
+}
+
 static_library("napi_jsc") {
     configs = [
         ":uthash"
@@ -26,13 +101,12 @@ static_library("napi_jsc") {
     ]
 }
 
-executable("test") {
+source_set("test") {
     testonly = true
-
     include_dirs = [
         "test/include"
     ]
-
+    configs = [":napi"]
     sources = [
         "test/js_native_api_test.cpp",
         "test/2_function_arguments.cpp",
@@ -57,17 +131,28 @@ executable("test") {
         "test/test_string.cpp",
         "test/test_symbol.cpp"
     ]
-
     deps = [
         ":gtest",
+    ]
+}
+
+executable("test_jsc") {
+    testonly = true
+    deps = [
+        ":test",
         ":napi_jsc"
     ]
 }
 
+executable("test_qjs") {
+    testonly = true
+    deps = [
+        ":test",
+        ":napi_qjs_source_set"
+    ]
+}
+
 config("gtest_config") {
-# libs = [
-#     "c++"
-# ]
     include_dirs = [
         "third_party/googletest/googletest/include"
     ]
@@ -101,43 +186,3 @@ source_set("gtest_main") {
         ":gtest_config"
     ]
 }
-
-# config("gmock_config") {
-#     # libs = [
-#     #     "c++"
-#     # ]
-#     include_dirs = [
-#         "third_party/googletest/googlemock/include",
-#     ]
-# }
-
-# source_set("gmock") {
-#     testonly = true
-#     sources = [
-#         "third_party/googletest/googlemock/src/gmock-cardinalities.cc",
-#         "third_party/googletest/googlemock/src/gmock-internal-utils.cc",
-#         "third_party/googletest/googlemock/src/gmock-matchers.cc",
-#         "third_party/googletest/googlemock/src/gmock-spec-builders.cc",
-#         "third_party/googletest/googlemock/src/gmock.cc",
-#     ]
-
-#     deps = [
-#         ":gtest"
-#     ]
-
-#     public_configs = [
-#         ":gmock_config",
-#         ":gtest_config"
-#     ]
-# }
-
-# source_set("gmock_main") {
-#     testonly = true
-#     sources = [ "third_party/googletest/googlemock/src/gmock_main.cc" ]
-#     deps = [ ":gmock" ]
-
-#     public_configs = [
-#         ":gmock_config",
-#         ":gtest_config"
-#     ]
-# }

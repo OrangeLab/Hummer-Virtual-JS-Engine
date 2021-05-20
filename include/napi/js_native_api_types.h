@@ -26,7 +26,17 @@ typedef uint16_t char16_t;
 // JSVM API types are all opaque pointers for ABI stability
 // typedef undefined structs instead of void* for compile time type safety
 typedef struct OpaqueNAPIEnv *NAPIEnv;
-typedef struct OpaqueNAPIValue *NAPIValue;
+// JavaScriptCore V8 使用指针
+// Hermes 使用 uint64_t
+// QuickJS 在 32 位使用 uint64_t，在 64 位使用 128 位存储
+#if INTPTR_MAX >= INT64_MAX
+typedef struct {
+    uint64_t head;
+    uint64_t tail;
+} NAPIValue;
+#else
+typedef uint64_t NAPIValue;
+#endif
 typedef struct OpaqueNAPIRef *NAPIRef;
 typedef struct OpaqueNAPIHandleScope *NAPIHandleScope;
 typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
