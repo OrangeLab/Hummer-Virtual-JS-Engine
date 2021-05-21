@@ -97,10 +97,10 @@ Language: Cpp
 NamespaceIndentation: None
 PointerAlignment: Right
 ContinuationIndentWidth: 4
-IndentWidth: 8
+IndentWidth: 4
 TabWidth: 8
 ColumnLimit: 80
-UseTab: Always
+UseTab: Never
 SpaceAfterCStyleCast: false
 IncludeBlocks: Regroup
 IncludeCategories:
