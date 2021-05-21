@@ -2,8 +2,8 @@
 #define js_native_api_types_h
 
 #ifdef __cplusplus
-#define EXTERN_C_START \
-    extern "C"         \
+#define EXTERN_C_START                                                                                                 \
+    extern "C"                                                                                                         \
     {
 #define EXTERN_C_END }
 #else
@@ -30,7 +30,8 @@ typedef struct OpaqueNAPIEnv *NAPIEnv;
 // Hermes 使用 uint64_t
 // QuickJS 在 32 位使用 uint64_t，在 64 位使用 128 位存储
 #if INTPTR_MAX >= INT64_MAX
-typedef struct {
+typedef struct
+{
     uint64_t head;
     uint64_t tail;
 } NAPIValue;
@@ -43,7 +44,8 @@ typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
 typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
 typedef struct OpaqueNAPIDeferred *NAPIDeferred;
 
-typedef enum {
+typedef enum
+{
     NAPIDefault = 0,
     NAPIWritable = 1 << 0,
     NAPIEnumerable = 1 << 1,
@@ -60,7 +62,8 @@ typedef enum {
     NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
 } NAPIPropertyAttributes;
 
-typedef enum {
+typedef enum
+{
     // ES6 types (corresponds to typeof)
     NAPIUndefined,
     NAPINull,
@@ -73,7 +76,8 @@ typedef enum {
     NAPIExternal,
 } NAPIValueType;
 
-typedef enum {
+typedef enum
+{
     NAPIOK,
     NAPIInvalidArg,
     NAPIObjectExpected,
@@ -100,7 +104,8 @@ typedef enum {
     NAPIMemoryError
 } NAPIStatus;
 // Note: when adding a new enum value to `napi_status`, please also update
-//   * `const int last_status` in the definition of `napi_get_last_error_info()'
+//   * `const int last_status` in the definition of
+//   `napi_get_last_error_info()'
 //     in file js_native_api_v8.cc.
 //   * `const char* error_messages[]` in file js_native_api_v8.cc with a brief
 //     message explaining the error.
@@ -111,7 +116,8 @@ typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
 
 typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint);
 
-typedef struct {
+typedef struct
+{
     // One of utf8name or name should be NULL.
     const char *utf8name;
     NAPIValue name;
@@ -125,7 +131,8 @@ typedef struct {
     void *data;
 } NAPIPropertyDescriptor;
 
-typedef struct {
+typedef struct
+{
     const char *errorMessage;
     void *engineReserved;
     uint32_t engineErrorCode;

@@ -1,9 +1,10 @@
-#include <js_native_api_test.h>
 #include <common.h>
+#include <js_native_api_test.h>
 
 EXTERN_C_START
 
-static NAPIValue Constructor(NAPIEnv env, NAPICallbackInfo info) {
+static NAPIValue Constructor(NAPIEnv env, NAPICallbackInfo info)
+{
     bool result;
     NAPIValue newTargetArg;
     NAPI_CALL(env, napi_get_new_target(env, info, &newTargetArg));
@@ -28,7 +29,8 @@ static NAPIValue Constructor(NAPIEnv env, NAPICallbackInfo info) {
     return thisArg;
 }
 
-static NAPIValue OrdinaryFunction(NAPIEnv env, NAPICallbackInfo info) {
+static NAPIValue OrdinaryFunction(NAPIEnv env, NAPICallbackInfo info)
+{
     NAPIValue newTargetArg;
     NAPI_CALL(env, napi_get_new_target(env, info, &newTargetArg));
 
@@ -43,21 +45,24 @@ static NAPIValue OrdinaryFunction(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST_F(Test, TestNewTarget) {
+TEST_F(Test, TestNewTarget)
+{
     NAPIValue constructor;
     ASSERT_EQ(napi_define_class(globalEnv, nullptr, -1, Constructor, nullptr, 0, nullptr, &constructor), NAPIOK);
 
     // JavaScriptCore 无法 new method();
     const NAPIPropertyDescriptor desc[] = {
-            DECLARE_NAPI_PROPERTY("OrdinaryFunction", OrdinaryFunction),
-            {"Constructor", getUndefined(globalEnv), nullptr, nullptr, nullptr, constructor, NAPIDefault, nullptr}
-    };
+        DECLARE_NAPI_PROPERTY("OrdinaryFunction", OrdinaryFunction),
+        {"Constructor", getUndefined(globalEnv), nullptr, nullptr, nullptr, constructor, NAPIDefault, nullptr}};
     ASSERT_EQ(napi_define_properties(globalEnv, exports, 2, desc), NAPIOK);
 
     NAPIValue result;
 
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
-                                         "(()=>{\"use strict\";globalThis.assert.ok(globalThis.addon.OrdinaryFunction()),globalThis.assert.ok(new globalThis.addon.Constructor(globalThis.addon.Constructor)instanceof globalThis.addon.Constructor)})();",
-                                         "https://www.didi.com/test_new_target.js",
-                                         &result), NAPIOK);
+    ASSERT_EQ(
+        NAPIRunScriptWithSourceUrl(
+            globalEnv,
+            "(()=>{\"use strict\";globalThis.assert.ok(globalThis.addon.OrdinaryFunction()),globalThis.assert.ok(new "
+            "globalThis.addon.Constructor(globalThis.addon.Constructor)instanceof globalThis.addon.Constructor)})();",
+            "https://www.didi.com/test_new_target.js", &result),
+        NAPIOK);
 }

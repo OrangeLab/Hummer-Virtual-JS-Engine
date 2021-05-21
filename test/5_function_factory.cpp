@@ -1,24 +1,26 @@
-#include <js_native_api_test.h>
 #include <common.h>
+#include <js_native_api_test.h>
 
 EXTERN_C_START
 
-static NAPIValue MyFunction(NAPIEnv env, NAPICallbackInfo /*info*/) {
+static NAPIValue MyFunction(NAPIEnv env, NAPICallbackInfo /*info*/)
+{
     NAPIValue str;
     NAPI_CALL(env, napi_create_string_utf8(env, "hello world", -1, &str));
     return str;
 }
 
-static NAPIValue CreateFunction(NAPIEnv env, NAPICallbackInfo /*info*/) {
+static NAPIValue CreateFunction(NAPIEnv env, NAPICallbackInfo /*info*/)
+{
     NAPIValue fn;
-    NAPI_CALL(env,
-              napi_create_function(env, "theFunction", -1, MyFunction, nullptr, &fn));
+    NAPI_CALL(env, napi_create_function(env, "theFunction", -1, MyFunction, nullptr, &fn));
     return fn;
 }
 
 EXTERN_C_END
 
-TEST(FunctionFactory, CreateFunction) {
+TEST(FunctionFactory, CreateFunction)
+{
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -28,8 +30,9 @@ TEST(FunctionFactory, CreateFunction) {
 
     NAPIValue result;
     ASSERT_EQ(
-            NAPIRunScriptWithSourceUrl(globalEnv,
-                                       "(()=>{\"use strict\";var l=globalThis.addon();globalThis.assert.strictEqual(l(),\"hello world\")})();",
-                                       "https://www.didi.com/5_function_factory.js",
-                                       &result), NAPIOK);
+        NAPIRunScriptWithSourceUrl(
+            globalEnv,
+            "(()=>{\"use strict\";var l=globalThis.addon();globalThis.assert.strictEqual(l(),\"hello world\")})();",
+            "https://www.didi.com/5_function_factory.js", &result),
+        NAPIOK);
 }
