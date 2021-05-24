@@ -1,9 +1,10 @@
-#include <js_native_api_test.h>
 #include <common.h>
+#include <js_native_api_test.h>
 
 EXTERN_C_START
 
-static NAPIValue CreateObject(NAPIEnv env, NAPICallbackInfo info) {
+static NAPIValue CreateObject(NAPIEnv env, NAPICallbackInfo info)
+{
     size_t argc = 1;
     NAPIValue args[1];
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
@@ -18,7 +19,8 @@ static NAPIValue CreateObject(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST(ObjectFactory, CreateObject) {
+TEST(ObjectFactory, CreateObject)
+{
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -27,9 +29,10 @@ TEST(ObjectFactory, CreateObject) {
     ASSERT_EQ(napi_set_named_property(globalEnv, global, "addon", exports), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(
-            NAPIRunScriptWithSourceUrl(globalEnv,
-                                       "(()=>{\"use strict\";var l=globalThis.addon(\"hello\"),s=globalThis.addon(\"world\");globalThis.assert.strictEqual(`${l.msg} ${s.msg}`,\"hello world\")})();",
-                                       "https://www.didi.com/4_object_factory.js",
-                                       &result), NAPIOK);
+    ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
+                                         "(()=>{\"use strict\";var "
+                                         "l=globalThis.addon(\"hello\"),s=globalThis.addon(\"world\");globalThis."
+                                         "assert.strictEqual(`${l.msg} ${s.msg}`,\"hello world\")})();",
+                                         "https://www.didi.com/4_object_factory.js", &result),
+              NAPIOK);
 }

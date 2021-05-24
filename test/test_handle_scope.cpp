@@ -1,5 +1,5 @@
-#include <js_native_api_test.h>
 #include <common.h>
+#include <js_native_api_test.h>
 
 EXTERN_C_START
 
@@ -8,7 +8,8 @@ EXTERN_C_START
 // the right right thing would be quite hard so we keep it
 // simple for now.
 
-static NAPIValue NewScope(NAPIEnv env, NAPICallbackInfo /*info*/) {
+static NAPIValue NewScope(NAPIEnv env, NAPICallbackInfo /*info*/)
+{
     NAPIHandleScope scope;
     NAPIValue output;
 
@@ -18,7 +19,8 @@ static NAPIValue NewScope(NAPIEnv env, NAPICallbackInfo /*info*/) {
     return getUndefined(env);
 }
 
-static NAPIValue NewScopeEscape(NAPIEnv env, NAPICallbackInfo /*info*/) {
+static NAPIValue NewScopeEscape(NAPIEnv env, NAPICallbackInfo /*info*/)
+{
     NAPIEscapableHandleScope scope;
     NAPIValue output;
     NAPIValue escapee;
@@ -30,7 +32,8 @@ static NAPIValue NewScopeEscape(NAPIEnv env, NAPICallbackInfo /*info*/) {
     return escapee;
 }
 
-static NAPIValue NewScopeEscapeTwice(NAPIEnv env, NAPICallbackInfo /*info*/) {
+static NAPIValue NewScopeEscapeTwice(NAPIEnv env, NAPICallbackInfo /*info*/)
+{
     NAPIEscapableHandleScope scope;
     NAPIValue output;
     NAPIValue escapee;
@@ -45,7 +48,8 @@ static NAPIValue NewScopeEscapeTwice(NAPIEnv env, NAPICallbackInfo /*info*/) {
     return getUndefined(env);
 }
 
-static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
+static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info)
+{
     NAPIHandleScope scope;
     size_t argc;
     NAPIValue exception_function;
@@ -56,13 +60,10 @@ static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_create_object(env, &output));
 
     argc = 1;
-    NAPI_CALL(env, napi_get_cb_info(
-            env, info, &argc, &exception_function, nullptr, nullptr));
+    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &exception_function, nullptr, nullptr));
 
-    status = napi_call_function(
-            env, output, exception_function, 0, nullptr, nullptr);
-    NAPI_ASSERT(env, status == NAPIPendingException,
-                "Function should have thrown.");
+    status = napi_call_function(env, output, exception_function, 0, nullptr, nullptr);
+    NAPI_ASSERT(env, status == NAPIPendingException, "Function should have thrown.");
 
     // Closing a handle scope should still work while an exception is pending.
     NAPI_CALL(env, napi_close_handle_scope(env, scope));
@@ -71,20 +72,25 @@ static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
 
 EXTERN_C_END
 
-TEST_F(Test, TestHandleScope) {
+TEST_F(Test, TestHandleScope)
+{
     NAPIPropertyDescriptor properties[] = {
-            DECLARE_NAPI_PROPERTY("NewScope", NewScope),
-            DECLARE_NAPI_PROPERTY("NewScopeEscape", NewScopeEscape),
-            DECLARE_NAPI_PROPERTY("NewScopeEscapeTwice", NewScopeEscapeTwice),
-            DECLARE_NAPI_PROPERTY("NewScopeWithException", NewScopeWithException),
+        DECLARE_NAPI_PROPERTY("NewScope", NewScope),
+        DECLARE_NAPI_PROPERTY("NewScopeEscape", NewScopeEscape),
+        DECLARE_NAPI_PROPERTY("NewScopeEscapeTwice", NewScopeEscapeTwice),
+        DECLARE_NAPI_PROPERTY("NewScopeWithException", NewScopeWithException),
     };
 
-    ASSERT_EQ(napi_define_properties(
-            globalEnv, exports, sizeof(properties) / sizeof(*properties), properties), NAPIOK);
+    ASSERT_EQ(napi_define_properties(globalEnv, exports, sizeof(properties) / sizeof(*properties), properties), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
-                                         "(()=>{\"use strict\";globalThis.addon.NewScope(),globalThis.assert.ok(globalThis.addon.NewScopeEscape()instanceof Object),globalThis.addon.NewScopeEscapeTwice(),globalThis.assert.throws((function(){globalThis.addon.NewScopeWithException((function(){throw new RangeError}))}))})();",
-                                         "https://www.didi.com/test_handle_scope.js",
-                                         &result), NAPIOK);
+    ASSERT_EQ(
+        NAPIRunScriptWithSourceUrl(
+            globalEnv,
+            "(()=>{\"use "
+            "strict\";globalThis.addon.NewScope(),globalThis.assert.ok(globalThis.addon.NewScopeEscape()instanceof "
+            "Object),globalThis.addon.NewScopeEscapeTwice(),globalThis.assert.throws((function(){globalThis.addon."
+            "NewScopeWithException((function(){throw new RangeError}))}))})();",
+            "https://www.didi.com/test_handle_scope.js", &result),
+        NAPIOK);
 }
