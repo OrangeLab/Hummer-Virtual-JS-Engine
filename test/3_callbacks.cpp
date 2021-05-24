@@ -31,7 +31,7 @@ static NAPIValue RunCallback(NAPIEnv env, NAPICallbackInfo info)
     NAPIValue cb = args[0];
     NAPI_CALL(env, napi_call_function(env, global, cb, 1, argv, nullptr));
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue RunCallbackWithRecv(NAPIEnv env, NAPICallbackInfo info)
@@ -44,7 +44,7 @@ static NAPIValue RunCallbackWithRecv(NAPIEnv env, NAPICallbackInfo info)
     NAPIValue recv = args[1];
     NAPI_CALL(env, napi_call_function(env, recv, cb, 0, nullptr, nullptr));
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 EXTERN_C_END

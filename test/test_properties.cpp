@@ -28,7 +28,7 @@ static NAPIValue SetValue(NAPIEnv env, NAPICallbackInfo info)
 
     NAPI_CALL(env, napi_get_value_double(env, args[0], &value_));
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue Echo(NAPIEnv env, NAPICallbackInfo info)
@@ -80,19 +80,18 @@ TEST_F(Test, TestProperties)
     ASSERT_EQ(napi_create_symbol(globalEnv, symbol_description, &name_symbol), NAPIOK);
 
     NAPIPropertyDescriptor properties[] = {
-        {"echo", getUndefined(globalEnv), Echo, 0, 0, getUndefined(globalEnv), NAPIEnumerable, 0},
-        {"readwriteValue", getUndefined(globalEnv), 0, 0, 0, number,
-         static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIWritable), 0},
-        {"readonlyValue", getUndefined(globalEnv), 0, 0, 0, number, NAPIEnumerable, 0},
-        {"hiddenValue", getUndefined(globalEnv), 0, 0, 0, number, NAPIDefault, 0},
+        {"echo", nullptr, Echo, 0, 0, nullptr, NAPIEnumerable, 0},
+        {"readwriteValue", nullptr, 0, 0, 0, number, static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIWritable),
+         0},
+        {"readonlyValue", nullptr, 0, 0, 0, number, NAPIEnumerable, 0},
+        {"hiddenValue", nullptr, 0, 0, 0, number, NAPIDefault, 0},
         {nullptr, name_value, 0, 0, 0, number, NAPIEnumerable, 0},
         {nullptr, name_symbol, 0, 0, 0, number, NAPIEnumerable, 0},
-        {"readwriteAccessor1", getUndefined(globalEnv), 0, GetValue, SetValue, getUndefined(globalEnv), NAPIDefault, 0},
-        {"readwriteAccessor2", getUndefined(globalEnv), 0, GetValue, SetValue, getUndefined(globalEnv), NAPIWritable,
-         0},
-        {"readonlyAccessor1", getUndefined(globalEnv), 0, GetValue, nullptr, getUndefined(globalEnv), NAPIDefault, 0},
-        {"readonlyAccessor2", getUndefined(globalEnv), 0, GetValue, nullptr, getUndefined(globalEnv), NAPIWritable, 0},
-        {"hasNamedProperty", getUndefined(globalEnv), HasNamedProperty, 0, 0, getUndefined(globalEnv), NAPIDefault, 0},
+        {"readwriteAccessor1", nullptr, 0, GetValue, SetValue, nullptr, NAPIDefault, 0},
+        {"readwriteAccessor2", nullptr, 0, GetValue, SetValue, nullptr, NAPIWritable, 0},
+        {"readonlyAccessor1", nullptr, 0, GetValue, nullptr, nullptr, NAPIDefault, 0},
+        {"readonlyAccessor2", nullptr, 0, GetValue, nullptr, nullptr, NAPIWritable, 0},
+        {"hasNamedProperty", nullptr, HasNamedProperty, 0, 0, nullptr, NAPIDefault, 0},
     };
 
     ASSERT_EQ(napi_define_properties(globalEnv, exports, sizeof(properties) / sizeof(*properties), properties), NAPIOK);

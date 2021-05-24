@@ -14,11 +14,11 @@ static NAPIValue TestDefineClass(NAPIEnv env, NAPICallbackInfo /*info*/)
     NAPIValue result, return_value;
 
     NAPIPropertyDescriptor property_descriptor = {"TestDefineClass",
-                                                  getUndefined(env),
+                                                  nullptr,
                                                   TestDefineClass,
                                                   nullptr,
                                                   nullptr,
-                                                  getUndefined(env),
+                                                  nullptr,
                                                   static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic),
                                                   nullptr};
 
@@ -77,7 +77,7 @@ static NAPIValue SetValue(NAPIEnv env, NAPICallbackInfo info)
 
     NAPI_CALL(env, napi_get_value_double(env, args[0], &value_));
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue Echo(NAPIEnv env, NAPICallbackInfo info)
@@ -133,24 +133,20 @@ TEST(TestConstructor, DefineClass)
     ASSERT_EQ(napi_define_class(globalEnv, "MyObject_Extra", -1, NewExtra, nullptr, 0, nullptr, &cons), NAPIOK);
 
     NAPIPropertyDescriptor properties[] = {
-        {"echo", getUndefined(globalEnv), Echo, nullptr, nullptr, getUndefined(globalEnv), NAPIEnumerable, nullptr},
-        {"readwriteValue", getUndefined(globalEnv), nullptr, nullptr, nullptr, number,
+        {"echo", nullptr, Echo, nullptr, nullptr, nullptr, NAPIEnumerable, nullptr},
+        {"readwriteValue", nullptr, nullptr, nullptr, nullptr, number,
          static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIWritable), nullptr},
-        {"readonlyValue", getUndefined(globalEnv), nullptr, nullptr, nullptr, number, NAPIEnumerable, nullptr},
-        {"hiddenValue", getUndefined(globalEnv), nullptr, nullptr, nullptr, number, NAPIDefault, nullptr},
-        {"readwriteAccessor1", getUndefined(globalEnv), nullptr, GetValue, SetValue, getUndefined(globalEnv),
-         NAPIDefault, nullptr},
-        {"readwriteAccessor2", getUndefined(globalEnv), nullptr, GetValue, SetValue, getUndefined(globalEnv),
-         NAPIWritable, nullptr},
-        {"readonlyAccessor1", getUndefined(globalEnv), nullptr, GetValue, nullptr, getUndefined(globalEnv), NAPIDefault,
-         nullptr},
-        {"readonlyAccessor2", getUndefined(globalEnv), nullptr, GetValue, nullptr, getUndefined(globalEnv),
-         NAPIWritable, nullptr},
-        {"staticReadonlyAccessor1", getUndefined(globalEnv), nullptr, GetStaticValue, nullptr, getUndefined(globalEnv),
+        {"readonlyValue", nullptr, nullptr, nullptr, nullptr, number, NAPIEnumerable, nullptr},
+        {"hiddenValue", nullptr, nullptr, nullptr, nullptr, number, NAPIDefault, nullptr},
+        {"readwriteAccessor1", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIDefault, nullptr},
+        {"readwriteAccessor2", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIWritable, nullptr},
+        {"readonlyAccessor1", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIDefault, nullptr},
+        {"readonlyAccessor2", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIWritable, nullptr},
+        {"staticReadonlyAccessor1", nullptr, nullptr, GetStaticValue, nullptr, nullptr,
          static_cast<NAPIPropertyAttributes>(NAPIDefault | NAPIStatic), nullptr},
-        {"constructorName", getUndefined(globalEnv), nullptr, nullptr, nullptr, cons,
+        {"constructorName", nullptr, nullptr, nullptr, nullptr, cons,
          static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic), nullptr},
-        {"TestDefineClass", getUndefined(globalEnv), TestDefineClass, nullptr, nullptr, getUndefined(globalEnv),
+        {"TestDefineClass", nullptr, TestDefineClass, nullptr, nullptr, nullptr,
          static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic), nullptr},
     };
 

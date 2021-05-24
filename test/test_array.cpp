@@ -32,7 +32,7 @@ static NAPIValue TestGetElement(NAPIEnv env, NAPICallbackInfo info)
 
     if (!isarray)
     {
-        return getUndefined(env);
+        return nullptr;
     }
 
     uint32_t length;
@@ -73,7 +73,7 @@ static NAPIValue TestHasElement(NAPIEnv env, NAPICallbackInfo info)
 
     if (!isarray)
     {
-        return getUndefined(env);
+        return nullptr;
     }
 
     bool has_element;
@@ -111,7 +111,7 @@ static NAPIValue TestDeleteElement(NAPIEnv env, NAPICallbackInfo info)
 
     if (!result)
     {
-        return getUndefined(env);
+        return nullptr;
     }
 
     NAPI_CALL(env, napi_delete_element(env, array, index, &result));

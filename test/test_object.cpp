@@ -348,7 +348,7 @@ static NAPIValue Wrap(NAPIEnv env, NAPICallbackInfo info)
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
 
     NAPI_CALL(env, napi_wrap(env, arg, &test_value, nullptr, nullptr, nullptr));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue Unwrap(NAPIEnv env, NAPICallbackInfo info)
@@ -381,15 +381,15 @@ static NAPIValue TestSetProperty(NAPIEnv env, NAPICallbackInfo /*info*/)
 
     add_returned_status(env, "envIsNull", object, "Invalid argument", NAPIInvalidArg, status);
 
-    napi_set_property(env, getUndefined(env), key, value);
+    napi_set_property(env, nullptr, key, value);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_set_property(env, object, getUndefined(env), value);
+    napi_set_property(env, object, nullptr, value);
 
     add_last_status(env, "keyIsNull", object);
 
-    napi_set_property(env, object, key, getUndefined(env));
+    napi_set_property(env, object, key, nullptr);
 
     add_last_status(env, "valueIsNull", object);
 
@@ -410,11 +410,11 @@ static NAPIValue TestHasProperty(NAPIEnv env, NAPICallbackInfo /*info*/)
 
     add_returned_status(env, "envIsNull", object, "Invalid argument", NAPIInvalidArg, status);
 
-    napi_has_property(env, getUndefined(env), key, &result);
+    napi_has_property(env, nullptr, key, &result);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_has_property(env, object, getUndefined(env), &result);
+    napi_has_property(env, object, nullptr, &result);
 
     add_last_status(env, "keyIsNull", object);
 
@@ -440,11 +440,11 @@ static NAPIValue TestGetProperty(NAPIEnv env, NAPICallbackInfo /*info*/)
 
     add_returned_status(env, "envIsNull", object, "Invalid argument", NAPIInvalidArg, status);
 
-    napi_get_property(env, getUndefined(env), key, &result);
+    napi_get_property(env, nullptr, key, &result);
 
     add_last_status(env, "objectIsNull", object);
 
-    napi_get_property(env, object, getUndefined(env), &result);
+    napi_get_property(env, object, nullptr, &result);
 
     add_last_status(env, "keyIsNull", object);
 
