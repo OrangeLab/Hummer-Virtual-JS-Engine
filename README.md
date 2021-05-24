@@ -13,8 +13,12 @@
 6. ios_archtecture string "x86_64" 字符串会添加到 -target [ios_archtecture]-apple-ios9.0-[ios_simulator]
 
 ## 代码静态分析
+### JavaScriptCore
 1. 静态分析 clang --analyze src/js_native_api_jsc.c --analyzer-output html -Wall -Wextra -Werror -Wpedantic -g -I./include -I./third_party/uthash/src
 2. 报告输出 clang --analyze src/js_native_api_jsc.c --analyzer-output html -o ./static_analyze_report -Wall -Wextra -Werror -Wpedantic -g -I./include -I./third_party/uthash/src
+
+### QuickJS
+1. 静态分析 clang --analyze src/js_native_api_qjs.c --analyzer-output html -Wall -Wextra -Werror -g -I./include -I./third_party/quickjs -Wno-unused-parameter
 
 ## 单元测试
 1. gn gen out --args="debug=true"（Release 模式下 assert 失效，会隐藏很多问题，特殊情况下启用 asan + ubsan）
