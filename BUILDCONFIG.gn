@@ -7,6 +7,8 @@ declare_args() {
     build_ios = false
     ios_simulator = true
     ios_archtecture = "x86_64"
+    # QuickJS 专属
+    big_number = false
 }
 
 set_default_toolchain("//toolchain:clang")

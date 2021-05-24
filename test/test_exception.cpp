@@ -21,7 +21,7 @@ static NAPIValue returnException(NAPIEnv env, NAPICallbackInfo info) {
         return ex;
     }
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue allowException(NAPIEnv env, NAPICallbackInfo info) {
@@ -37,7 +37,7 @@ static NAPIValue allowException(NAPIEnv env, NAPICallbackInfo info) {
     // Ignore status and check napi_is_exception_pending() instead.
 
     NAPI_CALL(env, napi_is_exception_pending(env, &exceptionWasPending));
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue wasPending(NAPIEnv env, NAPICallbackInfo /*info*/) {

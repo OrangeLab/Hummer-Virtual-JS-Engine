@@ -15,7 +15,9 @@ static NAPIValue Constructor(NAPIEnv env, NAPICallbackInfo info) {
     NAPI_CALL(env, napi_get_undefined(env, &undefined));
 
     // new.target !== undefined because we should be called as a new expression
-    NAPI_ASSERT(env, newTargetArg != nullptr, "newTargetArg != nullptr");
+    NAPIValueType valueType;
+    NAPI_CALL(env, napi_typeof(env, newTargetArg, &valueType));
+    NAPI_ASSERT(env, valueType != NAPIUndefined, "newTargetArg != nullptr");
     NAPI_CALL(env, napi_strict_equals(env, newTargetArg, undefined, &result));
     NAPI_ASSERT(env, !result, "new.target !== undefined");
 
@@ -30,7 +32,9 @@ static NAPIValue OrdinaryFunction(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue newTargetArg;
     NAPI_CALL(env, napi_get_new_target(env, info, &newTargetArg));
 
-    NAPI_ASSERT(env, newTargetArg == nullptr, "newTargetArg == nullptr");
+    NAPIValueType valueType;
+    NAPI_CALL(env, napi_typeof(env, newTargetArg, &valueType));
+    NAPI_ASSERT(env, valueType == NAPIUndefined, "newTargetArg == nullptr");
 
     NAPIValue _true;
     NAPI_CALL(env, napi_get_boolean(env, true, &_true));
@@ -46,7 +50,7 @@ TEST_F(Test, TestNewTarget) {
     // JavaScriptCore 无法 new method();
     const NAPIPropertyDescriptor desc[] = {
             DECLARE_NAPI_PROPERTY("OrdinaryFunction", OrdinaryFunction),
-            {"Constructor", nullptr, nullptr, nullptr, nullptr, constructor, NAPIDefault, nullptr}
+            {"Constructor", getUndefined(globalEnv), nullptr, nullptr, nullptr, constructor, NAPIDefault, nullptr}
     };
     ASSERT_EQ(napi_define_properties(globalEnv, exports, 2, desc), NAPIOK);
 

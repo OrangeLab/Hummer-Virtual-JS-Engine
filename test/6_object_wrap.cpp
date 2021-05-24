@@ -45,8 +45,8 @@ void MyObject::Destructor(
 
 void MyObject::Init(NAPIEnv env, NAPIValue exports) {
     NAPIPropertyDescriptor properties[] = {
-            {"value", nullptr, nullptr, GetValue, SetValue, nullptr, NAPIDefault, nullptr},
-            {"valueReadonly", nullptr, nullptr, GetValue, nullptr, nullptr, NAPIDefault,
+            {"value", getUndefined(globalEnv), nullptr, GetValue, SetValue, getUndefined(globalEnv), NAPIDefault, nullptr},
+            {"valueReadonly", getUndefined(globalEnv), nullptr, GetValue, nullptr, getUndefined(globalEnv), NAPIDefault,
              nullptr},
             DECLARE_NAPI_PROPERTY("plusOne", PlusOne),
             DECLARE_NAPI_PROPERTY("multiply", Multiply),
@@ -67,7 +67,9 @@ void MyObject::Init(NAPIEnv env, NAPIValue exports) {
 NAPIValue MyObject::New(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue new_target;
     NAPI_CALL(env, napi_get_new_target(env, info, &new_target));
-    bool is_constructor = (new_target != nullptr);
+    NAPIValueType valueType;
+    NAPI_CALL(env, napi_typeof(env, new_target, &valueType));
+    bool is_constructor = (valueType != NAPIUndefined);
 
     size_t argc = 1;
     NAPIValue args[1];
@@ -136,7 +138,7 @@ NAPIValue MyObject::SetValue(NAPIEnv env, NAPICallbackInfo info) {
 
     NAPI_CALL(env, napi_get_value_double(env, args[0], &obj->value_));
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 NAPIValue MyObject::PlusOne(NAPIEnv env, NAPICallbackInfo info) {

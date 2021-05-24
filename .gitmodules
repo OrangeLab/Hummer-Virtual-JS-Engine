@@ -1,3 +1,6 @@
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = git@github.com:bellard/quickjs.git
 [submodule "third_party/googletest"]
 	path = third_party/googletest
 	url = git@github.com:google/googletest.git

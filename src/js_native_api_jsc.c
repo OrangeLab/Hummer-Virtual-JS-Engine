@@ -42,7 +42,7 @@
     {                              \
         if (!(env))         \
         {                          \
-            return setLastErrorCode(env, NAPIInvalidArg); \
+            return NAPIInvalidArg; \
         }                          \
     } while (0)
 
@@ -109,15 +109,24 @@ static inline NAPIStatus clearLastError(NAPIEnv env) {
     return NAPIOK;
 }
 
+typedef union {
+    NAPIValue store;
+    JSValueRef valueRef;
+} ConvertUnion;
+
 static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code) {
-    // 应当允许 code 为 NULL
+    // 应当允许 code 为 undefined
     // 这是 Node.js 单元测试的要求
-    if (!code) {
+    ConvertUnion codeConvertUnion = {code};
+    if (!codeConvertUnion.valueRef) {
         return clearLastError(env);
     }
     CHECK_ENV(env);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) code), NAPIStringExpected);
+    if (JSValueIsUndefined(env->context, codeConvertUnion.valueRef)) {
+        return clearLastError(env);
+    }
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, codeConvertUnion.valueRef), NAPIStringExpected);
     CHECK_NAPI(napi_set_named_property(env, error, "code", code));
 
     return clearLastError(env);
@@ -198,8 +207,9 @@ NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeUndefined(env->context);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeUndefined(env->context)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -208,8 +218,9 @@ NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeNull(env->context);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNull(env->context)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -218,8 +229,9 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSContextGetGlobalObject(env->context);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSContextGetGlobalObject(env->context)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -228,8 +240,9 @@ NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeBoolean(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeBoolean(env->context, value)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -238,8 +251,9 @@ NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSObjectMake(env->context, NULL, NULL);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSObjectMake(env->context, NULL, NULL)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -248,9 +262,10 @@ NAPIStatus napi_create_array(NAPIEnv env, NAPIValue *result) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSObjectMakeArray(env->context, 0, NULL, &env->lastException)};
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -260,19 +275,22 @@ NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
+    JSObjectRef objectRef = JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
     CHECK_JSC(env);
     // JSObjectSetProperty 传入 NULL 会崩溃
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
     JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
     // JSObjectSetProperty 传入 lengthStringRef == NULL 会崩溃
     RETURN_STATUS_IF_FALSE(lengthStringRef, NAPIMemoryError);
-    JSObjectSetProperty(env->context, (JSObjectRef) *result, lengthStringRef,
+    JSObjectSetProperty(env->context, objectRef, lengthStringRef,
                         JSValueMakeNumber(env->context, (double) length),
                         kJSPropertyAttributeNone, &env->lastException);
     JSStringRelease(lengthStringRef);
     CHECK_JSC(env);
+
+    ConvertUnion convertUnion = {.valueRef = objectRef};
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -281,8 +299,9 @@ NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeNumber(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNumber(env->context, value)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -291,8 +310,9 @@ NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeNumber(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNumber(env->context, value)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -301,8 +321,9 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeNumber(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNumber(env->context, value)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -311,8 +332,9 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeNumber(env->context, (double) value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNumber(env->context, (double) value)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -329,11 +351,12 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
     // 传入 NULL，触发 OpaqueJSString()
     JSStringRef stringRef = JSStringCreateWithUTF8CString(str);
     // stringRef == NULL，会调用 String()
-    *result = (NAPIValue) JSValueMakeString(env->context, stringRef);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeString(env->context, stringRef)};
     if (stringRef) {
         JSStringRelease(stringRef);
     }
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -356,13 +379,13 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
     }
 
     RETURN_STATUS_IF_FALSE(length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
-
     JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
-    *result = (NAPIValue) JSValueMakeString(env->context, stringRef);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeString(env->context, stringRef)};
     if (stringRef) {
         JSStringRelease(stringRef);
     }
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -376,8 +399,6 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
     // deployment target iOS 9
     CHECK_NAPI(napi_get_named_property(env, global, "Symbol", &symbolFunc));
     CHECK_NAPI(napi_call_function(env, global, symbolFunc, 1, &description, result));
-
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
     return clearLastError(env);
 }
@@ -446,7 +467,8 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
     callbackInfo.argv = arguments;
     callbackInfo.data = functionInfo->externalInfo.data;
 
-    JSValueRef returnValue = (JSValueRef) functionInfo->callback(functionInfo->externalInfo.env, &callbackInfo);
+    ConvertUnion convertUnion = {functionInfo->callback(functionInfo->externalInfo.env, &callbackInfo)};
+    JSValueRef returnValue = convertUnion.valueRef;
 
     bool isPending = false;
     if (napi_is_exception_pending(functionInfo->externalInfo.env, &isPending) != NAPIOK) {
@@ -545,7 +567,8 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
     JSStringRelease(stringRef);
     RETURN_STATUS_IF_FALSE(functionObjectRef, NAPIMemoryError);
 
-    *result = (NAPIValue) functionObjectRef;
+    ConvertUnion convertUnion = {.valueRef = functionObjectRef};
+    *result = convertUnion.store;
 
     // 修改原型链
     // 原型链修改失败也不影响 FunctionInfo 的析构，只是后续 callAsFunction 会触发断言
@@ -557,28 +580,31 @@ napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallb
 
 NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, msg);
+    ConvertUnion msgConvertUnion = {msg};
+    CHECK_ARG(env, msgConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSObjectMakeError(env->context, 1, (JSValueRef *) &msg, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSObjectMakeError(env->context, 1, &msgConvertUnion.valueRef,
+                                                               &env->lastException)};
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-    CHECK_NAPI(setErrorCode(env, *result, code));
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    CHECK_NAPI(setErrorCode(env, convertUnion.store, code));
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, msg);
+    ConvertUnion msgConvertUnion = {msg};
+    CHECK_ARG(env, msgConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    NAPIValue global = NULL;
-    NAPIValue errorConstructor = NULL;
+    NAPIValue global;
+    NAPIValue errorConstructor;
     CHECK_NAPI(napi_get_global(env, &global));
     CHECK_NAPI(napi_get_named_property(env, global, "TypeError", &errorConstructor));
     CHECK_NAPI(napi_new_instance(env, errorConstructor, 1, &msg, result));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     CHECK_NAPI(setErrorCode(env, *result, code));
 
     return clearLastError(env);
@@ -586,15 +612,15 @@ NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NA
 
 NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, msg);
+    ConvertUnion msgConvertUnion = {msg};
+    CHECK_ARG(env, msgConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    NAPIValue global = NULL;
-    NAPIValue errorConstructor = NULL;
+    NAPIValue global;
+    NAPIValue errorConstructor;
     CHECK_NAPI(napi_get_global(env, &global));
     CHECK_NAPI(napi_get_named_property(env, global, "RangeError", &errorConstructor));
     CHECK_NAPI(napi_new_instance(env, errorConstructor, 1, &msg, result));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     CHECK_NAPI(setErrorCode(env, *result, code));
 
     return clearLastError(env);
@@ -602,11 +628,12 @@ NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, N
 
 NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     // JSC does not support BigInt
-    JSType valueType = JSValueGetType(env->context, (JSValueRef) value);
+    JSType valueType = JSValueGetType(env->context, valueConvertUnion.valueRef);
     switch (valueType) {
         case kJSTypeUndefined:
             *result = NAPIUndefined;
@@ -627,7 +654,7 @@ NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result) {
             *result = NAPISymbol;
             break;
         case kJSTypeObject: {
-            JSObjectRef object = JSValueToObject(env->context, (JSValueRef) value, &env->lastException);
+            JSObjectRef object = JSValueToObject(env->context, valueConvertUnion.valueRef, &env->lastException);
             CHECK_JSC(env);
             RETURN_STATUS_IF_FALSE(object, NAPIMemoryError);
             if (JSObjectIsFunction(env->context, object)) {
@@ -652,12 +679,13 @@ NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result) {
 
 NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, valueConvertUnion.valueRef), NAPINumberExpected);
 
-    *result = JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    *result = JSValueToNumber(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     return clearLastError(env);
@@ -665,15 +693,16 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result) {
 
 NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, valueConvertUnion.valueRef), NAPINumberExpected);
 
     // 缺少 int64_t 作为中间转换，会固定在 -2147483648
-    // TODO(ChasonTang): 是否该行为是 UB？
+    // TODO(ChasonTang): 虽然 ubsan 没有说明该行为是 UB，但是还是需要从规范上考虑是否该行为是 UB？
     // 但是 uint32_t 不会
-    *result = (int32_t) (int64_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    *result = (int32_t) (int64_t) JSValueToNumber(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     return clearLastError(env);
@@ -683,12 +712,13 @@ NAPIStatus napi_get_value_uint32(NAPIEnv env,
                                  NAPIValue value,
                                  uint32_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, valueConvertUnion.valueRef), NAPINumberExpected);
 
-    *result = (uint32_t) JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    *result = (uint32_t) JSValueToNumber(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     return clearLastError(env);
@@ -696,12 +726,13 @@ NAPIStatus napi_get_value_uint32(NAPIEnv env,
 
 NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef) value), NAPINumberExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, valueConvertUnion.valueRef), NAPINumberExpected);
 
-    double doubleValue = JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    double doubleValue = JSValueToNumber(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     if (isfinite(doubleValue)) {
@@ -723,11 +754,12 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result) {
 
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsBoolean(env->context, (JSValueRef) value), NAPINumberExpected);
-    *result = JSValueToBoolean(env->context, (JSValueRef) value);
+    RETURN_STATUS_IF_FALSE(JSValueIsBoolean(env->context, valueConvertUnion.valueRef), NAPINumberExpected);
+    *result = JSValueToBoolean(env->context, valueConvertUnion.valueRef);
 
     return clearLastError(env);
 }
@@ -743,9 +775,10 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result) {
 // The result argument is optional unless buf is NULL.
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) value), NAPIStringExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, valueConvertUnion.valueRef), NAPIStringExpected);
 
     // 1. buf == NULL 计算长度，这是 N-API 文档规定
     // 2. buf && bufsize 发生复制
@@ -759,7 +792,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
         if (!buf) {
             CHECK_ARG(env, result);
         }
-        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+        JSStringRef stringRef = JSValueToStringCopy(env->context, valueConvertUnion.valueRef, &env->lastException);
         CHECK_JSC(env);
         RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
         // NOTE: By definition, maxBytes >= 1 since the null terminator is included.
@@ -929,9 +962,10 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 // The result argument is optional unless buf is NULL.
 NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t bufsize, size_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) value), NAPIStringExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, valueConvertUnion.valueRef), NAPIStringExpected);
 
     if (buf && bufsize == 0) {
         if (result) {
@@ -941,7 +975,7 @@ NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *b
         if (!buf) {
             CHECK_ARG(env, result);
         }
-        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+        JSStringRef stringRef = JSValueToStringCopy(env->context, valueConvertUnion.valueRef, &env->lastException);
         CHECK_JSC(env);
         RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
         if (!buf) {
@@ -976,52 +1010,64 @@ NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *b
 
 NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueMakeBoolean(env->context, JSValueToBoolean(env->context, (JSValueRef) value));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeBoolean(env->context,
+                                                                JSValueToBoolean(env->context,
+                                                                                 valueConvertUnion.valueRef))};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    double doubleValue = JSValueToNumber(env->context, (JSValueRef) value, &env->lastException);
+    double doubleValue = JSValueToNumber(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
-
-    *result = (NAPIValue) JSValueMakeNumber(env->context, doubleValue);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeNumber(env->context, doubleValue)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) JSValueToObject(env->context, (JSValueRef) value, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSValueToObject(env->context, valueConvertUnion.valueRef,
+                                                             &env->lastException)};
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef) value, &env->lastException);
+    JSStringRef stringRef = JSValueToStringCopy(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
-    *result = (NAPIValue) JSValueMakeString(env->context, stringRef);
-    JSStringRelease(stringRef);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSValueMakeString(env->context, stringRef)};
+    if (stringRef) {
+        JSStringRelease(stringRef);
+    }
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -1030,14 +1076,15 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result) 
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
-
-    *result = (NAPIValue) JSObjectGetPrototype(env->context, objectRef);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    ConvertUnion convertUnion = {.valueRef = JSObjectGetPrototype(env->context, objectRef)};
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -1050,25 +1097,25 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
+    ConvertUnion objectConvertUnion = {object};
     // 应当检查参数是否为对象
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
     // 使用 JSObjectCopyPropertyNames 实现，符合 Object.keys
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIPendingException);
 
     JSPropertyNameArrayRef propertyNameArrayRef = JSObjectCopyPropertyNames(env->context, objectRef);
 
     size_t propertyCount = JSPropertyNameArrayGetCount(propertyNameArrayRef);
-
-    *result = (NAPIValue) JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSObjectMakeArray(env->context, 0, NULL, &env->lastException)};
+    *result = convertUnion.store;
     if (env->lastException) {
         JSPropertyNameArrayRelease(propertyNameArrayRef);
 
         return setLastErrorCode(env, NAPIPendingException);
     }
-    if (!*result) {
+    if (!convertUnion.valueRef) {
         JSPropertyNameArrayRelease(propertyNameArrayRef);
 
         return setLastErrorCode(env, NAPIMemoryError);
@@ -1111,17 +1158,20 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
 
 NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, key);
-    CHECK_ARG(env, value);
+    ConvertUnion keyConvertUnion = {key};
+    CHECK_ARG(env, keyConvertUnion.valueRef);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) key), NAPIStringExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, keyConvertUnion.valueRef), NAPIStringExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef) key, &env->lastException);
+    JSStringRef keyStringRef = JSValueToStringCopy(env->context, keyConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
 
@@ -1129,7 +1179,7 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
             env->context,
             objectRef,
             keyStringRef,
-            (JSValueRef) value,
+            valueConvertUnion.valueRef,
             kJSPropertyAttributeNone,
             &env->lastException);
     JSStringRelease(keyStringRef);
@@ -1141,16 +1191,18 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
-    CHECK_ARG(env, key);
+    ConvertUnion keyConvertUnion = {key};
+    CHECK_ARG(env, keyConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) key), NAPIStringExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, keyConvertUnion.valueRef), NAPIStringExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef) key, &env->lastException);
+    JSStringRef keyStringRef = JSValueToStringCopy(env->context, keyConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
 
@@ -1165,44 +1217,49 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
 
 NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, key);
+    ConvertUnion keyConvertUnion = {key};
+    CHECK_ARG(env, keyConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) key), NAPIStringExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, keyConvertUnion.valueRef), NAPIStringExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef) key, &env->lastException);
+    JSStringRef keyStringRef = JSValueToStringCopy(env->context, keyConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
 
-    *result = (NAPIValue) JSObjectGetProperty(
+    ConvertUnion convertUnion = {.valueRef = JSObjectGetProperty(
             env->context,
             objectRef,
             keyStringRef,
-            &env->lastException);
+            &env->lastException)};
     JSStringRelease(keyStringRef);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, key);
+    ConvertUnion keyConvertUnion = {key};
+    CHECK_ARG(env, keyConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) key), NAPIStringExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, keyConvertUnion.valueRef), NAPIStringExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef) key, &env->lastException);
+    JSStringRef keyStringRef = JSValueToStringCopy(env->context, keyConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
 
@@ -1219,7 +1276,8 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
 
 NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, key);
+    ConvertUnion keyConvertUnion = {key};
+    CHECK_ARG(env, keyConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     NAPIValueType valueType;
@@ -1231,18 +1289,21 @@ NAPIStatus napi_has_own_property(NAPIEnv env, NAPIValue object, NAPIValue key, b
     CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
     CHECK_NAPI(napi_get_named_property(env, objectCtor, "hasOwnProperty", &function));
     CHECK_NAPI(napi_call_function(env, object, function, 1, &key, &value));
-    *result = (JSValueRef) JSValueToBoolean(env->context, (JSValueRef) value);
+    ConvertUnion valueConvertUnion = {value};
+    *result = JSValueToBoolean(env->context, valueConvertUnion.valueRef);
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue value) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -1253,7 +1314,7 @@ NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *ut
             env->context,
             objectRef,
             stringRef,
-            (JSValueRef) value,
+            valueConvertUnion.valueRef,
             kJSPropertyAttributeNone,
             &env->lastException);
     JSStringRelease(stringRef);
@@ -1266,9 +1327,10 @@ NAPIStatus napi_has_named_property(NAPIEnv env, NAPIValue object, const char *ut
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -1288,34 +1350,38 @@ NAPIStatus napi_get_named_property(NAPIEnv env, NAPIValue object, const char *ut
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
     JSStringRef stringRef = JSStringCreateWithUTF8CString(utf8name);
     RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
 
-    *result = (NAPIValue) JSObjectGetProperty(
+    ConvertUnion convertUnion = {.valueRef = JSObjectGetProperty(
             env->context,
             objectRef,
             stringRef,
-            &env->lastException);
+            &env->lastException)};
     JSStringRelease(stringRef);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue value) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -1323,7 +1389,7 @@ NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
             env->context,
             objectRef,
             index,
-            (JSValueRef) value,
+            valueConvertUnion.valueRef,
             &env->lastException);
     CHECK_JSC(env);
 
@@ -1334,9 +1400,10 @@ NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool 
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -1357,19 +1424,21 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    *result = (NAPIValue) JSObjectGetPropertyAtIndex(
+    ConvertUnion convertUnion = {.valueRef = JSObjectGetPropertyAtIndex(
             env->context,
             objectRef,
             index,
-            &env->lastException);
+            &env->lastException)};
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -1377,9 +1446,10 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
 NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result) {
     NAPI_PREAMBLE(env);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -1465,24 +1535,26 @@ napi_define_properties(NAPIEnv env, NAPIValue object, size_t property_count, con
 
 NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     *result = JSValueIsArray(
             env->context,
-            (JSValueRef) value);
+            valueConvertUnion.valueRef);
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) value), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, valueConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) value, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, valueConvertUnion.valueRef, &env->lastException);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
     JSStringRef stringRef = JSStringCreateWithUTF8CString("length");
@@ -1504,14 +1576,16 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
 
 NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, lhs);
-    CHECK_ARG(env, rhs);
+    ConvertUnion lhsConvertUnion = {lhs};
+    CHECK_ARG(env, lhsConvertUnion.valueRef);
+    ConvertUnion rhsConvertUnion = {rhs};
+    CHECK_ARG(env, rhsConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     *result = JSValueIsStrictEqual(
             env->context,
-            (JSValueRef) lhs,
-            (JSValueRef) rhs);
+            lhsConvertUnion.valueRef,
+            rhsConvertUnion.valueRef);
 
     return clearLastError(env);
 }
@@ -1519,36 +1593,60 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
 NAPIStatus
 napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, const NAPIValue *argv, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, recv);
+    ConvertUnion recvConvertUnion = {recv};
+    CHECK_ARG(env, recvConvertUnion.valueRef);
     if (argc > 0) {
         CHECK_ARG(env, argv);
     }
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) func), NAPIObjectExpected);
+    ConvertUnion funcConvertUnion = {func};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, funcConvertUnion.valueRef), NAPIObjectExpected);
 
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) func, &env->lastException);
+    JSObjectRef objectRef = JSValueToObject(env->context, funcConvertUnion.valueRef, &env->lastException);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
     RETURN_STATUS_IF_FALSE(JSObjectIsFunction(env->context, objectRef), NAPIFunctionExpected);
 
     JSObjectRef thisObjectRef = NULL;
-    if (JSValueIsObject(env->context, (JSValueRef) recv)) {
-        thisObjectRef = JSValueToObject(env->context, (JSValueRef) recv, &env->lastException);
+    if (JSValueIsObject(env->context, recvConvertUnion.valueRef)) {
+        thisObjectRef = JSValueToObject(env->context, recvConvertUnion.valueRef, &env->lastException);
         CHECK_JSC(env);
         RETURN_STATUS_IF_FALSE(thisObjectRef, NAPIMemoryError);
     }
-
-    JSValueRef returnValue = JSObjectCallAsFunction(
-            env->context,
-            objectRef,
-            thisObjectRef,
-            argc,
-            (JSValueRef const *) argv,
-            &env->lastException);
+    JSValueRef returnValue = NULL;
+    if (argc <= 8) {
+        JSValueRef argumentArray[argc];
+        for (size_t i = 0; i < argc; ++i) {
+            ConvertUnion convertUnion = {argv[i]};
+            argumentArray[i] = convertUnion.valueRef;
+        }
+        returnValue = JSObjectCallAsFunction(
+                env->context,
+                objectRef,
+                thisObjectRef,
+                argc,
+                argumentArray,
+                &env->lastException);
+    } else {
+        JSValueRef *argumentArray = malloc(sizeof(JSValueRef) * argc);
+        RETURN_STATUS_IF_FALSE(argumentArray, NAPIMemoryError);
+        for (size_t i = 0; i < argc; ++i) {
+            ConvertUnion convertUnion = {argv[i]};
+            argumentArray[i] = convertUnion.valueRef;
+        }
+        returnValue = JSObjectCallAsFunction(
+                env->context,
+                objectRef,
+                thisObjectRef,
+                argc,
+                argumentArray,
+                &env->lastException);
+    }
     CHECK_JSC(env);
 
     if (result) {
-        *result = (NAPIValue) returnValue;
-        RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+        RETURN_STATUS_IF_FALSE(returnValue, NAPIMemoryError);
+        ConvertUnion convertUnion = {.valueRef = returnValue};
+        *result = convertUnion.store;
     }
 
     return clearLastError(env);
@@ -1557,44 +1655,48 @@ napi_call_function(NAPIEnv env, NAPIValue recv, NAPIValue func, size_t argc, con
 NAPIStatus
 napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv, NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, constructor);
+    ConvertUnion constructorConvertUnion = {constructor};
+    CHECK_ARG(env, constructorConvertUnion.valueRef);
     if (argc > 0) {
         CHECK_ARG(env, argv);
     }
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) constructor), NAPIObjectExpected);
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) constructor, &env->lastException);
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, constructorConvertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, constructorConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
     RETURN_STATUS_IF_FALSE(JSObjectIsConstructor(env->context, objectRef), NAPIFunctionExpected);
 
-    *result = (NAPIValue) JSObjectCallAsConstructor(
+    ConvertUnion convertUnion = {.valueRef = JSObjectCallAsConstructor(
             env->context,
             objectRef,
             argc,
             (const JSValueRef *) argv,
-            &env->lastException);
+            &env->lastException)};
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(convertUnion.valueRef, NAPIMemoryError);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, object);
+    ConvertUnion objectConvertUnion = {object};
+    CHECK_ARG(env, objectConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) constructor), NAPIObjectExpected);
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) constructor, &env->lastException);
+    ConvertUnion constructorConvertUnion = {constructor};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, constructorConvertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, constructorConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
     RETURN_STATUS_IF_FALSE(JSObjectIsConstructor(env->context, objectRef), NAPIFunctionExpected);
 
     *result = JSValueIsInstanceOfConstructor(
             env->context,
-            (JSValueRef) object,
+            objectConvertUnion.valueRef,
             objectRef,
             &env->lastException);
     CHECK_JSC(env);
@@ -1614,12 +1716,14 @@ napi_get_cb_info(NAPIEnv env, NAPICallbackInfo cbinfo, size_t *argc, NAPIValue *
         size_t min = *argc > cbinfo->argc ? cbinfo->argc : *argc;
 
         for (; i < min; i++) {
-            argv[i] = (NAPIValue) cbinfo->argv[i];
+            ConvertUnion argConvertUnion = {.valueRef = cbinfo->argv[i]};
+            argv[i] = argConvertUnion.store;
         }
 
         if (i < *argc) {
             for (; i < *argc; i++) {
-                argv[i] = (NAPIValue) JSValueMakeUndefined(env->context);
+                ConvertUnion argConvertUnion = {.valueRef = JSValueMakeUndefined(env->context)};
+                argv[i] = argConvertUnion.store;
             }
         }
     }
@@ -1629,7 +1733,8 @@ napi_get_cb_info(NAPIEnv env, NAPICallbackInfo cbinfo, size_t *argc, NAPIValue *
     }
 
     if (thisArg) {
-        *thisArg = (NAPIValue) cbinfo->thisArg;
+        ConvertUnion thisArgConvertUnion = {.valueRef = cbinfo->thisArg};
+        *thisArg = thisArgConvertUnion.store;
     }
 
     if (data) {
@@ -1644,7 +1749,12 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo cbinfo, NAPIValue *
     CHECK_ARG(env, cbinfo);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue) cbinfo->newTarget;
+    ConvertUnion thisArgConvertUnion = {.valueRef = cbinfo->newTarget};
+    if (!cbinfo->newTarget) {
+        thisArgConvertUnion.valueRef = JSValueMakeUndefined(env->context);
+        RETURN_STATUS_IF_FALSE(thisArgConvertUnion.valueRef, NAPIMemoryError);
+    }
+    *result = thisArgConvertUnion.store;
 
     return clearLastError(env);
 }
@@ -1780,8 +1890,9 @@ static JSObjectRef callAsConstructor(JSContextRef ctx,
     callbackInfo.argv = arguments;
     callbackInfo.data = constructorInfo->functionInfo.externalInfo.data;
 
-    JSValueRef returnValue = (JSValueRef) constructorInfo->functionInfo.callback(
-            constructorInfo->functionInfo.externalInfo.env, &callbackInfo);
+    ConvertUnion convertUnion = {constructorInfo->functionInfo.callback(
+            constructorInfo->functionInfo.externalInfo.env, &callbackInfo)};
+    JSValueRef returnValue = convertUnion.valueRef;
 
     bool isPending = false;
     if (napi_is_exception_pending(constructorInfo->functionInfo.externalInfo.env, &isPending) != NAPIOK) {
@@ -1906,9 +2017,10 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     napi_create_string_utf8(env, utf8name, NAPI_AUTO_LENGTH, &nameValue);
     if (!checkIsExceptionPendingAndClear(env)) {
         // { configurable: true }
+        ConvertUnion convertUnion = {.valueRef = NULL};
         NAPIPropertyDescriptor descriptor = {
                 "name",
-                NULL,
+                convertUnion.store,
                 NULL,
                 NULL,
                 NULL,
@@ -1916,7 +2028,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
                 NAPIConfigurable,
                 NULL
         };
-        napi_define_properties(env, (NAPIValue) function, 1, &descriptor);
+        convertUnion.valueRef = function;
+        napi_define_properties(env, convertUnion.store, 1, &descriptor);
         checkIsExceptionPendingAndClear(env);
     }
 
@@ -1966,7 +2079,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     }
 
     if (staticPropertyCount > 0) {
-        NAPIStatus status = napi_define_properties(env, (NAPIValue) function, staticPropertyIndex, staticDescriptors);
+        ConvertUnion convertUnion = {.valueRef = function};
+        NAPIStatus status = napi_define_properties(env, convertUnion.store, staticPropertyIndex, staticDescriptors);
         if (status != NAPIOK) {
             free(staticDescriptors);
             free(instanceDescriptors);
@@ -1979,7 +2093,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 
     if (instancePropertyCount > 0) {
         NAPIValue prototypeValue;
-        NAPIStatus status = napi_get_named_property(env, (NAPIValue) function, "prototype", &prototypeValue);
+        ConvertUnion convertUnion = {.valueRef = function};
+        NAPIStatus status = napi_get_named_property(env, convertUnion.store, "prototype", &prototypeValue);
         if (status != NAPIOK) {
             free(instanceDescriptors);
 
@@ -1994,7 +2109,8 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
     }
     free(instanceDescriptors);
 
-    *result = (NAPIValue) function;
+    ConvertUnion convertUnion = {.valueRef = function};
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -2004,11 +2120,12 @@ NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, N
 static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPI_PREAMBLE(env);
 
-    NAPIValue prototype = NULL;
+    NAPIValue prototype;
     CHECK_NAPI(napi_get_prototype(env, object, &prototype));
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) prototype), NAPIObjectExpected);
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) prototype, &env->lastException);
+    ConvertUnion convertUnion = {prototype};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, convertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, convertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     *result = JSObjectGetPrivate(objectRef);
@@ -2019,8 +2136,9 @@ static inline NAPIStatus unwrap(NAPIEnv env, NAPIValue object, ExternalInfo **re
 static inline NAPIStatus wrap(NAPIEnv env, NAPIValue object, ExternalInfo **result) {
     NAPI_PREAMBLE(env);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) object), NAPIObjectExpected);
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) object, &env->lastException);
+    ConvertUnion objectConvertUnion = {object};
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, objectConvertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, objectConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
     ExternalInfo *info = NULL;
@@ -2073,9 +2191,10 @@ NAPIStatus
 napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize finalizeCallback, void *finalizeHint,
           NAPIRef *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, jsObject);
+    ConvertUnion jsObjectConvertUnion = {jsObject};
+    CHECK_ARG(env, jsObjectConvertUnion.valueRef);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) jsObject), NAPIObjectExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, jsObjectConvertUnion.valueRef), NAPIObjectExpected);
 
     ExternalInfo *info = NULL;
     CHECK_NAPI(wrap(env, jsObject, &info));
@@ -2101,7 +2220,8 @@ napi_wrap(NAPIEnv env, NAPIValue jsObject, void *nativeObject, NAPIFinalize fina
 
 NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, jsObject);
+    ConvertUnion jsObjectConvertUnion = {jsObject};
+    CHECK_ARG(env, jsObjectConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     ExternalInfo *info = NULL;
@@ -2114,7 +2234,8 @@ NAPIStatus napi_unwrap(NAPIEnv env, NAPIValue jsObject, void **result) {
 
 NAPIStatus napi_remove_wrap(NAPIEnv env, NAPIValue jsObject, void **result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, jsObject);
+    ConvertUnion jsObjectConvertUnion = {jsObject};
+    CHECK_ARG(env, jsObjectConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     ExternalInfo *info = NULL;
@@ -2156,7 +2277,8 @@ static inline NAPIStatus create(NAPIEnv env,
             return setLastErrorCode(env, NAPIMemoryError);
         }
     }
-    *result = (NAPIValue) JSObjectMake(env->context, classRef, info);
+    ConvertUnion convertUnion = {.valueRef = JSObjectMake(env->context, classRef, info)};
+    *result = convertUnion.store;
     JSClassRelease(classRef);
 
     return clearLastError(env);
@@ -2174,11 +2296,12 @@ napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *fin
 
 NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef) value), NAPIObjectExpected);
-    JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef) value, &env->lastException);
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, valueConvertUnion.valueRef), NAPIObjectExpected);
+    JSObjectRef objectRef = JSValueToObject(env->context, valueConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
@@ -2223,12 +2346,13 @@ static inline void protect(NAPIEnv env, NAPIRef reference) {
 
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
     RETURN_STATUS_IF_FALSE(reference, NAPIMemoryError);
-    reference->value = (JSValueRef) value;
+    reference->value = valueConvertUnion.valueRef;
     reference->count = initialRefCount;
 
     ActiveReferenceValue *activeReferenceValue = NULL;
@@ -2240,7 +2364,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
             return setLastErrorCode(env, NAPIMemoryError);
         }
-        activeReferenceValue->value = (JSValueRef) value;
+        activeReferenceValue->value = valueConvertUnion.valueRef;
         hashError = false;
         HASH_ADD_PTR(activeReferenceValues, value, activeReferenceValue);
         if (hashError) {
@@ -2261,7 +2385,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
             return status;
         }
-        if (!addFinalizer(externalInfo, referenceFinalize, value)) {
+        if (!addFinalizer(externalInfo, referenceFinalize, (void *) valueConvertUnion.valueRef)) {
             // 失败
             free(reference);
             HASH_DEL(activeReferenceValues, activeReferenceValue);
@@ -2337,12 +2461,13 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
     CHECK_ARG(env, ref);
     CHECK_ARG(env, result);
 
-    *result = NULL;
+    ConvertUnion convertUnion = {.valueRef = NULL};
     ActiveReferenceValue *activeReferenceValue = NULL;
     HASH_FIND_PTR(activeReferenceValues, &ref->value, activeReferenceValue);
     if (activeReferenceValue) {
-        *result = (NAPIValue) ref->value;
+        convertUnion.valueRef = ref->value;
     }
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -2390,7 +2515,8 @@ NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleSco
 NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, scope);
-    CHECK_ARG(env, escapee);
+    ConvertUnion escapeeConvertUnion = {escapee};
+    CHECK_ARG(env, escapeeConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
     RETURN_STATUS_IF_FALSE(!scope->escapeCalled, NAPIEscapeCalledTwice);
@@ -2402,9 +2528,10 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
 
 NAPIStatus napi_throw(NAPIEnv env, NAPIValue error) {
     CHECK_ENV(env);
-    CHECK_ARG(env, error);
+    ConvertUnion errorConvertUnion = {error};
+    CHECK_ARG(env, errorConvertUnion.valueRef);
 
-    env->lastException = (JSValueRef) error;
+    env->lastException = errorConvertUnion.valueRef;
 
     return clearLastError(env);
 }
@@ -2422,8 +2549,10 @@ NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg) {
     JSValueRef msgValue = JSValueMakeString(env->context, stringRef);
     JSStringRelease(stringRef);
     RETURN_STATUS_IF_FALSE(msgValue, NAPIMemoryError);
-    NAPIValue error = NULL;
-    CHECK_NAPI(napi_create_error(env, (NAPIValue) codeValue, (NAPIValue) msgValue, &error));
+    NAPIValue error;
+    ConvertUnion msgConvertUnion = {.valueRef = msgValue};
+    ConvertUnion codeConvertUnion = {.valueRef = codeValue};
+    CHECK_NAPI(napi_create_error(env, codeConvertUnion.store, msgConvertUnion.store, &error));
 
     return napi_throw(env, error);
 }
@@ -2441,8 +2570,10 @@ NAPIStatus napi_throw_type_error(NAPIEnv env, const char *code, const char *msg)
     JSValueRef msgValue = JSValueMakeString(env->context, stringRef);
     JSStringRelease(stringRef);
     RETURN_STATUS_IF_FALSE(msgValue, NAPIMemoryError);
-    NAPIValue error = NULL;
-    CHECK_NAPI(napi_create_type_error(env, (NAPIValue) codeValue, (NAPIValue) msgValue, &error));
+    NAPIValue error;
+    ConvertUnion msgConvertUnion = {.valueRef = msgValue};
+    ConvertUnion codeConvertUnion = {.valueRef = codeValue};
+    CHECK_NAPI(napi_create_type_error(env, codeConvertUnion.store, msgConvertUnion.store, &error));
 
     return napi_throw(env, error);
 }
@@ -2460,19 +2591,22 @@ NAPIStatus napi_throw_range_error(NAPIEnv env, const char *code, const char *msg
     JSValueRef msgValue = JSValueMakeString(env->context, stringRef);
     JSStringRelease(stringRef);
     RETURN_STATUS_IF_FALSE(msgValue, NAPIMemoryError);
-    NAPIValue error = NULL;
-    CHECK_NAPI(napi_create_range_error(env, (NAPIValue) codeValue, (NAPIValue) msgValue, &error));
+    NAPIValue error;
+    ConvertUnion msgConvertUnion = {.valueRef = msgValue};
+    ConvertUnion codeConvertUnion = {.valueRef = codeValue};
+    CHECK_NAPI(napi_create_range_error(env, codeConvertUnion.store, msgConvertUnion.store, &error));
 
     return napi_throw(env, error);
 }
 
 NAPIStatus napi_is_error(NAPIEnv env, NAPIValue value, bool *result) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    NAPIValue global = NULL;
-    NAPIValue errorCtor = NULL;
+    NAPIValue global;
+    NAPIValue errorCtor;
     CHECK_NAPI(napi_get_global(env, &global));
     CHECK_NAPI(napi_get_named_property(env, global, "Error", &errorCtor));
     CHECK_NAPI(napi_instanceof(env, value, errorCtor, result));
@@ -2496,7 +2630,8 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result) {
     if (!env->lastException) {
         return napi_get_undefined(env, result);
     } else {
-        *result = (NAPIValue) env->lastException;
+        ConvertUnion convertUnion = {.valueRef = env->lastException};
+        *result = convertUnion.store;
         env->lastException = NULL;
     }
 
@@ -2504,16 +2639,17 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result) {
 }
 
 typedef struct {
-    NAPIValue resolve;
-    NAPIValue reject;
+    JSValueRef resolve;
+    JSValueRef reject;
 } Wrapper;
 
 static NAPIValue callback(__attribute((unused)) NAPIEnv env, NAPICallbackInfo callbackInfo) {
     Wrapper *wrapper = (Wrapper *) callbackInfo->data;
-    wrapper->resolve = (NAPIValue) callbackInfo->argv[0];
-    wrapper->reject = (NAPIValue) callbackInfo->argv[1];
+    wrapper->resolve = callbackInfo->argv[0];
+    wrapper->reject = callbackInfo->argv[1];
+    ConvertUnion convertUnion = {.valueRef = NULL};
 
-    return NULL;
+    return convertUnion.store;
 }
 
 NAPIStatus napi_create_promise(NAPIEnv env,
@@ -2523,22 +2659,24 @@ NAPIStatus napi_create_promise(NAPIEnv env,
     CHECK_ARG(env, deferred);
     CHECK_ARG(env, promise);
 
-    NAPIValue global = NULL;
-    NAPIValue promiseCtor = NULL;
+    NAPIValue global;
+    NAPIValue promiseCtor;
     CHECK_NAPI(napi_get_global(env, &global));
     // deployment target iOS 8
     CHECK_NAPI(napi_get_named_property(env, global, "Promise", &promiseCtor));
 
     Wrapper wrapper;
 
-    NAPIValue executor = NULL;
+    NAPIValue executor;
     CHECK_NAPI(napi_create_function(env, "executor", NAPI_AUTO_LENGTH, callback, &wrapper, &executor));
     CHECK_NAPI(napi_new_instance(env, promiseCtor, 1, &executor, promise));
 
-    NAPIValue deferredValue = NULL;
+    NAPIValue deferredValue;
     CHECK_NAPI(napi_create_object(env, &deferredValue));
-    CHECK_NAPI(napi_set_named_property(env, deferredValue, "resolve", wrapper.resolve));
-    CHECK_NAPI(napi_set_named_property(env, deferredValue, "reject", wrapper.reject));
+    ConvertUnion convertUnion = {.valueRef = wrapper.resolve};
+    CHECK_NAPI(napi_set_named_property(env, deferredValue, "resolve", convertUnion.store));
+    convertUnion.valueRef = wrapper.reject;
+    CHECK_NAPI(napi_set_named_property(env, deferredValue, "reject", convertUnion.store));
 
     NAPIRef deferredRef = NULL;
     CHECK_NAPI(napi_create_reference(env, deferredValue, 1, &deferredRef));
@@ -2552,12 +2690,13 @@ NAPIStatus napi_resolve_deferred(NAPIEnv env,
                                  NAPIValue resolution) {
     CHECK_ENV(env);
     CHECK_ARG(env, deferred);
-    CHECK_ARG(env, resolution);
+    ConvertUnion resolutionConvertUnion = {resolution};
+    CHECK_ARG(env, resolutionConvertUnion.valueRef);
 
     NAPIRef deferredRef = (NAPIRef) deferred;
-    NAPIValue undefined = NULL;
-    NAPIValue deferredValue = NULL;
-    NAPIValue resolve = NULL;
+    NAPIValue undefined;
+    NAPIValue deferredValue;
+    NAPIValue resolve;
     CHECK_NAPI(napi_get_undefined(env, &undefined));
     CHECK_NAPI(napi_get_reference_value(env, deferredRef, &deferredValue));
     CHECK_NAPI(napi_get_named_property(env, deferredValue, "resolve", &resolve));
@@ -2572,7 +2711,8 @@ NAPIStatus napi_reject_deferred(NAPIEnv env,
                                 NAPIValue rejection) {
     CHECK_ENV(env);
     CHECK_ARG(env, deferred);
-    CHECK_ARG(env, rejection);
+    ConvertUnion rejectionConvertUnion = {rejection};
+    CHECK_ARG(env, rejectionConvertUnion.valueRef);
 
     NAPIRef deferredRef = (NAPIRef) deferred;
     NAPIValue undefined, deferredValue, reject;
@@ -2589,7 +2729,8 @@ NAPIStatus napi_is_promise(NAPIEnv env,
                            NAPIValue value,
                            bool *isPromise) {
     CHECK_ENV(env);
-    CHECK_ARG(env, value);
+    ConvertUnion valueConvertUnion = {value};
+    CHECK_ARG(env, valueConvertUnion.valueRef);
     CHECK_ARG(env, isPromise);
 
     NAPIValue global, promiseCtor;
@@ -2604,17 +2745,19 @@ NAPIStatus napi_run_script(NAPIEnv env,
                            NAPIValue script,
                            NAPIValue *result) {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(env, script);
+    ConvertUnion scriptConvertUnion = {script};
+    CHECK_ARG(env, scriptConvertUnion.valueRef);
     CHECK_ARG(env, result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef) script), NAPIStringExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, scriptConvertUnion.valueRef), NAPIStringExpected);
 
-    JSStringRef script_str = JSValueToStringCopy(env->context, (JSValueRef) script, &env->lastException);
+    JSStringRef script_str = JSValueToStringCopy(env->context, scriptConvertUnion.valueRef, &env->lastException);
     CHECK_JSC(env);
 
-    *result = (NAPIValue) JSEvaluateScript(
-            env->context, script_str, NULL, NULL, 1, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSEvaluateScript(
+            env->context, script_str, NULL, NULL, 1, &env->lastException)};
     CHECK_JSC(env);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
@@ -2631,15 +2774,17 @@ NAPIRunScriptWithSourceUrl(NAPIEnv env, const char *utf8Script, const char *utf8
         sourceUrl = JSStringCreateWithUTF8CString(utf8SourceUrl);
     }
 
-    *result = (NAPIValue) JSEvaluateScript(env->context, scriptStringRef, NULL, sourceUrl, 1, &env->lastException);
+    ConvertUnion convertUnion = {.valueRef = JSEvaluateScript(env->context, scriptStringRef, NULL, sourceUrl, 1,
+                                                              &env->lastException)};
     CHECK_JSC(env);
+    *result = convertUnion.store;
 
     return clearLastError(env);
 }
 
 static JSContextGroupRef virtualMachine = NULL;
 
-static uint32_t contextCount = 0;
+static uint8_t contextCount = 0;
 
 NAPIStatus NAPICreateEnv(NAPIEnv *env) {
     // *env 才是 NAPIEnv
@@ -2661,10 +2806,23 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env) {
 
     if (!virtualMachine) {
         virtualMachine = JSContextGroupCreate();
+        if (!virtualMachine) {
+            free(*env);
+
+            return NAPIMemoryError;
+        }
         activeReferenceValues = NULL;
     }
+    JSGlobalContextRef globalContext = JSGlobalContextCreateInGroup(virtualMachine, NULL);
+    if (!globalContext) {
+        free(*env);
+        JSContextGroupRelease(virtualMachine);
+        virtualMachine = NULL;
+
+        return NAPIMemoryError;
+    }
     contextCount += 1;
-    (*env)->context = JSGlobalContextCreateInGroup(virtualMachine, NULL);
+    (*env)->context = globalContext;
     (*env)->lastException = NULL;
     LIST_INIT(&(*env)->strongReferenceHead);
 

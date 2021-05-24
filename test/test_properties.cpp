@@ -26,7 +26,7 @@ static NAPIValue SetValue(NAPIEnv env, NAPICallbackInfo info) {
 
     NAPI_CALL(env, napi_get_value_double(env, args[0], &value_));
 
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue Echo(NAPIEnv env, NAPICallbackInfo info) {
@@ -84,19 +84,28 @@ TEST_F(Test, TestProperties) {
                                  &name_symbol), NAPIOK);
 
     NAPIPropertyDescriptor properties[] = {
-            {"echo",               0,           Echo,             0,        0,        0,      NAPIEnumerable,        0},
-            {"readwriteValue",     0,           0,                0,        0,        number, static_cast<NAPIPropertyAttributes>(
-                                                                                                      NAPIEnumerable |
-                                                                                                      NAPIWritable), 0},
-            {"readonlyValue",      0,           0,                0,        0,        number, NAPIEnumerable,        0},
-            {"hiddenValue",        0,           0,                0,        0,        number, NAPIDefault,           0},
-            {nullptr,              name_value,  0,                0,        0,        number, NAPIEnumerable,        0},
-            {nullptr,              name_symbol, 0,                0,        0,        number, NAPIEnumerable,        0},
-            {"readwriteAccessor1", 0,           0,                GetValue, SetValue, 0,      NAPIDefault,           0},
-            {"readwriteAccessor2", 0,           0,                GetValue, SetValue, 0,      NAPIWritable,          0},
-            {"readonlyAccessor1",  0,           0,                GetValue, nullptr,  0,      NAPIDefault,           0},
-            {"readonlyAccessor2",  0,           0,                GetValue, nullptr,  0,      NAPIWritable,          0},
-            {"hasNamedProperty",   0,           HasNamedProperty, 0,        0,        0,      NAPIDefault,           0},
+            {"echo",               getUndefined(globalEnv), Echo,             0,        0,        getUndefined(
+                    globalEnv),                                                                           NAPIEnumerable,        0},
+            {"readwriteValue",     getUndefined(
+                    globalEnv),                             0,                0,        0,        number, static_cast<NAPIPropertyAttributes>(
+                                                                                                                  NAPIEnumerable |
+                                                                                                                  NAPIWritable), 0},
+            {"readonlyValue",      getUndefined(
+                    globalEnv),                             0,                0,        0,        number, NAPIEnumerable,        0},
+            {"hiddenValue",        getUndefined(
+                    globalEnv),                             0,                0,        0,        number, NAPIDefault,           0},
+            {nullptr,              name_value,              0,                0,        0,        number, NAPIEnumerable,        0},
+            {nullptr,              name_symbol,             0,                0,        0,        number, NAPIEnumerable,        0},
+            {"readwriteAccessor1", getUndefined(globalEnv), 0,                GetValue, SetValue, getUndefined(
+                    globalEnv),                                                                           NAPIDefault,           0},
+            {"readwriteAccessor2", getUndefined(globalEnv), 0,                GetValue, SetValue, getUndefined(
+                    globalEnv),                                                                           NAPIWritable,          0},
+            {"readonlyAccessor1",  getUndefined(globalEnv), 0,                GetValue, nullptr,  getUndefined(
+                    globalEnv),                                                                           NAPIDefault,           0},
+            {"readonlyAccessor2",  getUndefined(globalEnv), 0,                GetValue, nullptr,  getUndefined(
+                    globalEnv),                                                                           NAPIWritable,          0},
+            {"hasNamedProperty",   getUndefined(globalEnv), HasNamedProperty, 0,        0,        getUndefined(
+                    globalEnv),                                                                           NAPIDefault,           0},
     };
 
     ASSERT_EQ(napi_define_properties(

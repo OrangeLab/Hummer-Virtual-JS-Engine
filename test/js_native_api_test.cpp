@@ -32,6 +32,7 @@ int main(int argc, char **argv) {
 }
 
 void ::Test::SetUp() {
+    ::testing::Test::SetUp();
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -40,6 +41,7 @@ void ::Test::SetUp() {
 }
 
 void ::Test::TearDown() {
+    ::testing::Test::TearDown();
     NAPIValue result;
     ASSERT_EQ(napi_get_and_clear_last_exception(globalEnv, &result), NAPIOK);
 }

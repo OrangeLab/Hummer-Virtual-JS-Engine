@@ -51,7 +51,7 @@ toolchain("clang") {
         rspfile_content = rspfile_compiler_content
         # 目前只用于单元测试，所以不考虑异常模型
         # 默认 C++98 + libc++ gtest 要求 C++11
-        command = string_join(" ", ["clang++ -std=c++11", compiler_command])
+        command = string_join(" ", ["clang++ -std=c++14", compiler_command])
         outputs = compiler_outputs
     }
 

@@ -8,7 +8,7 @@ static NAPIValue New(NAPIEnv env, NAPICallbackInfo info) {
     NAPIValue args[1];
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 
-    NAPIValue description = nullptr;
+    NAPIValue description;
     if (argc >= 1) {
         NAPIValueType valuetype;
         NAPI_CALL(env, napi_typeof(env, args[0], &valuetype));
@@ -17,6 +17,8 @@ static NAPIValue New(NAPIEnv env, NAPICallbackInfo info) {
                     "Wrong type of arguments. Expects a string.");
 
         description = args[0];
+    } else {
+        NAPI_CALL(env, napi_get_undefined(env, &description));
     }
 
     NAPIValue symbol;

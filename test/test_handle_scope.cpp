@@ -10,18 +10,18 @@ EXTERN_C_START
 
 static NAPIValue NewScope(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPIHandleScope scope;
-    NAPIValue output = nullptr;
+    NAPIValue output;
 
     NAPI_CALL(env, napi_open_handle_scope(env, &scope));
     NAPI_CALL(env, napi_create_object(env, &output));
     NAPI_CALL(env, napi_close_handle_scope(env, scope));
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue NewScopeEscape(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPIEscapableHandleScope scope;
-    NAPIValue output = nullptr;
-    NAPIValue escapee = nullptr;
+    NAPIValue output;
+    NAPIValue escapee;
 
     NAPI_CALL(env, napi_open_escapable_handle_scope(env, &scope));
     NAPI_CALL(env, napi_create_object(env, &output));
@@ -32,8 +32,8 @@ static NAPIValue NewScopeEscape(NAPIEnv env, NAPICallbackInfo /*info*/) {
 
 static NAPIValue NewScopeEscapeTwice(NAPIEnv env, NAPICallbackInfo /*info*/) {
     NAPIEscapableHandleScope scope;
-    NAPIValue output = nullptr;
-    NAPIValue escapee = nullptr;
+    NAPIValue output;
+    NAPIValue escapee;
     NAPIStatus status;
 
     NAPI_CALL(env, napi_open_escapable_handle_scope(env, &scope));
@@ -42,7 +42,7 @@ static NAPIValue NewScopeEscapeTwice(NAPIEnv env, NAPICallbackInfo /*info*/) {
     status = napi_escape_handle(env, scope, output, &escapee);
     NAPI_ASSERT(env, status == NAPIEscapeCalledTwice, "Escaping twice fails");
     NAPI_CALL(env, napi_close_escapable_handle_scope(env, scope));
-    return nullptr;
+    return getUndefined(env);
 }
 
 static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
@@ -50,7 +50,7 @@ static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
     size_t argc;
     NAPIValue exception_function;
     NAPIStatus status;
-    NAPIValue output = nullptr;
+    NAPIValue output;
 
     NAPI_CALL(env, napi_open_handle_scope(env, &scope));
     NAPI_CALL(env, napi_create_object(env, &output));
@@ -66,7 +66,7 @@ static NAPIValue NewScopeWithException(NAPIEnv env, NAPICallbackInfo info) {
 
     // Closing a handle scope should still work while an exception is pending.
     NAPI_CALL(env, napi_close_handle_scope(env, scope));
-    return nullptr;
+    return getUndefined(env);
 }
 
 EXTERN_C_END
