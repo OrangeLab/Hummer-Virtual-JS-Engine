@@ -512,12 +512,74 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
         int i = 0;
         int j = 0;
         uint32_t unicodeValue = 0;
-        if (str[i] >= 0xd800 && str[i] <= 0xdbff)
+        while (i < length)
         {
-            // 代理平面
-            if (i + 1 == length)
+            if (str[i] >= 0xd800 && str[i] <= 0xdbff)
             {
-                // 只有 head，缺少 trail，UTF-16 字符串不完整
+                // 代理平面
+                if (i + 1 == length)
+                {
+                    // 只有 head，缺少 trail，UTF-16 字符串不完整
+                    free(utf8String);
+                    if (*((uint8_t *)&value) == 1)
+                    {
+                        // 大端
+                        free((void *)str);
+                    }
+
+                    return setLastErrorCode(env, NAPIGenericFailure);
+                }
+                uint16_t head = str[i++] & 0x400;
+                // 读取 tail
+                uint16_t trail = str[i++];
+                if (trail < 0xdc00 || trail > 0xdfff)
+                {
+                    // tail 非法
+                    free(utf8String);
+                    if (*((uint8_t *)&value) == 1)
+                    {
+                        // 大端
+                        free((void *)str);
+                    }
+
+                    return setLastErrorCode(env, NAPIGenericFailure);
+                }
+                trail = trail & 0x400;
+                unicodeValue = ((uint32_t)head) << 10 | trail | 0x10000;
+            }
+            else
+            {
+                // Unicode
+                unicodeValue = str[i++];
+            }
+            if (unicodeValue < 0x80)
+            {
+                // 0xxxxxxx -> 7
+                utf8String[j++] = unicodeValue;
+            }
+            else if (unicodeValue < 0x800)
+            {
+                // 110xxxxx 10xxxxxx -> 11
+                utf8String[j++] = (0x7c0 & unicodeValue) >> 6 | 0xc0;
+                utf8String[j++] = 0x3f & unicodeValue | 0x80;
+            }
+            else if (unicodeValue < 0x10000)
+            {
+                // 1110xxxx 10xxxxxx 10xxxxxx
+                utf8String[j++] = (0xf000 & unicodeValue) >> 12 | 0xe0;
+                utf8String[j++] = (0xfc0 & unicodeValue) >> 6 | 0x80;
+                utf8String[j++] = 0x3f & unicodeValue | 0x80;
+            }
+            else if (unicodeValue < 0x110000)
+            {
+                // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+                utf8String[j++] = (0x1c0000 & unicodeValue) >> 18 | 0xf0;
+                utf8String[j++] = (0x3f000 & unicodeValue) >> 12 | 0x80;
+                utf8String[j++] = (0xfc0 & unicodeValue) >> 6 | 0x80;
+                utf8String[j++] = 0x3f & unicodeValue | 0x80;
+            }
+            else
+            {
                 free(utf8String);
                 if (*((uint8_t *)&value) == 1)
                 {
@@ -527,71 +589,6 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
 
                 return setLastErrorCode(env, NAPIGenericFailure);
             }
-            uint16_t head = str[i] & 0x400;
-            // 读取 tail
-            uint16_t trail = str[++i];
-            if (trail < 0xdc00 || trail > 0xdfff)
-            {
-                // tail 非法
-                free(utf8String);
-                if (*((uint8_t *)&value) == 1)
-                {
-                    // 大端
-                    free((void *)str);
-                }
-
-                return setLastErrorCode(env, NAPIGenericFailure);
-            }
-            trail = trail & 0x400;
-            unicodeValue = ((uint32_t)head) << 10 | trail | 0x10000;
-        }
-        else
-        {
-            // Unicode
-            unicodeValue = str[i];
-        }
-        uint8_t bytesToWrite = 0;
-        if (unicodeValue < 0x80)
-        {
-            // 0xxxxxxx -> 7
-            bytesToWrite = 1;
-//            utf8String[j++] = unicodeValue;
-        } else if (unicodeValue < 0x800) {
-            // 110xxxxx 10xxxxxx -> 11
-            bytesToWrite = 2;
-//            utf8String[j++] = (0x7c0 & unicodeValue) >> 6 | 0xc0;
-//            utf8String[j++] = 0x3f & unicodeValue | 0x80;
-        } else if (unicodeValue < 0x10000) {
-            // 1110xxxx 10xxxxxx 10xxxxxx
-            bytesToWrite = 3;
-//            utf8String[j++] = (0xf000 & unicodeValue) >> 12 | 0xf;
-//            utf8String[j++] = (0xfc0 & unicodeValue) >> 6 | 0x80;
-//            utf8String[j++] = 0x3f & unicodeValue | 0x80;
-        } else if (unicodeValue < 0x110000) {
-            // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-            bytesToWrite = 4;
-//            utf8String[j++] = (0xf000 & unicodeValue) >> 18 | 0xf;
-//            utf8String[j++] = (0xfc0 & unicodeValue) >> 6 | 0x80;
-//            utf8String[j++] = 0x3f & unicodeValue | 0x80;
-        } else {
-            free(utf8String);
-            if (*((uint8_t *)&value) == 1)
-            {
-                // 大端
-                free((void *)str);
-            }
-
-            return setLastErrorCode(env, NAPIGenericFailure);
-        }
-        j += bytesToWrite - 1;
-        uint8_t *target = &utf8String[j - 1];
-        switch (bytesToWrite)
-        {
-        case 4:
-        case 3:
-        case 2:
-        case 1:
-
         }
 
         if (*((uint8_t *)&value) == 1)
