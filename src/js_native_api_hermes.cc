@@ -1,6 +1,7 @@
 // #include <hermes/DebuggerAPI.h>
 #include <napi/js_native_api_types.h>
 #include <hermes/hermes.h>
+#include <hermes/DebuggerAPI.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,7 +72,7 @@ NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
 
 
 
-#define HASH_NONFATAL_OOM 1
+// #define HASH_NONFATAL_OOM 1
 
 // 先 hashError = false; 再判断是否变为 true，发生错误需要回滚内存分配
 static bool hashError = false;
@@ -79,3 +80,60 @@ static bool hashError = false;
 #define uthash_nonfatal_oom(elt) hashError = true;
 
 
+
+#include <uthash.h>
+
+struct OpaqueNAPIRef
+{
+    LIST_ENTRY(OpaqueNAPIRef) node;
+    NAPIValue value;
+    uint32_t count;
+};
+
+struct OpaqueNAPIEnv
+{
+    // JSGlobalContextRef context;
+    // undefined 和 null 实际上也可以当做 exception
+    // 抛出，所以异常检查只需要检查是否为 C NULL
+    //  lastException;
+    NAPIExtendedErrorInfo lastError;
+    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
+};
+
+static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode)
+{
+    CHECK_ENV(env);
+    env->lastError.errorCode = errorCode;
+
+    return errorCode;
+}
+
+static inline NAPIStatus clearLastError(NAPIEnv env)
+{
+    // env 空指针检查
+    CHECK_ENV(env);
+    env->lastError.errorCode = NAPIOK;
+
+    // TODO(boingoing): Should this be a callback?
+    env->lastError.engineErrorCode = 0;
+    env->lastError.engineReserved = NULL;
+
+    return NAPIOK;
+}
+using namespace std;
+
+//only for compile
+int main(int argc, char **argv)
+{
+    facebook::hermes::HermesRuntime::DebugFlags flags;
+
+  auto runtime = facebook::hermes::makeHermesRuntime();
+
+  string error = "It is not a bug, it is a feature!";
+  try {
+    runtime->debugJavaScript("throw new Error('" + error + "')", "", flags);
+  } catch (const exception &e) {
+printf(e.what());
+  }
+    return 0;
+}

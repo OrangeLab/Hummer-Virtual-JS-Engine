@@ -56,57 +56,157 @@ config("quickjs_build_config") {
     defines = ["CONFIG_VERSION=\"2021-03-27\""]
     cflags_c = ["-Wno-unused-parameter", "-Wno-pedantic"]
 }
-
+# -------- hermes start ---------
 # hermes config
-config("hermes_config") {
+config("hermes_external_include") {
     include_dirs = [
-        "third_party/hermes/public",
-        "third_party/hermes/API",
-        "third_party/hermes/API/jsi",
-        "third_party/hermes/config",
-        "third_party/hermes/config",        
         "third_party/hermes/external/llvh/include",
-        "third_party/hermes/external/llvh/gen/include",
+        "third_party/hermes/external/llvh/gen/include"
+    ]
+}
+# hermesAPI & jsi include
+config("hermes_HermesAPI_include") {
+
+    include_dirs = [
+        "third_party/hermes/API/hermes",
+    ]
+}
+config("hermes_jsi_include") {
+
+    include_dirs = [
+        "third_party/hermes/API/jsi"
     ]
 }
 
-config("hermes_VM_config") {
-    defines = ["HERMESVM_GC_HADES",
+config("hermes_public_API_include") {
+    
+    include_dirs = [
+        "third_party/hermes/public",
+        "third_party/hermes/API",
+    ]
+}
+
+config("hermes_config_include") {
+    
+    include_dirs = [
+        "third_party/hermes/config"
+    ]
+}
+
+config("hermes_library_build_flags"){
+    cflags = ["-Wno-sign-compare", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments"]
+}
+
+config("hermes_VM_define") {
+   
+    defines = [
+        "HERMESVM_GC_HADES",
         "HERMESVM_INDIRECT_THREADING",
         "HERMESVM_ALLOW_COMPRESSED_POINTERS",
         "HERMESVM_HEAP_SEGMENT_SIZE_KB=4096",
         "HERMESVM_ALLOW_CONCURRENT_GC",
-        "HERMES_SLOW_DEBUG",
         "HERMES_ENABLE_DEBUGGER",
         "HERMES_LLVMHERMESVM_HEAP_SEGMENT_SIZE_KB=4096"
     ]
+}
+
+config("hermes_VM_include") {
+
     include_dirs = [
         "third_party/hermes/include",
     ]
 }
 
-# hermes source_set
-source_set("hermes_source_set") {
-    public_configs = [":hermes_VM_config",":hermes_config"]
-    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter", "-Wno-semi"]
+# hermes jsi source
+source_set("hermes_jsi_source") {
+    public_configs = [
+        ":hermes_jsi_include"
+    ]
     sources = [
-        "third_party/hermes/API/hermes/hermes.cpp",
-        "third_party/hermes/lib/VM/Runtime.cpp",
+        "third_party/hermes/API/jsi/jsi/jsi.cpp"
+    ]
+}
+# hermes debuggerAPI source
+source_set("hermes_debuggerAPI_source") {
+    public_configs = [
+        ":hermes_VM_define",
+        ":hermes_VM_include",
+        ":hermes_jsi_include",
+        ":hermes_HermesAPI_include",
+        ":hermes_external_include",
+        ":hermes_public_API_include",
+        ":hermes_config_include",
+        ":hermes_library_build_flags",
+    ]
+    sources = [
+        "third_party/hermes/API/hermes/DebuggerAPI.cpp"
     ]
 }
 
-source_set("napi_hermes_source_set") {
+# hermes static library
+source_set("hermes_library") {
+
+    public_deps = [
+        ":hermes_jsi_source",
+        ":hermes_debuggerAPI_source"
+    ]
+    lib_dirs = ["build_hermes"]
+    libs = [
+        "build_hermes/libdtoa.a",
+        "build_hermes/libLLVHSupport.a",
+        "build_hermes/libLLVHDemangle.a",
+        "build_hermes/libhermesFrontend.a",
+        "build_hermes/libhermesOptimizer.a",
+        "build_hermes/libhermesInst.a",
+        "build_hermes/libhermesFrontEndDefs.a",
+        "build_hermes/libhermesADT.a",
+        "build_hermes/libhermesAST.a",
+        "build_hermes/libhermesSourceMap.a",
+        "build_hermes/libhermesSupport.a",
+        "build_hermes/libhermesBackend.a",
+        "build_hermes/libhermesParser.a",
+        "build_hermes/libhermesHBCBackend.a",
+        "build_hermes/libhermesRegex.a",
+        "build_hermes/libhermesHBCBackend.a",
+        "build_hermes/libhermesPlatform.a",
+        "build_hermes/libhermesInternalBytecode.a",        
+        "build_hermes/libhermesPlatformUnicode.a",
+        "build_hermes/libhermesVMRuntime.a",
+    ]
+    cflags = [
+        "-DNDEBUG"
+    ]
+    frameworks = [ "CoreFoundation.framework" ]
+    sources = [
+        "third_party/hermes/API/hermes/hermes.cpp"
+    ]
+}
+
+# hermes&napi static library
+static_library("napi_hermes") {
+
+    configs = [
+        ":uthash",
+    ]
     public_configs = [
         ":napi",
     ]
-    configs = [
-        ":uthash"
-    ]
+    cflags = ["-Wno-unused-variable","-Wno-unused-function"]
+    deps = [":hermes_library"]
     sources = [
         "src/js_native_api_hermes.cc"
     ]
-    deps = [":hermes_source_set"]
 }
+
+executable("test_hermes") {
+    testonly = true
+    deps = [
+        ":napi_hermes",
+    ]
+}
+
+
+# -------- hermes end ---------
 
 source_set("quickjs_source_set") {
     public_configs = [":quickjs_config", ":quickjs_build_config"]
@@ -185,13 +285,6 @@ source_set("test") {
     ]
     deps = [
         ":gtest",
-    ]
-}
-executable("test_hermes") {
-    testonly = true
-    deps = [
-        ":test",
-        ":napi_hermes_source_set"
     ]
 }
 

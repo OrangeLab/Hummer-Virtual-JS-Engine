@@ -4,8 +4,8 @@ toolchain("clang") {
     # all tools except "action"
     rspfile_name = "{{output}}.rsp"
     # all tools except "action" (required when "rspfile" is used)
-    rspfile_compiler_content = "{{include_dirs}}"
-    compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
+    rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags}}"
+    compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
     if (debug) {
         compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
     } else {
@@ -61,7 +61,7 @@ toolchain("clang") {
     }
 
     tool("link") {
-        rspfile_content = "{{inputs}} {{frameworks}}"
+        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
         rspfile = rspfile_name
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM

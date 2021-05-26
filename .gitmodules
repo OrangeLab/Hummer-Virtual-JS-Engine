@@ -1,6 +1,3 @@
-[submodule "third_party/quickjs"]
-	path = third_party/quickjs
-	url = git@github.com:bellard/quickjs.git
 [submodule "third_party/googletest"]
 	path = third_party/googletest
 	url = git@github.com:google/googletest.git
@@ -10,3 +7,6 @@
 [submodule "third_party/hermes"]
 	path = third_party/hermes
 	url = git@github.com:facebook/hermes.git
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = git@github.com:bellard/quickjs.git
