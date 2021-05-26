@@ -12,6 +12,7 @@ class Test : public ::testing::Test
     void TearDown() override;
 
   protected:
+    NAPIHandleScope handleScope;
     NAPIValue exports;
 };
 

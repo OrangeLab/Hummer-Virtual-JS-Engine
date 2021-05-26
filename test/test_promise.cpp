@@ -12,7 +12,7 @@ static NAPIValue createPromise(NAPIEnv env, NAPICallbackInfo /*info*/)
     // We do not overwrite an existing deferred.
     if (deferred != nullptr)
     {
-        return getUndefined(env);
+        return nullptr;
     }
 
     NAPI_CALL(env, napi_create_promise(env, &deferred, &promise));
@@ -39,7 +39,7 @@ static NAPIValue concludeCurrentPromise(NAPIEnv env, NAPICallbackInfo info)
 
     deferred = nullptr;
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue isPromise(NAPIEnv env, NAPICallbackInfo info)

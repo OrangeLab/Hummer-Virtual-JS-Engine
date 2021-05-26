@@ -36,17 +36,9 @@ EXTERN_C_START
         }                                                                                                              \
     } while (0)
 
-static inline NAPIValue getUndefined(NAPIEnv env)
-{
-    NAPIValue undefined;
-    napi_get_undefined(env, &undefined);
-
-    return undefined;
-}
-
 // Returns NULL on failed assertion.
 // This is meant to be used inside napi_callback methods.
-#define NAPI_ASSERT(env, assertion, message) NAPI_ASSERT_BASE(env, assertion, message, getUndefined(env))
+#define NAPI_ASSERT(env, assertion, message) NAPI_ASSERT_BASE(env, assertion, message, NULL)
 
 // Returns empty on failed assertion.
 // This is meant to be used inside functions with void return type.
@@ -63,19 +55,19 @@ static inline NAPIValue getUndefined(NAPIEnv env)
     } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
-#define NAPI_CALL(env, the_call) NAPI_CALL_BASE(env, the_call, getUndefined(env))
+#define NAPI_CALL(env, the_call) NAPI_CALL_BASE(env, the_call, NULL)
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NAPI_CALL_RETURN_VOID(env, the_call) NAPI_CALL_BASE(env, the_call, NAPI_RETVAL_NOTHING)
 
 #define DECLARE_NAPI_PROPERTY(name, func)                                                                              \
     {                                                                                                                  \
-        (name), getUndefined(globalEnv), (func), NULL, NULL, getUndefined(globalEnv), NAPIDefault, NULL                \
+        (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL                                                      \
     }
 
 #define DECLARE_NAPI_GETTER(name, func)                                                                                \
     {                                                                                                                  \
-        (name), getUndefined(globalEnv), NULL, (func), NULL, getUndefined(globalEnv), NAPIDefault, NULL                \
+        (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL                                                      \
     }
 
 // expected_message 没做修改，添加 const

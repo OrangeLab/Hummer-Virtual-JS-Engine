@@ -94,7 +94,7 @@ config("hermes_config_include") {
 }
 
 config("hermes_library_build_flags"){
-    cflags = ["-Wno-sign-compare", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments"]
+    cflags = ["-Wno-sign-compare", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions","-Wno-nested-anon-types"]
 }
 
 config("hermes_VM_define") {

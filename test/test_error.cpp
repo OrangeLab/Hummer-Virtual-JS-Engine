@@ -23,45 +23,45 @@ static NAPIValue throwExistingError(NAPIEnv env, NAPICallbackInfo /*info*/)
     NAPIValue message;
     NAPIValue error;
     NAPI_CALL(env, napi_create_string_utf8(env, "existing error", NAPI_AUTO_LENGTH, &message));
-    NAPI_CALL(env, napi_create_error(env, getUndefined(env), message, &error));
+    NAPI_CALL(env, napi_create_error(env, nullptr, message, &error));
     NAPI_CALL(env, napi_throw(env, error));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwError(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_error(env, nullptr, "error"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwRangeError(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_range_error(env, nullptr, "range error"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwTypeError(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_type_error(env, nullptr, "type error"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwErrorCode(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_error(env, "ERR_TEST_CODE", "Error [error]"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwRangeErrorCode(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_range_error(env, "ERR_TEST_CODE", "RangeError [range error]"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue throwTypeErrorCode(NAPIEnv env, NAPICallbackInfo /*info*/)
 {
     NAPI_CALL(env, napi_throw_type_error(env, "ERR_TEST_CODE", "TypeError [type error]"));
-    return getUndefined(env);
+    return nullptr;
 }
 
 static NAPIValue createError(NAPIEnv env, NAPICallbackInfo /*info*/)
@@ -69,7 +69,7 @@ static NAPIValue createError(NAPIEnv env, NAPICallbackInfo /*info*/)
     NAPIValue result;
     NAPIValue message;
     NAPI_CALL(env, napi_create_string_utf8(env, "error", NAPI_AUTO_LENGTH, &message));
-    NAPI_CALL(env, napi_create_error(env, getUndefined(env), message, &result));
+    NAPI_CALL(env, napi_create_error(env, nullptr, message, &result));
     return result;
 }
 
@@ -78,7 +78,7 @@ static NAPIValue createRangeError(NAPIEnv env, NAPICallbackInfo /*info*/)
     NAPIValue result;
     NAPIValue message;
     NAPI_CALL(env, napi_create_string_utf8(env, "range error", NAPI_AUTO_LENGTH, &message));
-    NAPI_CALL(env, napi_create_range_error(env, getUndefined(env), message, &result));
+    NAPI_CALL(env, napi_create_range_error(env, nullptr, message, &result));
     return result;
 }
 
@@ -87,7 +87,7 @@ static NAPIValue createTypeError(NAPIEnv env, NAPICallbackInfo /*info*/)
     NAPIValue result;
     NAPIValue message;
     NAPI_CALL(env, napi_create_string_utf8(env, "type error", NAPI_AUTO_LENGTH, &message));
-    NAPI_CALL(env, napi_create_type_error(env, getUndefined(env), message, &result));
+    NAPI_CALL(env, napi_create_type_error(env, nullptr, message, &result));
     return result;
 }
 
@@ -130,7 +130,7 @@ static NAPIValue throwArbitrary(NAPIEnv env, NAPICallbackInfo info)
     size_t argc = 1;
     NAPI_CALL(env, napi_get_cb_info(env, info, &argc, &arbitrary, nullptr, nullptr));
     NAPI_CALL(env, napi_throw(env, arbitrary));
-    return getUndefined(env);
+    return nullptr;
 }
 
 EXTERN_C_END

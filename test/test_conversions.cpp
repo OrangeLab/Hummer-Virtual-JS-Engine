@@ -11,7 +11,7 @@ EXTERN_C_START
         NAPI_CALL(env, napi_create_object(env, &return_value));                                                        \
         add_returned_status(env, "envIsNull", return_value, "Invalid argument", NAPIInvalidArg,                        \
                             api(nullptr, return_value, &result));                                                      \
-        api(env, getUndefined(env), &result);                                                                          \
+        api(env, nullptr, &result);                                                                                    \
         add_last_status(env, "valueIsNull", return_value);                                                             \
         api(env, return_value, nullptr);                                                                               \
         add_last_status(env, "resultIsNull", return_value);                                                            \
@@ -40,7 +40,7 @@ GEN_NULL_CHECK_BINDING(CoerceToString, NAPIValue, napi_coerce_to_string)
                             api(nullptr, return_value, buf1, length1, &length1));                                      \
         arg_type buf2[4];                                                                                              \
         size_t length2 = 3;                                                                                            \
-        api(env, getUndefined(env), buf2, length2, &length2);                                                          \
+        api(env, nullptr, buf2, length2, &length2);                                                                    \
         add_last_status(env, "valueIsNull", return_value);                                                             \
         api(env, return_value, nullptr, 3, nullptr);                                                                   \
         add_last_status(env, "wrongTypeIn", return_value);                                                             \
@@ -81,8 +81,8 @@ static void init_test_null(NAPIEnv env, NAPIValue exports)
         env,
         napi_define_properties(env, test_null, sizeof(test_null_props) / sizeof(*test_null_props), test_null_props));
 
-    const NAPIPropertyDescriptor test_null_set = {"testNull", getUndefined(env), nullptr,        nullptr,
-                                                  nullptr,    test_null,         NAPIEnumerable, nullptr};
+    const NAPIPropertyDescriptor test_null_set = {"testNull", nullptr,   nullptr,        nullptr,
+                                                  nullptr,    test_null, NAPIEnumerable, nullptr};
 
     NAPI_CALL_RETURN_VOID(env, napi_define_properties(env, exports, 1, &test_null_set));
 }

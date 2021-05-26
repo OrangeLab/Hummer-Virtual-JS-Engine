@@ -164,7 +164,7 @@ static NAPIValue TestMemoryCorruption(NAPIEnv env, NAPICallbackInfo info)
         NAPI_CALL(env, napi_throw_error(env, nullptr, "Buffer overwritten"));
     }
 
-    return getUndefined(env);
+    return nullptr;
 }
 
 EXTERN_C_END

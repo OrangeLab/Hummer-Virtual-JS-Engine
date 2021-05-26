@@ -14,6 +14,8 @@ class NAPIEnvironment : public ::testing::Environment
     void SetUp() override
     {
         ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIOK);
+        NAPIHandleScope handleScope;
+        ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
         NAPIValue result;
         ASSERT_EQ(
             NAPIRunScriptWithSourceUrl(
@@ -55,6 +57,7 @@ class NAPIEnvironment : public ::testing::Environment
                 "${n}`:\".\"));return e},globalThis.assert=l})();",
                 "https://www.didi.com/assert.js", &result),
             NAPIOK);
+        ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
     }
 
     // Override this to define how to tear down the environment.
@@ -76,6 +79,7 @@ int main(int argc, char **argv)
 void ::Test::SetUp()
 {
     ::testing::Test::SetUp();
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -88,4 +92,5 @@ void ::Test::TearDown()
     ::testing::Test::TearDown();
     NAPIValue result;
     ASSERT_EQ(napi_get_and_clear_last_exception(globalEnv, &result), NAPIOK);
+    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }
