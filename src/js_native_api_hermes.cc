@@ -1,7 +1,9 @@
-// #include <hermes/DebuggerAPI.h>
 #include <napi/js_native_api_types.h>
+#include <napi/js_native_api.h>
 #include <hermes/hermes.h>
 #include <hermes/DebuggerAPI.h>
+#include <hermes/VM/JSObject.h>
+#include <hermes/VM/Runtime.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +19,10 @@
 // 1. 进行适当的清理并返回，那么执行环境会返回到 JavaScript，作为返回到 JavaScript 的过渡的一部分，异常将在 JavaScript 调用原生方法的语句处抛出，大多数 N-API 函数在出现异常被挂起的时候，都只是简单的返回 NAPIPendingException，，所以在这种情况下，建议尽量少做事情，等待返回到 JavaScript 中处理异常
 // 2. 尝试处理异常，在原生代码能捕获到异常的地方采取适当的操作，然后继续执行。只有当异常能被安全的处理的少数特定情况下推荐这样做，在这些情况下，napi_get_and_clear_last_exception 可以被用来获取并清除异常，在此之后，如果发现异常还是无法处理，可以通过 napi_throw 重新抛出错误
 
-NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
-    
-    return NAPIOK;
-}
+
 #include <sys/queue.h>
+
+
 // setLastErrorCode 会处理 env == NULL 问题
 #define RETURN_STATUS_IF_FALSE(condition, status) \
     do                                                 \
@@ -83,6 +84,14 @@ static bool hashError = false;
 
 #include <uthash.h>
 
+
+namespace hermesImpl {
+
+inline NAPIValue JsValueFromHermesHandle(hermes::vm::Handle<hermes::vm::HermesValue> handle) {
+    return reinterpret_cast<NAPIValue>(handle.get());
+}
+}
+
 struct OpaqueNAPIRef
 {
     LIST_ENTRY(OpaqueNAPIRef) node;
@@ -92,10 +101,14 @@ struct OpaqueNAPIRef
 
 struct OpaqueNAPIEnv
 {
-    // JSGlobalContextRef context;
-    // undefined 和 null 实际上也可以当做 exception
-    // 抛出，所以异常检查只需要检查是否为 C NULL
-    //  lastException;
+
+    explicit OpaqueNAPIEnv() 
+    :context(facebook::hermes::makeHermesRuntime())
+    {  }
+    
+    virtual ~OpaqueNAPIEnv() {
+    }
+    facebook::hermes::HermesRuntime *context;
     NAPIExtendedErrorInfo lastError;
     LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
 };
@@ -120,20 +133,54 @@ static inline NAPIStatus clearLastError(NAPIEnv env)
 
     return NAPIOK;
 }
-using namespace std;
 
-//only for compile
-int main(int argc, char **argv)
-{
-    facebook::hermes::HermesRuntime::DebugFlags flags;
 
-  auto runtime = facebook::hermes::makeHermesRuntime();
-
-  string error = "It is not a bug, it is a feature!";
-  try {
-    runtime->debugJavaScript("throw new Error('" + error + "')", "", flags);
-  } catch (const exception &e) {
-printf(e.what());
-  }
-    return 0;
+NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getUndefinedValue());
+    return clearLastError(env);
 }
+
+
+NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getNullValue());
+    return clearLastError(env);
+}
+
+NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    *result = (NAPIValue)hermesImpl::JsValueFromHermesHandle(env->context->getGlobal());
+    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    return clearLastError(env);
+}
+
+NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getBoolValue(value));
+    return clearLastError(env);
+}
+
+NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    
+    *result = (NAPIValue);
+    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    return clearLastError(env);
+}
+
+
+
+
+

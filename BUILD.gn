@@ -201,6 +201,7 @@ static_library("napi_hermes") {
 executable("test_hermes") {
     testonly = true
     deps = [
+        ":test",
         ":napi_hermes",
     ]
 }
