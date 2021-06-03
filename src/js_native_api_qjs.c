@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <napi/js_native_api.h>
 //#include <quickjs-libc.h>
+#include <cutils.h>
 #include <quickjs.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1100,27 +1101,224 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
     return clearLastError(env);
 }
 
+static inline bool getUTF8CharacterBytesLength(uint8_t codePoint, uint8_t *bytesToWrite)
+{
+    if (!bytesToWrite)
+    {
+        return false;
+    }
+    if (codePoint >> 7 == 0)
+    {
+        *bytesToWrite = 1;
+    }
+    else if (codePoint >> 5 == 6)
+    {
+        *bytesToWrite = 2;
+    }
+    else if (codePoint >> 4 == 0xe)
+    {
+        *bytesToWrite = 3;
+    }
+    else if (codePoint >> 3 == 0x1e)
+    {
+        *bytesToWrite = 4;
+    }
+    else if (codePoint >> 2 == 0x3e)
+    {
+        *bytesToWrite = 5;
+    }
+    else if (codePoint >> 1 == 0x7e)
+    {
+        *bytesToWrite = 6;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
 NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, value);
 
     RETURN_STATUS_IF_FALSE(env, JS_IsString(*((JSValue *)value)), NAPIStringExpected);
-    if (buf && bufsize == 0)
+    if (buf && !bufsize)
     {
         if (result)
         {
             *result = 0;
         }
+
+        return clearLastError(env);
+    }
+
+    size_t length;
+    const char *cString = JS_ToCStringLen(env->context, &length, *((JSValue *)value));
+    if (!buf)
+    {
+        CHECK_ARG(env, result);
+        *result = length;
+        JS_FreeCString(env->context, cString);
+
+        return clearLastError(env);
+    }
+
+    if (bufsize == 1)
+    {
+        buf[0] = '\0';
+        JS_FreeCString(env->context, cString);
+
+        return clearLastError(env);
+    }
+    // bufsize > 1
+    if (length + 1 <= bufsize)
+    {
+        memmove(buf, cString, length);
+        buf[length] = '\0';
+        JS_FreeCString(env->context, cString);
+
+        return clearLastError(env);
+    }
+    // bufsize > 1 length > 0
+    // 截断
+    memmove(buf, cString, bufsize);
+    size_t initialIndex = bufsize - 2;
+    size_t index = initialIndex;
+    uint8_t bytesToWrite = 0;
+    while (index >= 0)
+    {
+        uint8_t codePoint = cString[index];
+        if (codePoint >> 6 == 2)
+        {
+            // 10xxxxxx
+            if (index != 0)
+            {
+                --index;
+            }
+        }
+        else if (codePoint >> 7 == 0 || codePoint >> 6 == 3)
+        {
+            if (!getUTF8CharacterBytesLength(codePoint, &bytesToWrite))
+            {
+                JS_FreeCString(env->context, cString);
+
+                return setLastErrorCode(env, NAPIGenericFailure);
+            }
+            break;
+        }
+        else
+        {
+            JS_FreeCString(env->context, cString);
+
+            return setLastErrorCode(env, NAPIGenericFailure);
+        }
+    }
+    if (index + bytesToWrite - 1 < initialIndex)
+    {
+        JS_FreeCString(env->context, cString);
+
+        return setLastErrorCode(env, NAPIGenericFailure);
+    }
+    else if (index + bytesToWrite - 1 > initialIndex)
+    {
+        buf[index] = '\0';
     }
     else
     {
-        if (!buf)
-        {
-            CHECK_ARG(env, result);
-        }
-        JS_VALUE_GET_STRING()
+        buf[bufsize - 1] = '\0';
     }
+
+    JS_FreeCString(env->context, cString);
+
+    return clearLastError(env);
+}
+
+NAPIStatus napi_get_value_string_utf16(NAPIEnv env, NAPIValue value, char16_t *buf, size_t bufsize, size_t *result)
+{
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+
+    RETURN_STATUS_IF_FALSE(env, JS_IsString(*((JSValue *)value)), NAPIStringExpected);
+    if (buf && !bufsize)
+    {
+        if (result)
+        {
+            *result = 0;
+        }
+
+        return clearLastError(env);
+    }
+    if (!buf)
+    {
+        CHECK_ARG(env, result);
+        size_t length;
+        const char *cString = JS_ToCStringLen(env->context, &length, *((JSValue *)value));
+        // 计算大小
+        *result = 0;
+        const uint8_t *nextPointer = (const uint8_t *)cString;
+        while (nextPointer < (const uint8_t *)cString + length)
+        {
+            int unicode =
+                unicode_from_utf8(nextPointer, (int)(length - (nextPointer - (const uint8_t *)cString)), &nextPointer);
+            if (unicode == -1)
+            {
+                break;
+            }
+            if (unicode < 0x10000)
+            {
+                ++(*result);
+            }
+            else
+            {
+                *result += 2;
+            }
+        }
+        JS_FreeCString(env->context, cString);
+
+        return clearLastError(env);
+    }
+    if (bufsize == 1)
+    {
+        buf[0] = '\0';
+
+        return clearLastError(env);
+    }
+    size_t length;
+    const char *cString = JS_ToCStringLen(env->context, &length, *((JSValue *)value));
+    // 计算大小
+    size_t index = 0;
+    const uint8_t *nextPointer = (const uint8_t *)cString;
+    while (nextPointer < (const uint8_t *)cString + length)
+    {
+        int unicode =
+            unicode_from_utf8(nextPointer, (int)(length - (nextPointer - (const uint8_t *)cString)), &nextPointer);
+        if (unicode == -1)
+        {
+            break;
+        }
+        if (unicode < 0x10000)
+        {
+            buf[index++] = unicode;
+        }
+        else
+        {
+            buf[index++] = unicode
+                        count += 2;
+        }
+    }
+    if (length + 1 <= bufsize)
+    {
+        memmove(buf, cString, length * 2);
+        buf[length] = '\0';
+        JS_FreeCString(env->context, cString);
+
+        return clearLastError(env);
+    }
+
+    return clearLastError(env);
 }
 
 NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue value)
