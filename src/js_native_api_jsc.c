@@ -1162,13 +1162,16 @@ NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result
 
 NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    *result = (NAPIValue)JSValueToObject(env->context, (JSValueRef)value, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    CHECK_ARG(env, env->context);
+
+    NAPIValue global, objectCtor;
+    CHECK_NAPI(napi_get_global(env, &global));
+    CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
+    CHECK_NAPI(napi_new_instance(env, objectCtor, 1, &value, result));
 
     return clearLastError(env);
 }
