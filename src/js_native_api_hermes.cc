@@ -3,7 +3,10 @@
 #include <hermes/hermes.h>
 #include <hermes/DebuggerAPI.h>
 #include <hermes/VM/JSObject.h>
+#include <hermes/VM/JSArray.h>
 #include <hermes/VM/Runtime.h>
+#include <hermes/VM/HandleRootOwner.h>
+#include <hermes/VM/HermesValue.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,17 +60,17 @@
         }                          \
     } while (0)
 
-#define CHECK_JSC(env)                                                             \
+#define CHECK_HERMES(env)                                                             \
     do                                                                             \
     {                                                                              \
         CHECK_ENV(env);                                                            \
-        RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException); \
+        RETURN_STATUS_IF_FALSE(!((env)->lastException.isEmpty()), NAPIPendingException); \
     } while (0)
 
 #define NAPI_PREAMBLE(env)                                                                     \
     do                                                                                         \
     {                                                                                          \
-        CHECK_JSC(env); \
+        CHECK_HERMES(env); \
         clearLastError(env);                                                                 \
     } while (0)
 
@@ -84,14 +87,6 @@ static bool hashError = false;
 
 #include <uthash.h>
 
-
-namespace hermesImpl {
-
-inline NAPIValue JsValueFromHermesHandle(hermes::vm::Handle<hermes::vm::HermesValue> handle) {
-    return reinterpret_cast<NAPIValue>(handle.get());
-}
-}
-
 struct OpaqueNAPIRef
 {
     LIST_ENTRY(OpaqueNAPIRef) node;
@@ -101,17 +96,79 @@ struct OpaqueNAPIRef
 
 struct OpaqueNAPIEnv
 {
-
-    explicit OpaqueNAPIEnv() 
-    :context(facebook::hermes::makeHermesRuntime())
-    {  }
-    
+  public:
+    explicit OpaqueNAPIEnv() {  }
     virtual ~OpaqueNAPIEnv() {
     }
-    facebook::hermes::HermesRuntime *context;
+//    std::unique_ptr<facebook::hermes::HermesRuntime> context;
+    hermes::vm::Runtime *context;
+    hermes::vm::PinnedHermesValue lastException;
     NAPIExtendedErrorInfo lastError;
+    int open_handle_scopes = 0;
     LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
 };
+
+
+
+namespace hermesImpl {
+
+// c++ RVO
+class HandleScopeWrapper {
+ public:
+  explicit HandleScopeWrapper(hermes::vm::HandleRootOwner *runtime) : gcScope(runtime) {}
+
+ private:
+    hermes::vm::GCScope gcScope;
+};
+
+/*
+ * C++'s idea of a reinterpret_cast lacks sufficient cojones.
+ */
+template<typename ToType, typename FromType>
+inline ToType hermes_bitwise_cast(FromType from)
+{
+    static_assert(sizeof(FromType) == sizeof(ToType), "bitwise_cast size of FromType and ToType must be equal!");
+    typename std::remove_const<ToType>::type to { };
+    std::memcpy(static_cast<void*>(&to), static_cast<void*>(&from), sizeof(to));
+    return to;
+}
+
+inline NAPIValue JsValueFromHermesHandle(hermes::vm::Handle<hermes::vm::HermesValue> handle) {
+    return hermes_bitwise_cast<NAPIValue>(handle.get());
+}
+
+inline NAPIValue JsValueFromHermesValue(hermes::vm::HermesValue value) {
+    return hermes_bitwise_cast<NAPIValue>(value);
+}
+
+inline hermes::vm::HermesValue HermesValueFromJsValue(NAPIValue value) {
+    return hermes_bitwise_cast<hermes::vm::HermesValue>(value);
+}
+
+inline NAPIValue JsValueFromPseudoHermesHandle(hermes::vm::PseudoHandle<hermes::vm::HermesValue> handle) {
+    return hermes_bitwise_cast<NAPIValue>(handle.get());
+}
+
+inline static NAPIHandleScope JsHandleScopeFromHermesScope(HandleScopeWrapper *scope) {
+    return reinterpret_cast<NAPIHandleScope>(scope);
+}
+
+inline static HandleScopeWrapper* HermesScopeFormeJsHandleScope(NAPIHandleScope scope) {
+    return reinterpret_cast<HandleScopeWrapper *>(scope);
+}
+
+
+inline static bool getException(hermes::vm::ExecutionStatus status, NAPIEnv env){
+    if (status == hermes::vm::ExecutionStatus::RETURNED) {
+        return true;
+    }else{
+        env->lastException = env->context->getThrownValue();
+        return false;
+    }
+};
+
+}
+
 
 static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode)
 {
@@ -134,7 +191,58 @@ static inline NAPIStatus clearLastError(NAPIEnv env)
     return NAPIOK;
 }
 
+#pragma mark <Error Handling>
 
+NAPIStatus napi_throw(NAPIEnv env, NAPIValue error){
+
+    CHECK_ENV(env);
+    CHECK_ARG(env, error);
+    env->lastException = hermesImpl::HermesValueFromJsValue(error);
+    return clearLastError(env);
+}
+
+NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg){
+
+    CHECK_ENV(env);
+    hermes::vm::cr
+    JSStringRef stringRef = JSStringCreateWithUTF8CString(code);
+    RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+    JSValueRef codeValue = JSValueMakeString(env->context, stringRef);
+    JSStringRelease(stringRef);
+    RETURN_STATUS_IF_FALSE(codeValue, NAPIMemoryError);
+    stringRef = JSStringCreateWithUTF8CString(msg);
+    RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+    JSValueRef msgValue = JSValueMakeString(env->context, stringRef);
+    JSStringRelease(stringRef);
+    RETURN_STATUS_IF_FALSE(msgValue, NAPIMemoryError);
+    NAPIValue error;
+    CHECK_NAPI(napi_create_error(env, (NAPIValue)codeValue, (NAPIValue)msgValue, &error));
+
+    return napi_throw(env, error);
+}
+
+NAPIStatus napi_throw_type_error(NAPIEnv env, const char *code, const char *msg){
+
+}
+
+NAPIStatus napi_throw_range_error(NAPIEnv env, const char *code, const char *msg){
+
+}
+
+NAPIStatus napi_is_error(NAPIEnv env, NAPIValue value, bool *result){
+
+}
+
+// Methods to support catching exceptions
+NAPIStatus napi_is_exception_pending(NAPIEnv env, bool *result){
+
+}
+
+NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result){
+
+}
+
+#pragma mark <get>
 NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result) {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
@@ -147,7 +255,6 @@ NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
-
     *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getNullValue());
     return clearLastError(env);
 }
@@ -174,12 +281,98 @@ NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, result);
-    
-    *result = (NAPIValue);
+    *result = reinterpret_cast<NAPIValue>(hermes::vm::JSObject::create(env->context).get());
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
     return clearLastError(env);
 }
 
+
+NAPIStatus napi_create_array(NAPIEnv env, NAPIValue *result){
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    hermes::vm::GCScope gcScope(reinterpret_cast<hermes::vm::HandleRootOwner *>(env->context));
+
+}
+
+NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *result){
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    uint32_t len = (uint32_t)length;
+    auto res = hermes::vm::JSArray::create(env->context,len,len);
+    hermesImpl::getException(res.getStatus(),env);
+    CHECK_HERMES(env);
+
+
+}
+
+NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t length, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data,
+                                NAPIValue *result){
+
+                                }
+
+NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result){
+
+}
+
+NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result){
+
+}
+
+
+#pragma mark <scope>
+// hermes gcscope 为栈构造，这里包装为堆成员之后，需要保持 napi_open_handle_scope 和 napi_close_handle_scope 对应关系。
+// 否则 在 hermes 执行 gc 时会造成 crash。
+NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result){
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    *result = hermesImpl::JsHandleScopeFromHermesScope(new hermesImpl::HandleScopeWrapper(env->context));
+    env->open_handle_scopes++;
+    return clearLastError(env);
+}
+
+NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope){
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+    if (env->open_handle_scopes == 0) {
+        return NAPIHandleScopeMismatch;
+    }
+    env->open_handle_scopes--;
+    hermesImpl::HandleScopeWrapper *scopeWrapper = hermesImpl::HermesScopeFormeJsHandleScope(scope);
+    delete scopeWrapper;
+    return clearLastError(env);
+}
 
 
 
