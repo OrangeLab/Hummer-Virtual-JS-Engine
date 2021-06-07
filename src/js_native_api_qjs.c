@@ -1444,8 +1444,6 @@ NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    CHECK_ARG(env, env->context);
-
     NAPIValue global, objectCtor;
     CHECK_NAPI(napi_get_global(env, &global));
     CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
@@ -1485,7 +1483,8 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
     CHECK_ARG(env, result);
 
     JSValue undefinedValue = JS_UNDEFINED;
-    if (!object) {
+    if (!object)
+    {
         object = (NAPIValue)&undefinedValue;
     }
 
@@ -1504,6 +1503,7 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
     return clearLastError(env);
 }
 
+// napi_get_global + napi_get_named_property + napi_call_function
 NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
     CHECK_ENV(env);
@@ -1518,13 +1518,12 @@ NAPIStatus napi_get_property_names(NAPIEnv env, NAPIValue object, NAPIValue *res
     return clearLastError(env);
 }
 
+// NAPINameExpected/NAPIPendingException/NAPIGenericFailure
 NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, key);
     CHECK_ARG(env, value);
-
-    CHECK_ARG(env, env->context);
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
     RETURN_STATUS_IF_FALSE(env, atom != JS_ATOM_NULL, NAPINameExpected);
@@ -1537,13 +1536,12 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     return clearLastError(env);
 }
 
+// NAPINameExpected/NAPIPendingException
 NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, result);
     CHECK_ARG(env, key);
-
-    CHECK_ARG(env, env->context);
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
     RETURN_STATUS_IF_FALSE(env, atom != JS_ATOM_NULL, NAPINameExpected);
@@ -1554,33 +1552,42 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
     return clearLastError(env);
 }
 
+// NAPINameExpected + addValueToHandleScope
 NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
+    CHECK_ENV(env);
     CHECK_ARG(env, key);
     CHECK_ARG(env, result);
 
     CHECK_ARG(env, env->context);
+
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
     RETURN_STATUS_IF_FALSE(env, atom != JS_ATOM_NULL, NAPINameExpected);
     JSValue value = JS_GetProperty(env->context, *((JSValue *)object), atom);
     struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, value, &handle));
+    NAPIStatus status = addValueToHandleScope(env, value, &handle);
+    if (status != NAPIOK)
+    {
+        JS_FreeValue(env->context, value);
+
+        return setLastErrorCode(env, status);
+    }
     *result = (NAPIValue)&handle->value;
 
     return clearLastError(env);
 }
 
+// NAPINameExpected/NAPIPendingException
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(env, key);
 
-    CHECK_ARG(env, env->context);
-
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
     RETURN_STATUS_IF_FALSE(env, atom != JS_ATOM_NULL, NAPINameExpected);
-    *result = JS_DeleteProperty(env->context, *((JSValue *)object), atom, 0);
+    int status = JS_DeleteProperty(env->context, *((JSValue *)object), atom, 0);
+    RETURN_STATUS_IF_FALSE(env, status != -1, NAPIPendingException);
+    *result = status;
 
     return clearLastError(env);
 }
