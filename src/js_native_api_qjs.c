@@ -420,6 +420,7 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     }
     JSValue returnValue =
         JS_DupValue(ctx, *((JSValue *)functionInfo->callback(functionInfo->baseInfo.env, &callbackInfo)));
+    JSValue exceptionValue = JS_GetException(ctx);
     status = napi_close_handle_scope(functionInfo->baseInfo.env, handleScope);
     if (status != NAPIOK)
     {
@@ -427,6 +428,13 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
         JS_FreeValue(ctx, returnValue);
 
         return JS_UNDEFINED;
+    }
+    if (!JS_IsNull(exceptionValue))
+    {
+        JS_Throw(ctx, exceptionValue);
+        JS_FreeValue(ctx, returnValue);
+
+        return JS_EXCEPTION;
     }
 
     return returnValue;
@@ -1395,12 +1403,21 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     JSValue returnValue = JS_DupValue(ctx, *((JSValue *)constructorInfo->functionInfo.callback(
                                                constructorInfo->functionInfo.baseInfo.env, &callbackInfo)));
     JS_FreeValue(ctx, thisValue);
+    JSValue exceptionValue = JS_GetException(ctx);
     status = napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
     if (status != NAPIOK)
     {
         assert(false);
+        JS_FreeValue(ctx, returnValue);
 
         return JS_UNDEFINED;
+    }
+    if (!JS_IsNull(exceptionValue))
+    {
+        JS_Throw(ctx, exceptionValue);
+        JS_FreeValue(ctx, returnValue);
+
+        return JS_EXCEPTION;
     }
 
     return returnValue;
