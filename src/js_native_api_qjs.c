@@ -1155,19 +1155,6 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
     return clearLastError(env);
 }
 
-static JSClassID referenceCountClassId;
-
-NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, value);
-    CHECK_ARG(env, result);
-
-
-
-    return clearLastError(env);
-}
-
 // NAPIMemoryError
 NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
 {
@@ -1446,7 +1433,6 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAP
 
         return setLastErrorCode(env, NAPIPendingException);
     }
-    // TODO(ChasonTang): constructorClassId class_proto 设置为 Object
     JSValue prototype = JS_NewObjectClass(env->context, (int)constructorClassId);
     if (JS_IsException(prototype))
     {

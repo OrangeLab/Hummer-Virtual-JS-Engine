@@ -132,7 +132,7 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
 // 推荐实现层针对 str 为空情况做处理，比如当做 ""
 // constructor/data/properties 可空
 NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
-                             NAPIValue *result);
+                           NAPIValue *result);
 
 NAPIStatus NAPICreateEnv(NAPIEnv *env);
 
