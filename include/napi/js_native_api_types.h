@@ -22,6 +22,8 @@ typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
 
 typedef enum
 {
+    // { writable: false, enumerable: false, configurable: false }
+    // napi_set_property 默认为 { writable: true, enumerable: true, configurable: true }
     NAPIDefault = 0,
     NAPIWritable = 1 << 0,
     NAPIEnumerable = 1 << 1,
@@ -44,6 +46,7 @@ typedef enum
     NAPIBoolean,
     NAPINumber,
     NAPIString,
+    // 未来建议判断到 Object 即可，提供 NAPIIsFunction 和 NAPIIsExternal
     NAPIObject,
     NAPIFunction,
     NAPIExternal,
@@ -72,7 +75,7 @@ typedef enum
     NAPIDateExpected,
     NAPIArrayBufferExpected,
     NAPIDetachableArrayBufferExpected,
-    NAPIWouldDeadLock, // unused
+    NAPIWouldDeadLock,
     // 自定义添加错误
     NAPIMemoryError
 } NAPIStatus;
@@ -105,12 +108,6 @@ typedef struct
     NAPIPropertyAttributes attributes;
     void *data;
 } NAPIPropertyDescriptor;
-
-typedef struct
-{
-    const char *errorMessage;
-    NAPIStatus errorCode;
-} NAPIExtendedErrorInfo;
 
 EXTERN_C_END
 

@@ -11,8 +11,6 @@ EXTERN_C_START
 
 #define NAPI_AUTO_LENGTH SIZE_MAX
 
-NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result);
-
 NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result);
 
 NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result);
@@ -67,8 +65,6 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 
 // result 可空
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result);
-
-NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result);
 
 // result 可空
 NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc, const NAPIValue *argv,
