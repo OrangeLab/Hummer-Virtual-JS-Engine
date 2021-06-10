@@ -92,11 +92,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
 NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref);
 
-// Increments the reference count, optionally returning the resulting count.
-// After this call the  reference will be a strong reference because its
-// refcount is >0, and the referenced object is effectively "pinned".
-// Calling this when the refcount is 0 and the object is unavailable
-// results in an error.
+// result 可空
 NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result);
 
 // Decrements the reference count, optionally returning the resulting count.
