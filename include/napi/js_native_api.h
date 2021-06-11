@@ -95,10 +95,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref);
 // result 可空
 NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result);
 
-// Decrements the reference count, optionally returning the resulting count.
-// If the result is 0 the reference is now weak and the object may be GC'd
-// at any time if there are no other references. Calling this when the
-// refcount is already 0 results in an error.
+// result 可空
 NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result);
 
 NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result);

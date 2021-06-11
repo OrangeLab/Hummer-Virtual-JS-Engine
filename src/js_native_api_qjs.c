@@ -1030,7 +1030,6 @@ struct OpaqueNAPIRef
     JSValue value;                  // 64/128
     LIST_ENTRY(OpaqueNAPIRef) node; // size_t
     uint8_t referenceCount;         // 8
-    bool isEmpty;                   // 是否已经被 GC
 };
 
 typedef struct
@@ -1050,12 +1049,59 @@ void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint)
     NAPIRef reference;
     LIST_FOREACH(reference, &referenceInfo->referenceList, node)
     {
-        reference->isEmpty = true;
+        reference->value = undefinedValue;
     }
     free(referenceInfo);
 }
 
-// NAPIGenericFailure/NAPIMemoryError
+static const char *const referenceString = "__reference__";
+
+// NAPIMemoryError/NAPIGenericFailure + napi_create_string_utf8 + napi_get_property + napi_typeof + napi_create_external
+// + napi_get_value_external + napi_set_property
+static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
+{
+    CHECK_ARG(env);
+    CHECK_ARG(value);
+    CHECK_ARG(ref);
+
+    NAPIValue stringValue;
+    CHECK_NAPI(napi_create_string_utf8(env, referenceString, -1, &stringValue));
+    NAPIValue referenceValue;
+    CHECK_NAPI(napi_get_property(env, value, stringValue, &referenceValue));
+    NAPIValueType valueType;
+    CHECK_NAPI(napi_typeof(env, referenceValue, &valueType));
+    RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIGenericFailure);
+    if (valueType == NAPIUndefined)
+    {
+        ReferenceInfo *referenceInfo = malloc(sizeof(ReferenceInfo));
+        RETURN_STATUS_IF_FALSE(referenceInfo, NAPIMemoryError);
+        LIST_INIT(&referenceInfo->referenceList);
+        NAPIStatus status = napi_create_external(env, referenceInfo, referenceFinalize, NULL, &referenceValue);
+        if (status != NAPIOK)
+        {
+            free(referenceInfo);
+
+            return status;
+        }
+    }
+    ReferenceInfo *referenceInfo;
+    CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo));
+    if (!referenceInfo)
+    {
+        assert(false);
+
+        return NAPIGenericFailure;
+    }
+    if (valueType == NAPIUndefined)
+    {
+        CHECK_NAPI(napi_set_property(env, value, stringValue, referenceValue));
+    }
+    LIST_INSERT_HEAD(&referenceInfo->referenceList, ref, node);
+
+    return NAPIOK;
+}
+
+// NAPIMemoryError + setWeak
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
     CHECK_ARG(env);
@@ -1064,59 +1110,70 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
 
     CHECK_ARG(env->context);
 
-    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPIGenericFailure);
-    if (JS_IsObject(*((JSValue *)value)))
+    *result = malloc(sizeof(struct OpaqueNAPIRef));
+    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    if (!JS_IsObject(*((JSValue *)value)) && !initialRefCount)
     {
-        NAPIValue referenceValue;
-        CHECK_NAPI(napi_get_property(env, value, (NAPIValue)&env->referenceSymbolValue, &referenceValue));
-        NAPIValueType valueType;
-        CHECK_NAPI(napi_typeof(env, referenceValue, &valueType));
-        RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIGenericFailure);
-        if (valueType == NAPIUndefined)
-        {
-            ReferenceInfo *referenceInfo = malloc(sizeof(ReferenceInfo));
-            RETURN_STATUS_IF_FALSE(referenceInfo, NAPIMemoryError);
-            LIST_INIT(&referenceInfo->referenceList);
-            NAPIStatus externalStatus =
-                napi_create_external(env, referenceInfo, referenceFinalize, NULL, &referenceValue);
-            if (externalStatus != NAPIOK)
-            {
-                free(referenceInfo);
+        (*result)->referenceCount = 0;
+        (*result)->value = undefinedValue;
 
-                return externalStatus;
-            }
-            CHECK_NAPI(napi_set_property(env, value, (NAPIValue)&env->referenceSymbolValue, referenceValue));
-        }
-        ReferenceInfo *referenceInfo;
-        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo));
-        *result = malloc(sizeof(struct OpaqueNAPIRef));
-        RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-        (*result)->isEmpty = false;
-        (*result)->referenceCount = initialRefCount;
-        (*result)->value = initialRefCount ? JS_DupValue(env->context, *((JSValue *)value)) : *((JSValue *)value);
-        LIST_INSERT_HEAD(&referenceInfo->referenceList, *result, node);
+        return NAPIOK;
     }
-    else
+    (*result)->value = *((JSValue *)value);
+    (*result)->referenceCount = initialRefCount;
+    if (!JS_IsObject(*((JSValue *)value)))
     {
-        *result = malloc(sizeof(struct OpaqueNAPIRef));
-        RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-        if (initialRefCount)
-        {
-            (*result)->isEmpty = false;
-            (*result)->referenceCount = initialRefCount;
-            (*result)->value = *((JSValue *)value);
-        }
-        else
-        {
-            (*result)->isEmpty = true;
-            (*result)->referenceCount = 0;
-            (*result)->value = JS_UNDEFINED;
-        }
+        return NAPIOK;
+    }
+    if (initialRefCount)
+    {
+        (*result)->value = JS_DupValue(env->context, (*result)->value);
+
+        return NAPIOK;
+    }
+    // setWeak
+    NAPIStatus status = setWeak(env, value, *result);
+    if (status != NAPIOK)
+    {
+        free(*result);
+
+        return status;
     }
 
     return NAPIOK;
 }
 
+// NAPIGenericFailure + napi_create_string_utf8 + napi_get_property + napi_get_value_external + napi_delete_property
+static NAPIStatus clearWeak(NAPIEnv env, NAPIRef ref)
+{
+    CHECK_ARG(env);
+    CHECK_ARG(ref);
+
+    NAPIValue stringValue;
+    CHECK_NAPI(napi_create_string_utf8(env, referenceString, -1, &stringValue));
+    NAPIValue externalValue;
+    CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, stringValue, &externalValue));
+    ReferenceInfo *referenceInfo;
+    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo));
+    if (!referenceInfo)
+    {
+        assert(false);
+
+        return NAPIGenericFailure;
+    }
+    if (!LIST_EMPTY(&referenceInfo->referenceList) && LIST_FIRST(&referenceInfo->referenceList) == ref &&
+        !LIST_NEXT(ref, node))
+    {
+        bool deleteResult;
+        CHECK_NAPI(napi_delete_property(env, (NAPIValue)&ref->value, stringValue, &deleteResult));
+        RETURN_STATUS_IF_FALSE(deleteResult, NAPIGenericFailure);
+    }
+    LIST_REMOVE(ref, node);
+
+    return NAPIOK;
+}
+
+// NAPIGenericFailure + clearWeak
 NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
 {
     CHECK_ARG(env);
@@ -1124,59 +1181,105 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
 
     CHECK_ARG(env->context);
 
-    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPIGenericFailure);
-
-    if (!ref->isEmpty && JS_IsObject(ref->value))
+    if (!JS_IsObject(ref->value))
     {
-        NAPIValue externalValue;
-        CHECK_NAPI(
-            napi_get_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &externalValue));
-        ReferenceInfo *referenceInfo;
-        CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo));
-        if (LIST_EMPTY(&referenceInfo->referenceList))
-        {
-            assert(false);
+        free(ref);
 
-            return NAPIGenericFailure;
-        }
-        if (!LIST_NEXT(LIST_FIRST(&referenceInfo->referenceList), node))
-        {
-            bool isSuccess;
-            CHECK_NAPI(
-                napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &isSuccess));
-            if (!isSuccess)
-            {
-                assert(false);
-
-                return NAPIGenericFailure;
-            }
-        }
+        return NAPIOK;
     }
-
     if (ref->referenceCount)
     {
-        if (ref->isEmpty)
-        {
-            assert(false);
-        }
-        else
-        {
-            JS_FreeValue(env->context, ref->value);
-            LIST_REMOVE(ref, node);
-        }
+        JS_FreeValue(env->context, ref->value);
+        free(ref);
+
+        return NAPIOK;
     }
+    // 已经被 GC
+    if (JS_IsUndefined(ref->value))
+    {
+        free(ref);
+
+        return NAPIOK;
+    }
+    CHECK_NAPI(clearWeak(env, ref));
     free(ref);
 
     return NAPIOK;
 }
 
+// NAPIGenericFailure + clearWeak
 NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(ref);
 
-    if (++ref->referenceCount == 1)
+    CHECK_ARG(env->context);
+
+    // !ref->referenceCount && JS_IsUndefined(ref->value) 已经被 GC
+    RETURN_STATUS_IF_FALSE(ref->referenceCount || !JS_IsUndefined(ref->value), NAPIGenericFailure);
+
+    if (!ref->referenceCount)
     {
+        if (JS_IsObject(ref->value))
+        {
+            CHECK_NAPI(clearWeak(env, ref));
+        }
+        ref->value = JS_DupValue(env->context, ref->value);
+    }
+    uint8_t count = ++ref->referenceCount;
+    if (result)
+    {
+        *result = count;
+    }
+
+    return NAPIOK;
+}
+
+// NAPIGenericFailure + setWeak
+NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
+{
+    CHECK_ARG(env);
+    CHECK_ARG(ref);
+
+    CHECK_ARG(env->context);
+
+    RETURN_STATUS_IF_FALSE(ref->referenceCount, NAPIGenericFailure);
+
+    if (ref->referenceCount == 1)
+    {
+        if (JS_IsObject(ref->value))
+        {
+            CHECK_NAPI(setWeak(env, (NAPIValue)&ref->value, ref));
+            JS_FreeValue(env->context, ref->value);
+        }
+        else
+        {
+            JS_FreeValue(env->context, ref->value);
+            ref->value = undefinedValue;
+        }
+    }
+    uint8_t count = --ref->referenceCount;
+    if (result)
+    {
+        *result = count;
+    }
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+{
+    CHECK_ARG(env);
+    CHECK_ARG(ref);
+    CHECK_ARG(result);
+
+    if (!ref->referenceCount && JS_IsUndefined(ref->value))
+    {
+        *result = NULL;
+    }
+    else
+    {
+        *result = (NAPIValue)&ref->value;
     }
 
     return NAPIOK;
