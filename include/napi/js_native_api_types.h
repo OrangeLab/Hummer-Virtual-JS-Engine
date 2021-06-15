@@ -13,53 +13,40 @@
 
 EXTERN_C_START
 
-// 基于 Node.js 14.16.0
-// #define NAPI_VERSION 7
-// #define NAPI_EXPERIMENTAL
-
-#include <stdint.h> // NOLINT(modernize-deprecated-headers)
-
-#if !defined __cplusplus || (defined(_MSC_VER) && _MSC_VER < 1900)
-typedef uint16_t char16_t;
-#endif
-
-// JSVM API types are all opaque pointers for ABI stability
-// typedef undefined structs instead of void* for compile time type safety
 typedef struct OpaqueNAPIEnv *NAPIEnv;
 typedef struct OpaqueNAPIValue *NAPIValue;
 typedef struct OpaqueNAPIRef *NAPIRef;
 typedef struct OpaqueNAPIHandleScope *NAPIHandleScope;
 typedef struct OpaqueNAPIEscapableHandleScope *NAPIEscapableHandleScope;
 typedef struct OpaqueNAPICallbackInfo *NAPICallbackInfo;
-typedef struct OpaqueNAPIDeferred *NAPIDeferred;
 
 typedef enum
 {
+    // { writable: false, enumerable: false, configurable: false }
+    // napi_set_property 默认为 { writable: true, enumerable: true, configurable: true }
     NAPIDefault = 0,
     NAPIWritable = 1 << 0,
     NAPIEnumerable = 1 << 1,
     NAPIConfigurable = 1 << 2,
 
-    // Used with napi_define_class to distinguish static properties
-    // from instance properties. Ignored by napi_define_properties.
+    // napi_define_class 用于区分静态属性和实例属性，napi_define_properties 忽略该枚举
     NAPIStatic = 1 << 10,
 
-    // Default for class methods.
+    // 方法默认
     NAPIDefaultMethod = NAPIWritable | NAPIConfigurable,
 
-    // Default for object properties, like in JS obj[prop].
+    // 属性默认
     NAPIDefaultJSProperty = NAPIWritable | NAPIEnumerable | NAPIConfigurable,
 } NAPIPropertyAttributes;
 
 typedef enum
 {
-    // ES6 types (corresponds to typeof)
     NAPIUndefined,
     NAPINull,
     NAPIBoolean,
     NAPINumber,
     NAPIString,
-    NAPISymbol,
+    // 未来建议判断到 Object 即可，提供 NAPIIsFunction 和 NAPIIsExternal
     NAPIObject,
     NAPIFunction,
     NAPIExternal,
@@ -88,45 +75,39 @@ typedef enum
     NAPIDateExpected,
     NAPIArrayBufferExpected,
     NAPIDetachableArrayBufferExpected,
-    NAPIWouldDeadLock, // unused
+    NAPIWouldDeadLock,
     // 自定义添加错误
     NAPIMemoryError
 } NAPIStatus;
-// Note: when adding a new enum value to `napi_status`, please also update
-//   * `const int last_status` in the definition of
-//   `napi_get_last_error_info()'
-//     in file js_native_api_v8.cc.
-//   * `const char* error_messages[]` in file js_native_api_v8.cc with a brief
-//     message explaining the error.
-//   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
-//     added value(s).
+// 当添加新枚举值的时候，需要同时更新：
+// * 每个 js_native_api_{engine}.c/cc 文件 napi_get_last_error_info 函数的 LAST_STATUS 或者 const int lastStatus
+// * const char *errorMessages[] 也需要更新
 
-typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo info);
+typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo callbackInfo);
 
 typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint);
 
 typedef struct
 {
     // One of utf8name or name should be NULL.
-    const char *utf8name;
-    NAPIValue name;
+    union {
+        const char *utf8name;
+        NAPIValue name;
+    };
 
-    NAPICallback method;
-    NAPICallback getter;
-    NAPICallback setter;
-    NAPIValue value;
+    union {
+        NAPICallback method;
+        struct
+        {
+            NAPICallback getter;
+            NAPICallback setter;
+        };
+        NAPIValue value;
+    };
 
     NAPIPropertyAttributes attributes;
     void *data;
 } NAPIPropertyDescriptor;
-
-typedef struct
-{
-    const char *errorMessage;
-    void *engineReserved;
-    uint32_t engineErrorCode;
-    NAPIStatus errorCode;
-} NAPIExtendedErrorInfo;
 
 EXTERN_C_END
 
