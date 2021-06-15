@@ -806,6 +806,6 @@ TEST_F(Test, TestObject)
             "v;globalThis.assert.strictEqual(y.foo,\"bar\"),globalThis.assert.strictEqual(globalThis.addon.Delete(y,"
             "\"foo\"),!0),globalThis.assert.strictEqual(y.foo,\"baz\"),globalThis.assert.strictEqual(globalThis.addon."
             "Delete(y,\"foo\"),!0),globalThis.assert.strictEqual(y.foo,\"baz\")})()})();",
-            "https://www.didi.com/test_object.js", &result),
+            "https://www.napi.com/test_object.js", &result),
         NAPIOK);
 }

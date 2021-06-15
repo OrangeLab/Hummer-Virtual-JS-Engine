@@ -21,6 +21,9 @@ EXTERN_C_END
 
 TEST(ObjectFactory, CreateObject)
 {
+    NAPIHandleScope handleScope;
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -29,10 +32,12 @@ TEST(ObjectFactory, CreateObject)
     ASSERT_EQ(napi_set_named_property(globalEnv, global, "addon", exports), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
-                                         "(()=>{\"use strict\";var "
-                                         "l=globalThis.addon(\"hello\"),s=globalThis.addon(\"world\");globalThis."
-                                         "assert.strictEqual(`${l.msg} ${s.msg}`,\"hello world\")})();",
-                                         "https://www.didi.com/4_object_factory.js", &result),
+    ASSERT_EQ(NAPIRunScript(globalEnv,
+                            "(()=>{\"use strict\";var "
+                            "l=globalThis.addon(\"hello\"),s=globalThis.addon(\"world\");globalThis."
+                            "assert.strictEqual(`${l.msg} ${s.msg}`,\"hello world\")})();",
+                            "https://www.napi.com/4_object_factory.js", &result),
               NAPIOK);
+
+    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }

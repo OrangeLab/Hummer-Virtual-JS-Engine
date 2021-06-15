@@ -109,6 +109,6 @@ TEST(TestException, RequireThrowException)
                   "allowException(n)}),(function(t){return t===r}));var "
                   "i=t.wasPending();globalThis.assert.strictEqual(i,!0,`Exception not pending as expected, "
                   ".wasPending() returned ${i}`)})();",
-                  "https://www.didi.com/test_exception_test.js", &result),
+                  "https://www.napi.com/test_exception_test.js", &result),
               NAPIOK);
 }

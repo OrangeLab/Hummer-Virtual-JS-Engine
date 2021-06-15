@@ -48,7 +48,7 @@ TEST_F(Test, TestSymbol)
                   "s={},t=globalThis.addon.New(\"foo\"),l=globalThis.addon.New(\"bar\");s.foo=\"bar\",s[t]=\"baz\",s[l]"
                   "=\"bing\",globalThis.assert.strictEqual(s.foo,\"bar\"),globalThis.assert.strictEqual(s[t],\"baz\"),"
                   "globalThis.assert.strictEqual(s[l],\"bing\")})();",
-                  "https://www.didi.com/test_symbol_test1.js", &result),
+                  "https://www.napi.com/test_symbol_test1.js", &result),
               NAPIOK);
 
     ASSERT_EQ(
@@ -249,7 +249,7 @@ TEST_F(Test, TestSymbol)
             "window}}(),e.o=(t,r)=>Object.prototype.hasOwnProperty.call(t,r),(()=>{\"use strict\";var "
             "t=e(9534),r=e.n(t),n=globalThis.addon.New(\"foo\"),o={foo:\"bar\"};o[n]=\"baz\",Object.keys(o),Object."
             "getOwnPropertyNames(o),r()(o),globalThis.assert.strictEqual(r()(o)[0],n)})()})();",
-            "https://www.didi.com/test_symbol_test2.js", &result),
+            "https://www.napi.com/test_symbol_test2.js", &result),
         NAPIOK);
 
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(
@@ -260,6 +260,6 @@ TEST_F(Test, TestSymbol)
                   "assert.notStrictEqual(globalThis.addon.New(\"foo\"),globalThis.addon.New(\"bar\"));var "
                   "o=globalThis.addon.New(\"foo\"),a=globalThis.addon.New(\"foo\"),l={[o]:1,[a]:2};globalThis.assert."
                   "strictEqual(l[o],1),globalThis.assert.strictEqual(l[a],2)})();",
-                  "https://www.didi.com/test_symbol_test3.js", &result),
+                  "https://www.napi.com/test_symbol_test3.js", &result),
               NAPIOK);
 }

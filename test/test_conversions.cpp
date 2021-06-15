@@ -538,6 +538,6 @@ TEST_F(Test, TestConversions)
             "\"test\"),globalThis.assert.strictEqual(globalThis.addon.toString([]),\"\"),globalThis.assert.strictEqual("
             "globalThis.addon.toString([1,2,3]),\"1,2,3\"),globalThis.assert.throws((function(){return "
             "globalThis.addon.toString(r)}))})()})();",
-            "https://www.didi.com/test_conversions.js", &result),
+            "https://www.napi.com/test_conversions.js", &result),
         NAPIOK);
 }

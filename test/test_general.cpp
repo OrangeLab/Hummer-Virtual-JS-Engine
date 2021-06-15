@@ -524,14 +524,14 @@ TEST_F(Test, TestGeneral)
             "globalThis.addon.wrap(p)})),globalThis.addon.removeWrap(p);var "
             "y={};globalThis.addon.wrap(y),globalThis.addon.removeWrap(y),globalThis.addon.wrap(y),globalThis.addon."
             "removeWrap(y)})()})();",
-            "https://www.didi.com/test_general_test.js", &result),
+            "https://www.napi.com/test_general_test.js", &result),
         NAPIOK);
 
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(
                   globalEnv,
                   "(()=>{\"use strict\";globalThis.assert.strictEqual(globalThis.addon.getUndefined(),void "
                   "0),globalThis.assert.strictEqual(globalThis.addon.getNull(),null)})();",
-                  "https://www.didi.com/test_general_testGlobals.js", &result),
+                  "https://www.napi.com/test_general_testGlobals.js", &result),
               NAPIOK);
 
     ASSERT_EQ(
@@ -763,14 +763,14 @@ TEST_F(Test, TestGeneral)
             "r)},c=function(){},u=function(){};Object.defineProperty(c,o(),{value:t=>\"mark\"in t}),u.prototype=new "
             "c;var a=new u,f=new u;a.mark=!0,i(a,u),i(f,u),i(a,c),i(f,c),a=new c,f=new "
             "c,a.mark=!0,i(a,u),i(f,u),i(a,c),i(f,c)}})()})();",
-            "https://www.didi.com/test_general_testInstanceOf.js", &result),
+            "https://www.napi.com/test_general_testInstanceOf.js", &result),
         NAPIOK);
 
     ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
                                          "(()=>{\"use strict\";var s=globalThis.addon.testNapiRun(\"(41.92 + "
                                          "0.08);\");globalThis.assert.strictEqual(s,42),globalThis.assert.throws(("
                                          "function(){return globalThis.addon.testNapiRun({abc:\"def\"})}))})();",
-                                         "https://www.didi.com/test_general_testNapiRun.js", &result),
+                                         "https://www.napi.com/test_general_testNapiRun.js", &result),
               NAPIOK);
 
     ASSERT_EQ(
@@ -778,6 +778,6 @@ TEST_F(Test, TestGeneral)
                                    "(()=>{\"use "
                                    "strict\";globalThis.addon.createNapiError(),globalThis.assert(globalThis.addon."
                                    "testNapiErrorCleanup(),\"napi_status cleaned up for second call\")})();",
-                                   "https://www.didi.com/test_general_testNapiStatus.js", &result),
+                                   "https://www.napi.com/test_general_testNapiStatus.js", &result),
         NAPIOK);
 }

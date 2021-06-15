@@ -58,11 +58,11 @@ TEST_F(Test, Callbacks)
     ASSERT_EQ(napi_define_properties(globalEnv, exports, 2, desc), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(globalEnv,
-                                         "(()=>{\"use strict\";function "
-                                         "l(l){globalThis.addon.RunCallbackWithRecv((function(){globalThis.assert."
-                                         "strictEqual(this,l)}),l)}globalThis.addon.RunCallback((function(l){"
-                                         "globalThis.assert.strictEqual(l,\"hello world\")})),l([]),l({})})();",
-                                         "https://www.didi.com/3_callbacks.js", &result),
+    ASSERT_EQ(NAPIRunScript(globalEnv,
+                            "(()=>{\"use strict\";function "
+                            "l(l){globalThis.addon.RunCallbackWithRecv((function(){globalThis.assert."
+                            "strictEqual(this,l)}),l)}globalThis.addon.RunCallback((function(l){"
+                            "globalThis.assert.strictEqual(l,\"hello world\")})),l([]),l({})})();",
+                            "https://www.didi.com/3_callbacks.js", &result),
               NAPIOK);
 }

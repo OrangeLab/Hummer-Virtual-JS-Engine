@@ -91,6 +91,6 @@ TEST_F(Test, TestHandleScope)
             "strict\";globalThis.addon.NewScope(),globalThis.assert.ok(globalThis.addon.NewScopeEscape()instanceof "
             "Object),globalThis.addon.NewScopeEscapeTwice(),globalThis.assert.throws((function(){globalThis.addon."
             "NewScopeWithException((function(){throw new RangeError}))}))})();",
-            "https://www.didi.com/test_handle_scope.js", &result),
+            "https://www.napi.com/test_handle_scope.js", &result),
         NAPIOK);
 }

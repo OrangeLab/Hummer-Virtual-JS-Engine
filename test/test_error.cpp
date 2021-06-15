@@ -438,6 +438,6 @@ TEST_F(Test, TestError)
             "TypeError\"),globalThis.assert.strictEqual(E.message,\"TypeError [type "
             "error]\"),globalThis.assert.strictEqual(E.code,\"ERR_TEST_CODE\"),globalThis.assert.strictEqual(E.name,"
             "\"TypeError\")})()})();",
-            "https://www.didi.com/test_error.js", &result),
+            "https://www.napi.com/test_error.js", &result),
         NAPIOK);
 }

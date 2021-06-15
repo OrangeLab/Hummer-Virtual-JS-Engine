@@ -348,6 +348,6 @@ TEST_F(Test, TestProperties)
             "globalThis.addon.hasNamedProperty(globalThis.addon,\"echo\"),!0),globalThis.assert.strictEqual(globalThis."
             "addon.hasNamedProperty(globalThis.addon,\"hiddenValue\"),!0),globalThis.assert.strictEqual(globalThis."
             "addon.hasNamedProperty(globalThis.addon,\"doesnotexist\"),!1)})()})();",
-            "https://www.didi.com/test_properties.js", &result),
+            "https://www.napi.com/test_properties.js", &result),
         NAPIOK);
 }

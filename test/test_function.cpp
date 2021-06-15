@@ -151,6 +151,6 @@ TEST_F(Test, TestFunction)
                   "strictEqual(globalThis.addon.TestCall((function(a){return "
                   "l(a)}),1),2),globalThis.assert.strictEqual(globalThis.addon.TestName.name,\"Name\"),globalThis."
                   "assert.strictEqual(globalThis.addon.TestNameShort.name,\"Name_extra\")})();",
-                  "https://www.didi.com/test_function.js", &result),
+                  "https://www.napi.com/test_function.js", &result),
               NAPIOK);
 }

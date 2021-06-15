@@ -5,7 +5,6 @@ module.exports = {
     '3_callbacks': './src/3_callbacks.ts',
     '4_object_factory': './src/4_object_factory.ts',
     '5_function_factory': './src/5_function_factory.ts',
-    '6_object_wrap': './src/6_object_wrap.ts',
     test_array: './src/test_array.ts',
     test_constructor_test: './src/test_constructor_test.ts',
     test_constructor_test2: './src/test_constructor_test2.ts',

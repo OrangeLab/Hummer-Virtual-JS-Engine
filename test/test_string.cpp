@@ -318,6 +318,6 @@ TEST_F(Test, TestString)
             ")(c).call(c,0,1)),globalThis.assert.strictEqual(globalThis.addon.TestUtf16Insufficient(c),r()(c).call(c,0,"
             "3)),globalThis.assert.strictEqual(globalThis.addon.Utf16Length(c),5),globalThis.assert.strictEqual("
             "globalThis.addon.Utf8Length(c),14),globalThis.addon.TestMemoryCorruption(\" \".repeat(65536))})()})();",
-            "https://www.didi.com/test_string.js", &result),
+            "https://www.napi.com/test_string.js", &result),
         NAPIOK);
 }

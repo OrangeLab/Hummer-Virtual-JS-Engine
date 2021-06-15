@@ -19,6 +19,12 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result);
 
 NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result);
 
+NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result);
+
+NAPIStatus napi_create_array(NAPIEnv env, NAPIValue *result);
+
+NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *result);
+
 NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result);
 
 NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result);
@@ -66,6 +72,26 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 // result 可空
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result);
 
+NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue value);
+
+NAPIStatus napi_get_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue *result);
+
+NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue value);
+
+NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result);
+
+NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue *result);
+
+// result 可空
+NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result);
+
+NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t propertyCount,
+                                  const NAPIPropertyDescriptor *properties);
+
+NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
+
+NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result);
+
 // result 可空
 NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc, const NAPIValue *argv,
                               NAPIValue *result);
@@ -80,6 +106,10 @@ NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *
                             NAPIValue *thisArg, void **data);
 
 NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result);
+
+// utf8name/data/properties 可空
+NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
+                             size_t propertyCount, const NAPIPropertyDescriptor *properties, NAPIValue *result);
 
 // finalizeCB/data/finalizeHint 可空
 NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint,
@@ -111,6 +141,9 @@ NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleSco
 NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result);
 
 NAPIStatus napi_throw(NAPIEnv env, NAPIValue error);
+
+// code/msg 建议能传入 NULL
+NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg);
 
 NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result);
 

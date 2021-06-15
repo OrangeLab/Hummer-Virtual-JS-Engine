@@ -130,6 +130,6 @@ TEST_F(Test, TestNumber)
             "-Math.pow(2,63)+(Math.pow(2,9)+1)),E(Math.pow(2,63)-(Math.pow(2,9)+1)),E(-Number.MIN_VALUE,0),E(Number."
             "MIN_VALUE,0),E(-Number.MAX_VALUE,r),E(Number.MAX_VALUE,I),E(-Math.pow(2,63)+Math.pow(2,9),r),E(Math.pow(2,"
             "63)-Math.pow(2,9),I),E(Number.POSITIVE_INFINITY,0),E(Number.NEGATIVE_INFINITY,0),E(Number.NaN,0)})();",
-            "https://www.didi.com/test_number.js", &result),
+            "https://www.napi.com/test_number.js", &result),
         NAPIOK);
 }

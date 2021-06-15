@@ -389,6 +389,6 @@ TEST_F(Test, TestPromise)
             "\"I promise!\"),!1),globalThis.assert.strictEqual(globalThis.addon.isPromise(void "
             "0),!1),globalThis.assert.strictEqual(globalThis.addon.isPromise(null),!1),globalThis.assert.strictEqual("
             "globalThis.addon.isPromise({}),!1)})()})();",
-            "https://www.didi.com/test_promise.js", &result),
+            "https://www.napi.com/test_promise.js", &result),
         NAPIOK);
 }

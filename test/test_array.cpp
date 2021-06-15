@@ -189,7 +189,7 @@ TEST_F(Test, TestArray)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{\"use strict\";var "
             "s=[1,9,48,13493,9459324,{name:\"hello\"},[\"world\",\"node\",\"abi\"]];globalThis.assert.throws((function("
@@ -202,6 +202,6 @@ TEST_F(Test, TestArray)
             "a=[\"a\",\"b\",\"c\",\"d\"];globalThis.assert.strictEqual(a.length,4),globalThis.assert.strictEqual(2 in "
             "a,!0),globalThis.assert.strictEqual(globalThis.addon.TestDeleteElement(a,2),!0),globalThis.assert."
             "strictEqual(a.length,4),globalThis.assert.strictEqual(2 in a,!1)})();",
-            "https://www.didi.com/test_array.js", &result),
+            "https://www.napi.com/test_array.js", &result),
         NAPIOK);
 }

@@ -39,8 +39,13 @@ TEST_F(Test, FunctionArguments)
     ASSERT_EQ(napi_define_properties(globalEnv, exports, 1, &desc), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(
-                  globalEnv, "(()=>{\"use strict\";globalThis.assert.strictEqual(globalThis.addon.add(3,5),8)})();",
-                  "https://www.didi.com/2_function_arguments.js", &result),
-              NAPIOK);
+    ASSERT_EQ(NAPIRunScript(globalEnv, "1 + 1;", "https://www.napi.com/2_function_arguments.js", &result), NAPIOK);
+    NAPIValueType valueType;
+    ASSERT_EQ(napi_typeof(globalEnv, result, &valueType), NAPIOK);
+    if (valueType == NAPINumber)
+    {
+        int32_t intValue;
+        ASSERT_EQ(napi_get_value_int32(globalEnv, result, &intValue), NAPIOK);
+        ASSERT_EQ(intValue, 2);
+    }
 }
