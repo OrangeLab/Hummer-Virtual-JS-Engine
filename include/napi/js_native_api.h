@@ -30,7 +30,7 @@ NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result);
 // 推荐实现层针对 str 为空情况做处理，比如当做 ""
 NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
 
-// 推荐实现层针对 str 为空情况做处理，比如当做 ""
+// 推荐实现层针对 utf8name 为空情况做处理，比如当做 ""
 // data 可空
 NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data,
                                 NAPIValue *result);
@@ -118,8 +118,8 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result);
 // utf8Script/utf8SourceUrl/result 可空
 NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result);
 
-// 推荐实现层针对 str 为空情况做处理，比如当做 ""
-// constructor/data/properties 可空
+// 推荐实现层针对 utf8name 为空情况做处理，比如当做 ""
+// data 可空
 NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
                            NAPIValue *result);
 
