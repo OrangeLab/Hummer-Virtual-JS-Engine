@@ -107,7 +107,7 @@ TEST_F(Test, TestNumber)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{\"use strict\";function N(N){globalThis.assert.strictEqual(N,globalThis.addon.Test(N))}function "
             "t(N){var t=arguments.length>1&&void "

@@ -3,31 +3,31 @@
 
 EXTERN_C_START
 
-#define GEN_NULL_CHECK_BINDING(binding_name, output_type, api)                                                         \
-    static NAPIValue binding_name(NAPIEnv env, NAPICallbackInfo /*info*/)                                              \
-    {                                                                                                                  \
-        NAPIValue return_value;                                                                                        \
-        output_type result;                                                                                            \
-        NAPI_CALL(env, napi_create_object(env, &return_value));                                                        \
-        add_returned_status(env, "envIsNull", return_value, "Invalid argument", NAPIInvalidArg,                        \
-                            api(nullptr, return_value, &result));                                                      \
-        api(env, nullptr, &result);                                                                                    \
-        add_last_status(env, "valueIsNull", return_value);                                                             \
-        api(env, return_value, nullptr);                                                                               \
-        add_last_status(env, "resultIsNull", return_value);                                                            \
-        api(env, return_value, &result);                                                                               \
-        add_last_status(env, "inputTypeCheck", return_value);                                                          \
-        return return_value;                                                                                           \
-    }
+//#define GEN_NULL_CHECK_BINDING(binding_name, output_type, api)                                                         \
+//    static NAPIValue binding_name(NAPIEnv env, NAPICallbackInfo /*info*/)                                              \
+//    {                                                                                                                  \
+//        NAPIValue return_value;                                                                                        \
+//        output_type result;                                                                                            \
+//        NAPI_CALL(env, napi_create_object(env, &return_value));                                                        \
+//        add_returned_status(env, "envIsNull", return_value, "Invalid argument", NAPIInvalidArg,                        \
+//                            api(nullptr, return_value, &result));                                                      \
+//        api(env, nullptr, &result);                                                                                    \
+//        add_last_status(env, "valueIsNull", return_value);                                                             \
+//        api(env, return_value, nullptr);                                                                               \
+//        add_last_status(env, "resultIsNull", return_value);                                                            \
+//        api(env, return_value, &result);                                                                               \
+//        add_last_status(env, "inputTypeCheck", return_value);                                                          \
+//        return return_value;                                                                                           \
+//    }
 
-GEN_NULL_CHECK_BINDING(GetValueBool, bool, napi_get_value_bool)
-GEN_NULL_CHECK_BINDING(GetValueInt32, int32_t, napi_get_value_int32)
-GEN_NULL_CHECK_BINDING(GetValueUint32, uint32_t, napi_get_value_uint32)
-GEN_NULL_CHECK_BINDING(GetValueInt64, int64_t, napi_get_value_int64)
-GEN_NULL_CHECK_BINDING(GetValueDouble, double, napi_get_value_double)
-GEN_NULL_CHECK_BINDING(CoerceToBool, NAPIValue, napi_coerce_to_bool)
-GEN_NULL_CHECK_BINDING(CoerceToObject, NAPIValue, napi_coerce_to_object)
-GEN_NULL_CHECK_BINDING(CoerceToString, NAPIValue, napi_coerce_to_string)
+// GEN_NULL_CHECK_BINDING(GetValueBool, bool, napi_get_value_bool)
+// GEN_NULL_CHECK_BINDING(GetValueInt32, int32_t, napi_get_value_int32)
+// GEN_NULL_CHECK_BINDING(GetValueUint32, uint32_t, napi_get_value_uint32)
+// GEN_NULL_CHECK_BINDING(GetValueInt64, int64_t, napi_get_value_int64)
+// GEN_NULL_CHECK_BINDING(GetValueDouble, double, napi_get_value_double)
+// GEN_NULL_CHECK_BINDING(CoerceToBool, NAPIValue, napi_coerce_to_bool)
+// GEN_NULL_CHECK_BINDING(CoerceToObject, NAPIValue, napi_coerce_to_object)
+// GEN_NULL_CHECK_BINDING(CoerceToString, NAPIValue, napi_coerce_to_string)
 
 #define GEN_NULL_CHECK_STRING_BINDING(binding_name, arg_type, api)                                                     \
     static NAPIValue binding_name(NAPIEnv env, NAPICallbackInfo /*info*/)                                              \
@@ -51,41 +51,41 @@ GEN_NULL_CHECK_BINDING(CoerceToString, NAPIValue, napi_coerce_to_string)
         return return_value;                                                                                           \
     }
 
-GEN_NULL_CHECK_STRING_BINDING(GetValueStringUtf8, char, napi_get_value_string_utf8)
-// GEN_NULL_CHECK_STRING_BINDING(GetValueStringLatin1,
-//                               char,
-//                               napi_get_value_string_latin1)
-GEN_NULL_CHECK_STRING_BINDING(GetValueStringUtf16, char16_t, napi_get_value_string_utf16)
+// GEN_NULL_CHECK_STRING_BINDING(GetValueStringUtf8, char, napi_get_value_string_utf8)
+//  GEN_NULL_CHECK_STRING_BINDING(GetValueStringLatin1,
+//                                char,
+//                                napi_get_value_string_latin1)
+// GEN_NULL_CHECK_STRING_BINDING(GetValueStringUtf16, char16_t, napi_get_value_string_utf16)
 
-static void init_test_null(NAPIEnv env, NAPIValue exports)
-{
-    NAPIValue test_null;
-
-    const NAPIPropertyDescriptor test_null_props[] = {
-        DECLARE_NAPI_PROPERTY("getValueBool", GetValueBool),
-        DECLARE_NAPI_PROPERTY("getValueInt32", GetValueInt32),
-        DECLARE_NAPI_PROPERTY("getValueUint32", GetValueUint32),
-        DECLARE_NAPI_PROPERTY("getValueInt64", GetValueInt64),
-        DECLARE_NAPI_PROPERTY("getValueDouble", GetValueDouble),
-        DECLARE_NAPI_PROPERTY("coerceToBool", CoerceToBool),
-        DECLARE_NAPI_PROPERTY("coerceToObject", CoerceToObject),
-        DECLARE_NAPI_PROPERTY("coerceToString", CoerceToString),
-        DECLARE_NAPI_PROPERTY("getValueStringUtf8", GetValueStringUtf8),
-        //            DECLARE_NAPI_PROPERTY("getValueStringLatin1",
-        //            GetValueStringLatin1),
-        DECLARE_NAPI_PROPERTY("getValueStringUtf16", GetValueStringUtf16),
-    };
-
-    NAPI_CALL_RETURN_VOID(env, napi_create_object(env, &test_null));
-    NAPI_CALL_RETURN_VOID(
-        env,
-        napi_define_properties(env, test_null, sizeof(test_null_props) / sizeof(*test_null_props), test_null_props));
-
-    const NAPIPropertyDescriptor test_null_set = {"testNull", nullptr,   nullptr,        nullptr,
-                                                  nullptr,    test_null, NAPIEnumerable, nullptr};
-
-    NAPI_CALL_RETURN_VOID(env, napi_define_properties(env, exports, 1, &test_null_set));
-}
+// static void init_test_null(NAPIEnv env, NAPIValue exports)
+//{
+//     NAPIValue test_null;
+//
+//     const NAPIPropertyDescriptor test_null_props[] = {
+//         DECLARE_NAPI_PROPERTY("getValueBool", GetValueBool),
+//         DECLARE_NAPI_PROPERTY("getValueInt32", GetValueInt32),
+//         DECLARE_NAPI_PROPERTY("getValueUint32", GetValueUint32),
+//         DECLARE_NAPI_PROPERTY("getValueInt64", GetValueInt64),
+//         DECLARE_NAPI_PROPERTY("getValueDouble", GetValueDouble),
+//         DECLARE_NAPI_PROPERTY("coerceToBool", CoerceToBool),
+//         DECLARE_NAPI_PROPERTY("coerceToObject", CoerceToObject),
+//         DECLARE_NAPI_PROPERTY("coerceToString", CoerceToString),
+//         DECLARE_NAPI_PROPERTY("getValueStringUtf8", GetValueStringUtf8),
+//         //            DECLARE_NAPI_PROPERTY("getValueStringLatin1",
+//         //            GetValueStringLatin1),
+//         DECLARE_NAPI_PROPERTY("getValueStringUtf16", GetValueStringUtf16),
+//     };
+//
+//     NAPI_CALL_RETURN_VOID(env, napi_create_object(env, &test_null));
+//     NAPI_CALL_RETURN_VOID(
+//         env,
+//         napi_define_properties(env, test_null, sizeof(test_null_props) / sizeof(*test_null_props), test_null_props));
+//
+//     const NAPIPropertyDescriptor test_null_set = {"testNull", nullptr,   nullptr,        nullptr,
+//                                                   nullptr,    test_null, NAPIEnumerable, nullptr};
+//
+//     NAPI_CALL_RETURN_VOID(env, napi_define_properties(env, exports, 1, &test_null_set));
+// }
 
 static NAPIValue AsBool(NAPIEnv env, NAPICallbackInfo info)
 {
@@ -238,11 +238,11 @@ TEST_F(Test, TestConversions)
     };
     ASSERT_EQ(napi_define_properties(globalEnv, exports, sizeof(descriptors) / sizeof(*descriptors), descriptors),
               NAPIOK);
-    init_test_null(globalEnv, exports);
+    //    init_test_null(globalEnv, exports);
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{var "
             "t={7473:(t,r,o)=>{o(8922),o(5967),o(5824),o(8555),o(2615),o(1732),o(5903),o(1825),o(8394),o(5915),o(1766),"

@@ -13,7 +13,7 @@ EXTERN_C_START
 #define GET_AND_THROW_LAST_ERROR(env, status)                                                                          \
     do                                                                                                                 \
     {                                                                                                                  \
-        if ((status) == NAPIPendingException)                                                                          \
+        if ((status) != NAPIPendingException)                                                                          \
         {                                                                                                              \
             napi_throw_error((env), NULL, "empty error message");                                                      \
         }                                                                                                              \
@@ -57,11 +57,6 @@ EXTERN_C_START
 #define DECLARE_NAPI_PROPERTY(name, func)                                                                              \
     {                                                                                                                  \
         (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL                                                      \
-    }
-
-#define DECLARE_NAPI_GETTER(name, func)                                                                                \
-    {                                                                                                                  \
-        (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL                                                      \
     }
 
 EXTERN_C_END

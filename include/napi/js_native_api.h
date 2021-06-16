@@ -41,6 +41,15 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
 NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data,
                                 NAPIValue *result);
 
+// code 可空
+NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result);
+
+// code 可空
+NAPIStatus napi_create_type_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result);
+
+// code 可空
+NAPIStatus napi_create_range_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result);
+
 NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result);
 
 NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result);
@@ -61,7 +70,11 @@ NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result);
 
 NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result);
 
+NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result);
+
 NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result);
+
+// NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result);
 
 NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value);
 
@@ -91,6 +104,8 @@ NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property
 NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
 
 NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result);
+
+NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result);
 
 // result 可空
 NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc, const NAPIValue *argv,
@@ -144,6 +159,14 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error);
 
 // code/msg 建议能传入 NULL
 NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg);
+
+// code/msg 建议能传入 NULL
+NAPIStatus napi_throw_type_error(NAPIEnv env, const char *code, const char *msg);
+
+// code/msg 建议能传入 NULL
+NAPIStatus napi_throw_range_error(NAPIEnv env, const char *code, const char *msg);
+
+NAPIStatus napi_is_error(NAPIEnv env, NAPIValue value, bool *result);
 
 NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result);
 

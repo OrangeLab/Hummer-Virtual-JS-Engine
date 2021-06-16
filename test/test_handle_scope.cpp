@@ -85,7 +85,7 @@ TEST_F(Test, TestHandleScope)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{\"use "
             "strict\";globalThis.addon.NewScope(),globalThis.assert.ok(globalThis.addon.NewScopeEscape()instanceof "

@@ -160,7 +160,7 @@ TEST_F(Test, TestError)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{var "
             "r={7473:(r,t,e)=>{e(8922),e(5967),e(5824),e(8555),e(2615),e(1732),e(5903),e(1825),e(8394),e(5915),e(1766),"

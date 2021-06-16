@@ -15,8 +15,8 @@ static NAPIValue returnException(NAPIEnv env, NAPICallbackInfo info)
     NAPI_CALL(env, napi_get_global(env, &global));
 
     NAPIValue result;
-    NAPIStatus status = napi_call_function(env, global, args[0], 0, 0, &result);
-    if (status == NAPIPendingException)
+    NAPIStatus callStatus = napi_call_function(env, global, args[0], 0, 0, &result);
+    if (callStatus == NAPIPendingException)
     {
         NAPIValue ex;
         NAPI_CALL(env, napi_get_and_clear_last_exception(env, &ex));
@@ -36,10 +36,9 @@ static NAPIValue allowException(NAPIEnv env, NAPICallbackInfo info)
     NAPI_CALL(env, napi_get_global(env, &global));
 
     NAPIValue result;
-    napi_call_function(env, global, args[0], 0, 0, &result);
+    NAPIStatus callStatus = napi_call_function(env, global, args[0], 0, 0, &result);
     // Ignore status and check napi_is_exception_pending() instead.
-
-    NAPI_CALL(env, napi_is_exception_pending(env, &exceptionWasPending));
+    exceptionWasPending = callStatus == NAPIPendingException;
     return nullptr;
 }
 
@@ -92,6 +91,9 @@ EXTERN_C_END
 
 TEST(TestException, RequireThrowException)
 {
+    NAPIHandleScope handleScope;
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -100,7 +102,7 @@ TEST(TestException, RequireThrowException)
     ASSERT_EQ(napi_set_named_property(globalEnv, global, "require", requireValue), NAPIOK);
 
     NAPIValue result;
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(
+    ASSERT_EQ(NAPIRunScript(
                   globalEnv,
                   "(()=>{\"use strict\";var r=new Error(\"Some error\"),t=function(){var "
                   "r;try{globalThis.require()}catch(t){r=t}if(r)return globalThis.assert.strictEqual(r.message,\"Error "
@@ -111,4 +113,6 @@ TEST(TestException, RequireThrowException)
                   ".wasPending() returned ${i}`)})();",
                   "https://www.napi.com/test_exception_test.js", &result),
               NAPIOK);
+
+    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }
