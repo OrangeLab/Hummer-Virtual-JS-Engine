@@ -12,10 +12,12 @@
 #include <hermes/hermes.h>
 #include <llvh/Support/ConvertUTF.h>
 #include <napi/js_native_api.h>
+#include <hermes/VM/SlotAcceptor.h>
 #include <napi/js_native_api_types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <uthash.h>
+#include <list>
 
 // 如果一个函数返回的 NAPIStatus 为 NAPIOK，则没有异常被挂起，并且不需要做任何处理
 // 如果 NAPIStatus 是除了 NAPIOK 或者 NAPIPendingException，为了尝试恢复并继续执行，而不是直接返回，必须调用
@@ -102,22 +104,106 @@ struct OpaqueNAPIRef
 struct OpaqueNAPIEnv
 {
   public:
-    explicit OpaqueNAPIEnv()
+    explicit OpaqueNAPIEnv(std::shared_ptr<::hermes::vm::Runtime> runtime)
+        : rt_(runtime),
+          context(&(*runtime))
     {
     }
     virtual ~OpaqueNAPIEnv()
     {
     }
+    std::shared_ptr<hermes::vm::Runtime> rt_;
     hermes::vm::Runtime *context;
     // 默认为 HermesValue::encodeEmptyValue();
     hermes::vm::PinnedHermesValue lastException;
     NAPIExtendedErrorInfo lastError;
     int open_handle_scopes = 0;
-    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
 };
 
 namespace hermesImpl
 {
+//todo: 二叉搜索树替换，提高查找效率
+static std::list<hermes::vm::HermesValue> strongSet = {};
+static std::list<hermes::vm::WeakRoot<hermes::vm::JSObject>> weakSet = {};
+
+static constexpr unsigned kMaxNumRegisters =
+    (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) /
+    sizeof(::hermes::vm::PinnedHermesValue);
+
+static inline void add(hermes::vm::HermesValue hv) {
+    strongSet.emplace_front(hv);
+}
+
+static inline void addWeak(hermes::vm::JSObject obj) {
+
+    auto wr = hermes::vm::WeakRoot<hermes::vm::JSObject>(obj);
+    weakSet
+    weakHermesValues_->emplace_front(wr);
+    return make<jsi::WeakObject>(&(weakHermesValues_->front()));
+}
+
+class Reference {
+
+};
+
+class HermesExternalObject : public hermes::vm::HostObjectProxy {
+
+    NAPIEnv env_ = nullptr;
+    void *data_ = nullptr;
+    NAPIFinalize finalize_cb_ = nullptr;
+    void *finalize_hint_ = nullptr;
+    HermesExternalObject(NAPIEnv env, void *data, NAPIFinalize finalize_cb, void *finalize_hint)
+        : env_(env),
+          data_(data),
+          finalize_cb_(finalize_cb),
+          finalize_hint_(finalize_hint){
+
+    }
+
+  public:
+    void *getData() const {
+        return data_;
+    }
+    NAPIEnv getEnv() const {
+        return env_;
+    }
+    NAPIFinalize getFinalizeCb() const {
+        return finalize_cb_;
+    }
+    void *getFinalizeHint() const {
+        return finalize_hint_;
+    }
+
+    virtual ~HermesExternalObject() override {
+        if (finalize_cb_){
+            finalize_cb_(env_,data_,finalize_hint_);
+        }
+    }
+
+    virtual hermes::vm::CallResult<hermes::vm::HermesValue> get(hermes::vm::SymbolID symbolId) override {
+        return hermes::vm::CallResult<hermes::vm::HermesValue>(hermes::vm::Runtime::getUndefinedValue().get());
+    }
+
+    virtual hermes::vm::CallResult<bool> set(hermes::vm::SymbolID symbolId, hermes::vm::HermesValue value) override {
+        return hermes::vm::CallResult<bool>(false);
+    }
+
+    virtual hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>> getHostPropertyNames() override {
+        return hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>>(hermes::vm::Runtime::makeNullHandle<hermes::vm::JSArray>());
+    }
+
+    HermesExternalObject(const HermesExternalObject &) = delete;
+
+    HermesExternalObject(HermesExternalObject &&) = delete;
+
+    HermesExternalObject &operator=(const HermesExternalObject &) = delete;
+
+    HermesExternalObject &operator=(HermesExternalObject &&) = delete;
+
+    static std::unique_ptr<HermesExternalObject> create(NAPIEnv env, void *data, NAPIFinalize finalize_cb, void *finalize_hint) {
+        return std::unique_ptr<HermesExternalObject>(new HermesExternalObject(env,data,finalize_cb,finalize_hint));
+    }
+};
 
 class CallbackBundle {
   public:
@@ -210,6 +296,7 @@ inline static bool getException(hermes::vm::ExecutionStatus status, NAPIEnv env)
         return false;
     }
 };
+
 static void convertUtf8ToUtf16(const uint8_t *utf8, size_t length, std::u16string &out)
 {
     // length is the number of input bytes
@@ -517,6 +604,20 @@ NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result)
     CHECK_ARG(env, result);
     *result = reinterpret_cast<NAPIValue>(hermes::vm::JSObject::create(env->context).get());
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    return clearLastError(env);
+}
+
+NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint,
+                                NAPIValue *result){
+
+    CHECK_ENV(env);
+    CHECK_ARG(env, result);
+
+    auto hostObjectRes = hermes::vm::HostObject::createWithoutPrototype(env->context, hermesImpl::HermesObject::create(env,data,finalizeCB,finalizeHint));
+    hermesImpl::getException(hostObjectRes.getStatus(),env);
+    CHECK_HERMES(env);
+
+    *result = hermesImpl::JsValueFromHermesValue(hostObjectRes.getValue());
     return clearLastError(env);
 }
 
@@ -838,10 +939,6 @@ NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
     {
         *result = NAPIString;
     }
-    else if (hv.isSymbol())
-    {
-        *result = NAPISymbol;
-    }
     else if (hv.isObject())
     {
         auto function = hermes::vm::dyn_vmcast_or_null<hermes::vm::Callable>(hermesImpl::HermesValueFromJsValue(value));
@@ -973,6 +1070,25 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
 }
 
 #pragma mark <Methods to work with Objects>
+#pragma mark <Functions to convert from Node-API to C types>
+
+NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
+{
+    NAPI_PREAMBLE(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    auto hostObject = hermes::vm::dyn_vmcast_or_null<hermes::vm::HostObject>(hermesImpl::HermesValueFromJsValue(value));
+    RETURN_STATUS_IF_FALSE(hostObject, NAPIObjectExpected);
+
+    // 转换失败返回空指针
+    hermesImpl::HermesExternalObject *external =
+        dynamic_cast<hermesImpl::HermesExternalObject *>(hostObject->getProxy());
+
+    RETURN_STATUS_IF_FALSE(external, NAPIMemoryError);
+    *result = external ? external->getData() : NULL;
+    return clearLastError(env);
+}
 
 NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
@@ -1223,7 +1339,7 @@ NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property
 {
 }
 
-#pragma mark <scope>
+#pragma mark <Object lifetime management>
 // hermes gcscope 为栈构造，这里包装为堆成员之后，需要保持 napi_open_handle_scope 和 napi_close_handle_scope 对应关系。
 // 否则 在 hermes 执行 gc 时会造成 crash。
 NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
@@ -1248,4 +1364,106 @@ NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope result)
     hermesImpl::HandleScopeWrapper *scopeWrapper = hermesImpl::HermesScopeFormeJsHandleScope(result);
     delete scopeWrapper;
     return clearLastError(env);
+}
+#pragma mark <References to objects with a lifespan longer than that of the native method>
+
+NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, value);
+    CHECK_ARG(env, result);
+
+    NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
+    RETURN_STATUS_IF_FALSE(reference, NAPIMemoryError);
+    reference->value = (JSValueRef)value;
+    reference->count = initialRefCount;
+
+    ActiveReferenceValue *activeReferenceValue = NULL;
+    HASH_FIND_PTR(activeReferenceValues, &value, activeReferenceValue);
+    if (!activeReferenceValue)
+    {
+        activeReferenceValue = malloc(sizeof(ActiveReferenceValue));
+        if (!activeReferenceValue)
+        {
+            free(reference);
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
+        activeReferenceValue->value = (JSValueRef)value;
+        hashError = false;
+        HASH_ADD_PTR(activeReferenceValues, value, activeReferenceValue);
+        if (hashError)
+        {
+            hashError = false;
+            free(reference);
+            free(activeReferenceValue);
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
+        // wrap
+        ExternalInfo *externalInfo = NULL;
+        NAPIStatus status = wrap(env, value, &externalInfo);
+        if (status != NAPIOK)
+        {
+            // 失败
+            free(reference);
+            HASH_DEL(activeReferenceValues, activeReferenceValue);
+            free(activeReferenceValue);
+
+            return status;
+        }
+        if (!addFinalizer(externalInfo, referenceFinalize, value))
+        {
+            // 失败
+            free(reference);
+            HASH_DEL(activeReferenceValues, activeReferenceValue);
+            free(activeReferenceValue);
+
+            return setLastErrorCode(env, NAPIMemoryError);
+        }
+    }
+
+    if (initialRefCount)
+    {
+        protect(env, reference);
+    }
+    *result = reference;
+
+    return clearLastError(env);
+}
+
+
+
+#pragma mark <Custom Function>
+
+
+// facebook::hermes::runtime -> js::runtime -> hermesRuntimeImp -> hermes::vm::runtime
+NAPIStatus NAPICreateEnv(NAPIEnv *env)
+{
+    if (!env)
+    {
+        return NAPIInvalidArg;
+    }
+
+    hermes::vm::RuntimeConfig rtConfig = hermes::vm::RuntimeConfig();
+    std::shared_ptr<hermes::vm::Runtime> rt = hermes::vm::Runtime::create(rtConfig.rebuild().withRegisterStack(nullptr).withMaxNumRegisters(hermesImpl::kMaxNumRegisters).build());
+    NAPIEnv _env = new OpaqueNAPIEnv(rt);
+
+    _env->context->addCustomRootsFunction([](hermes::vm::GC *, hermes::vm::RootAcceptor &acceptor) -> void {
+
+      std::set<hermes::vm::PinnedHermesValue>::iterator it = hermesImpl::strongSet.begin();
+      while (it != hermesImpl::strongSet.end()) {
+          auto value = *it;
+          acceptor.accept(value);
+      }
+    });
+    _env->context->addCustomWeakRootsFunction([](hermes::vm::GC *, hermes::vm::WeakRefAcceptor &acceptor) -> void {
+      std::set<hermes::vm::PinnedHermesValue>::iterator it = hermesImpl::weakSet.begin();
+      while (it != hermesImpl::weakSet.end()) {
+          auto value = *it;
+          acceptor.accept(hermes::vm::We);
+      }
+    });
+
+    return NAPIOK;
 }
