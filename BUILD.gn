@@ -54,9 +54,6 @@ source_set("bf") {
 
 config("quickjs_build_config") {
     cflags_c = ["-funsigned-char", "-Wno-unused-parameter", "-Wno-pedantic"]
-    if (build_android) {
-        cflags_c += ["-Wno-unused-variable"]
-    }
 }
 
 source_set("quickjs_source_set") {
@@ -73,7 +70,7 @@ source_set("quickjs_source_set") {
         deps += [":bf",]
     }
     if (build_android) {
-        cflags_c += ["-Wno-implicit-const-int-float-conversion"]
+        cflags_c += ["-Wno-unused-variable"]
     }
 
     sources = [
@@ -82,19 +79,26 @@ source_set("quickjs_source_set") {
 }
 
 shared_library("quickjs") {
+    public_configs = [":quickjs_config", ":quickjs_build_config"]
     deps = [":quickjs_source_set"]
 }
 
-source_set("napi_qjs_source_set") {
-    public_configs = [
-        ":napi",
-    ]
-    sources = [
-        "src/js_native_api_qjs.c",
-        "src/js_native_api_common.c"
-    ]
-    deps = [":quickjs_source_set"]
+shared_library("napi_qjs") {
+    public_configs = [":napi"]
+    sources = ["src/js_native_api_qjs.c"]
+    deps = [":quickjs"]
 }
+
+#source_set("napi_qjs_source_set") {
+#    public_configs = [
+#        ":napi",
+#    ]
+#    sources = [
+#        "src/js_native_api_qjs.c",
+#        "src/js_native_api_common.c"
+#    ]
+#    deps = [":quickjs_source_set"]
+#}
 
 #static_library("napi_jsc") {
 #    configs = [
