@@ -3,7 +3,6 @@
 // NULL 初始化
 
 #include <assert.h>
-#include <limits.h>
 #include <math.h>
 #include <napi/js_native_api.h>
 //#include <quickjs-libc.h>
@@ -11,6 +10,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
+
+#ifndef SLIST_FOREACH_SAFE
+#define SLIST_FOREACH_SAFE(var, head, field, tvar)                                                                     \
+    for ((var) = SLIST_FIRST((head)); (var) && ((tvar) = SLIST_NEXT((var), field), 1); (var) = (tvar))
+#endif
+
+#ifndef LIST_FOREACH_SAFE
+#define LIST_FOREACH_SAFE(var, head, field, tvar)                                                                      \
+    for ((var) = LIST_FIRST((head)); (var) && ((tvar) = LIST_NEXT((var), field), 1); (var) = (tvar))
+#endif
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
     {                                                                                                                  \
@@ -540,13 +549,13 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result)
             {
                 *result = 0;
             }
-            else if (doubleValue >= (double)QUAD_MAX)
+            else if (doubleValue >= (double)INT64_MAX)
             {
-                *result = QUAD_MAX;
+                *result = INT64_MAX;
             }
-            else if (doubleValue <= (double)QUAD_MIN)
+            else if (doubleValue <= (double)INT64_MIN)
             {
-                *result = QUAD_MIN;
+                *result = INT64_MIN;
             }
             else
             {

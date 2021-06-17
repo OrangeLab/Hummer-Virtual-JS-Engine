@@ -70,7 +70,7 @@ source_set("quickjs_source_set") {
         deps += [":bf",]
     }
     if (build_android) {
-        cflags_c += ["-Wno-unused-variable"]
+        cflags_c += ["-Wno-unused-variable", "-Wno-implicit-const-int-float-conversion"]
     }
 
     sources = [
