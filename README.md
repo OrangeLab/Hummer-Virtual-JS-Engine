@@ -5,16 +5,6 @@
 3. out/obj/libnapi_jsc.a 即为编译生成的静态库
 4. include/napi 即为头文件
 
-## 编译参数
-
-1. debug boolean false -O0/s
-2. code_coverage boolean false 是否开启代码覆盖率插桩
-3. asan/ubsan boolean false -fsanitize=undefined/address
-4. build_ios boolean false 开启后下面两个参数生效
-5. ios_simulator boolean true 是否为编译模拟器
-6. ios_archtecture string "x86_64" 字符串会添加到 -target [ios_archtecture]-apple-ios9.0-[ios_simulator]
-7. big_number boolean false QuickJS 专属
-
 ## 代码静态分析
 
 ### JavaScriptCore
@@ -57,6 +47,13 @@
 5. mkdir universal && lipo -create x86_64/obj/libnapi_jsc.a i386/obj/libnapi_jsc.a armv7/obj/libnapi_jsc.a
    arm64/obj/libnapi_jsc.a -output universal/libnapi_jsc.a
 6. universal/libnapi_jsc.a 即为最终产物
+
+## 交叉编译 Android 动态库
+
+1. gn gen out --args="build_android=true android_target=\"x86_64-none-linux-android21\""
+2. 架构有四种 armv7-none-linux-androideabi16 aarch64-none-linux-android21 i686-none-linux-android16
+   x86_64-none-linux-android21
+3. 64 位架构从 Android API 21 开始，正常提供 armv7 架构就行
 
 ## 注意事项
 
