@@ -3,11 +3,10 @@
 // NULL 初始化
 
 #include <assert.h>
-#include <cutils.h>
 #include <limits.h>
 #include <math.h>
 #include <napi/js_native_api.h>
-#include <quickjs-libc.h>
+//#include <quickjs-libc.h>
 #include <quickjs.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1549,7 +1548,7 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
     if (JS_IsException(returnValue))
     {
         JS_Throw(env->context, exceptionValue);
-        js_std_dump_error(env->context);
+        //        js_std_dump_error(env->context);
 
         return NAPIPendingException;
     }
@@ -1812,7 +1811,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         }
     }
     JSContext *context = JS_NewContext(runtime);
-    js_std_add_helpers(context, 0, NULL);
+    //    js_std_add_helpers(context, 0, NULL);
     if (!context)
     {
         free(*env);
