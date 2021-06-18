@@ -191,7 +191,8 @@ static_library("napi_hermes") {
     public_configs = [
         ":napi",
     ]
-    cflags = ["-Wno-unused-variable","-Wno-unused-function"]
+    #(解决clion编译问题)-std=c++14 clion gn_to_cmake 的cxxflags 只会获取主动声明的 flags，toolchain中写好的flags并不会生效。
+    cflags = ["-Wno-unused-variable","-Wno-unused-function","-std=c++14"]
     deps = [":hermes_library"]
     sources = [
         "src/js_native_api_hermes.cc"
@@ -201,7 +202,6 @@ static_library("napi_hermes") {
 executable("test_hermes") {
     testonly = true
     deps = [
-        ":test",
         ":napi_hermes",
     ]
 }

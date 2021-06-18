@@ -9,6 +9,7 @@
 #include <hermes/VM/Operations.h>
 #include <hermes/VM/Runtime.h>
 #include <hermes/VM/HostModel.h>
+#include <hermes/VM/WeakRef.h>
 #include <hermes/hermes.h>
 #include <llvh/Support/ConvertUTF.h>
 #include <napi/js_native_api.h>
@@ -122,28 +123,149 @@ struct OpaqueNAPIEnv
 
 namespace hermesImpl
 {
+
+class Reference;
 //todo: 二叉搜索树替换，提高查找效率
-static std::list<hermes::vm::HermesValue> strongSet = {};
-static std::list<hermes::vm::WeakRoot<hermes::vm::JSObject>> weakSet = {};
+static std::list<Reference *> strongSet = {};
+static std::list<Reference *> weakSet = {};
 
-static constexpr unsigned kMaxNumRegisters =
-    (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) /
-    sizeof(::hermes::vm::PinnedHermesValue);
-
-static inline void add(hermes::vm::HermesValue hv) {
-    strongSet.emplace_front(hv);
+static inline void AddStrong(Reference *ref) {
+    strongSet.emplace_front(ref);
 }
 
-static inline void addWeak(hermes::vm::JSObject obj) {
-
-    auto wr = hermes::vm::WeakRoot<hermes::vm::JSObject>(obj);
-    weakSet
-    weakHermesValues_->emplace_front(wr);
-    return make<jsi::WeakObject>(&(weakHermesValues_->front()));
+static inline void AddWeak(Reference *ref) {
+    weakSet.emplace_front(ref);
 }
 
+static inline void ClearStrong(Reference *ref) {
+
+    std::list<Reference *>::iterator iter;
+    for(iter = strongSet.begin(); iter != strongSet.end() ;iter++)
+    {
+        if (*iter == ref){
+            strongSet.erase(iter);
+            break;
+        }
+    }
+}
+
+static inline void ClearWeak(Reference *ref) {
+
+    std::list<Reference *>::iterator iter;
+    for(iter = weakSet.begin(); iter != weakSet.end() ;iter++)
+    {
+        if (*iter == ref){
+            weakSet.erase(iter);
+            break;
+        }
+    }
+}
+/*
+ * 基本类型不受GC影响: 当GC进行内存压缩时，基本类型的值不会被改变。
+ * JS 基本类型：number bool string symbol
+ * 但 string 在 JS 引擎（hermes jsc qjs）的实现都为堆实现。
+ * iOS 目前的方案由于会直接持有 JSValue，因此存在 堆内存 被回收的问题。所以需要堆 string 支持引用。
+ * 后续 iOS 侧做类型识别后，NAPI 内部可修改为：只支持对象 引用
+ */
 class Reference {
 
+  public:
+    ~ Reference(){
+        ClearStrong(this);
+        ClearWeak(this);
+    }
+    explicit Reference(NAPIEnv env, const hermes::vm::PinnedHermesValue &hv, uint32_t initial_count = 0)
+        : env_(env),
+          hv_(hv),
+          wr_(hermes::vm::WeakRoot<hermes::vm::GCCell>(hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv), env->context)),
+          count_(initial_count){
+        this->isGCCell_ = hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv) ? true : false;
+        //GCCell(string & object)才创建引用，否则只为护 count
+        if (isGCCell_){
+            if (initial_count){
+                AddStrong(this);
+            }else{
+                if (isGCCell_){
+                    AddWeak(this);
+                }
+            }
+        }
+    }
+
+    NAPIEnv env_;
+    hermes::vm::PinnedHermesValue hv_;
+    // 当非 GCCell 类进行弱引用时。会返回空指针。
+    hermes::vm::WeakRoot<hermes::vm::GCCell> wr_;
+    uint32_t count_;
+
+    uint32_t Ref() {
+
+        // promte weak to strong
+        if (++this->count_ == 1 && isGCCell_)
+        {
+            // 1. clear weak
+            ClearWeak(this);
+            // 2. update hermesValue
+            this->UpdateHermesValueFormWeakRoot();
+            // 3. set strong
+            AddStrong(this);
+        }
+        return this->count_;
+    }
+
+    uint32_t Unref() {
+        // promte strong to weak
+        if (--this->count_ == 0 && isGCCell_)
+        {
+            // 1. clear weak
+            AddWeak(this);
+            // 2. update weakRoot
+            this->UpdateWeakRootFromHermesValue();
+            // 3. set strong
+            ClearStrong(this);
+        }
+        return this->count_;
+    }
+    //如果是弱引用，需要判断是否已析构。
+    inline hermes::vm::HermesValue GetValue(){
+
+        if (isGCCell_){
+            if (count_){
+                //strong
+                return this->hv_;
+            }else{
+                //weak
+                this->UpdateHermesValueFormWeakRoot();
+                return this->hv_;
+            }
+        }
+        // 基本类型直接返回
+        return hv_;
+    }
+
+    inline bool IsValid(){
+        //若引用指针验证
+        if (isGCCell_ && count_ == 0){
+            return wr_.get(env_->context, &(env_->context->getHeap()));
+        }
+        return true;
+    }
+  private:
+    // 是否为可引用类型。基本类型除外(string可引用)
+    bool isGCCell_;
+
+    //引用发生变化时(弱<->强)，原本的hermesValue 可以能已经失效。
+    //只有GCCell类型才生效
+    inline void UpdateHermesValueFormWeakRoot() {
+
+        auto ptr = this->wr_.get(env_->context, &env_->context->getHeap());
+        this->hv_ = this->hv_.updatePointer(ptr);
+    };
+
+    inline void UpdateWeakRootFromHermesValue() {
+
+        this->wr_.set(env_->context, hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(this->hv_));
+    };
 };
 
 class HermesExternalObject : public hermes::vm::HostObjectProxy {
@@ -242,6 +364,11 @@ class HandleScopeWrapper
   private:
     hermes::vm::GCScope gcScope;
 };
+
+
+static constexpr unsigned kMaxNumRegisters =
+    (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) /
+    sizeof(::hermes::vm::PinnedHermesValue);
 
 /*
  * C++'s idea of a reinterpret_cast lacks sufficient cojones.
@@ -1366,76 +1493,85 @@ NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope result)
     return clearLastError(env);
 }
 #pragma mark <References to objects with a lifespan longer than that of the native method>
-
+/*
+ * 值类型（string symbol除外）只会返回 Reference 对象(因为值类型不受GC影响，因此只维护 引用计数)，如果不显式 delete，只会造成 Reference 对象的内存泄漏
+ * 对象类型(包括 string symbol)支持引用
+ * */
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
     CHECK_ENV(env);
     CHECK_ARG(env, value);
     CHECK_ARG(env, result);
 
-    NAPIRef reference = malloc(sizeof(struct OpaqueNAPIRef));
-    RETURN_STATUS_IF_FALSE(reference, NAPIMemoryError);
-    reference->value = (JSValueRef)value;
-    reference->count = initialRefCount;
 
-    ActiveReferenceValue *activeReferenceValue = NULL;
-    HASH_FIND_PTR(activeReferenceValues, &value, activeReferenceValue);
-    if (!activeReferenceValue)
-    {
-        activeReferenceValue = malloc(sizeof(ActiveReferenceValue));
-        if (!activeReferenceValue)
-        {
-            free(reference);
+    auto hermsValue = hermesImpl::HermesValueFromJsValue(value);
+    auto ref = new hermesImpl::Reference(env, hermsValue, initialRefCount);
+    RETURN_STATUS_IF_FALSE(ref, NAPIMemoryError);
 
-            return setLastErrorCode(env, NAPIMemoryError);
-        }
-        activeReferenceValue->value = (JSValueRef)value;
-        hashError = false;
-        HASH_ADD_PTR(activeReferenceValues, value, activeReferenceValue);
-        if (hashError)
-        {
-            hashError = false;
-            free(reference);
-            free(activeReferenceValue);
+    *result = reinterpret_cast<NAPIRef>(ref);
+    return clearLastError(env);
+}
 
-            return setLastErrorCode(env, NAPIMemoryError);
-        }
-        // wrap
-        ExternalInfo *externalInfo = NULL;
-        NAPIStatus status = wrap(env, value, &externalInfo);
-        if (status != NAPIOK)
-        {
-            // 失败
-            free(reference);
-            HASH_DEL(activeReferenceValues, activeReferenceValue);
-            free(activeReferenceValue);
 
-            return status;
-        }
-        if (!addFinalizer(externalInfo, referenceFinalize, value))
-        {
-            // 失败
-            free(reference);
-            HASH_DEL(activeReferenceValues, activeReferenceValue);
-            free(activeReferenceValue);
+// clearWeak
+NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, ref);
+    CHECK_ARG(env, result);
 
-            return setLastErrorCode(env, NAPIMemoryError);
-        }
+    hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
+    //has been freed
+    RETURN_STATUS_IF_FALSE(_ref->IsValid(), NAPIGenericFailure);
+    *result = _ref->Ref();
+    return clearLastError(env);
+}
+
+
+// NAPIGenericFailure + setWeak
+NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, ref);
+    CHECK_ARG(env, result);
+
+    hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
+    RETURN_STATUS_IF_FALSE(_ref->count_, NAPIGenericFailure);
+    *result = _ref->Unref();
+    return NAPIOK;
+}
+
+NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, ref);
+    CHECK_ARG(env, result);
+
+    hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
+    if (!_ref->IsValid()){
+
+        *result = NULL;
+    } else {
+
+        auto hermesValue = _ref->GetValue();
+        *result = hermesImpl::JsValueFromHermesValue(hermesValue);
     }
+    return NAPIOK;
+}
 
-    if (initialRefCount)
-    {
-        protect(env, reference);
-    }
-    *result = reference;
+NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
+{
+    CHECK_ENV(env);
+    CHECK_ARG(env, ref);
 
+    hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
+    delete _ref;
     return clearLastError(env);
 }
 
 
 
 #pragma mark <Custom Function>
-
 
 // facebook::hermes::runtime -> js::runtime -> hermesRuntimeImp -> hermes::vm::runtime
 NAPIStatus NAPICreateEnv(NAPIEnv *env)
@@ -1451,17 +1587,19 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
 
     _env->context->addCustomRootsFunction([](hermes::vm::GC *, hermes::vm::RootAcceptor &acceptor) -> void {
 
-      std::set<hermes::vm::PinnedHermesValue>::iterator it = hermesImpl::strongSet.begin();
+      std::list<hermesImpl::Reference *>::iterator it = hermesImpl::strongSet.begin();
       while (it != hermesImpl::strongSet.end()) {
           auto value = *it;
-          acceptor.accept(value);
+          acceptor.accept(value->hv_);
       }
     });
-    _env->context->addCustomWeakRootsFunction([](hermes::vm::GC *, hermes::vm::WeakRefAcceptor &acceptor) -> void {
-      std::set<hermes::vm::PinnedHermesValue>::iterator it = hermesImpl::weakSet.begin();
+
+
+    _env->context->addCustomWeakRootsFunction([](hermes::vm::GC *, hermes::vm::WeakRootAcceptor &acceptor) -> void {
+      std::list<hermesImpl::Reference *>::iterator it = hermesImpl::weakSet.begin();
       while (it != hermesImpl::weakSet.end()) {
           auto value = *it;
-          acceptor.accept(hermes::vm::We);
+          acceptor.acceptWeak(value->wr_);
       }
     });
 
