@@ -833,7 +833,7 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
 
     return clearLastError(env);
 }
-
+// todo:delete
 NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t length, NAPIValue *result)
 {
 
@@ -1035,7 +1035,9 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
     *result = hermesImpl::JsValueFromHermesValue(resultHValue);
     return clearLastError(env);
 }
+#pragma mark <Object wrap>
 
+napi_define_class
 #pragma mark <Working with JavaScript values and abstract operations>
 NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
 {

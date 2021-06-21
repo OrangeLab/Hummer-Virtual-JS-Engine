@@ -53,8 +53,7 @@ source_set("bf") {
 }
 
 config("quickjs_build_config") {
-    defines = ["CONFIG_VERSION=\"2021-03-27\""]
-    cflags_c = ["-Wno-unused-parameter", "-Wno-pedantic"]
+    cflags_c = ["-funsigned-char", "-Wno-unused-parameter", "-Wno-pedantic"]
 }
 # -------- hermes start ---------
 # hermes config
@@ -222,120 +221,130 @@ source_set("quickjs_source_set") {
         defines += ["CONFIG_BIGNUM"]
         deps += [":bf",]
     }
+    if (build_android) {
+        cflags_c += ["-Wno-unused-variable", "-Wno-implicit-const-int-float-conversion"]
+    }
 
     sources = [
-        "third_party/quickjs/quickjs.c"
+        "third_party/quickjs/quickjs.c",
     ]
 }
 
-source_set("napi_qjs_source_set") {
-    public_configs = [
-        ":napi",
-    ]
-    sources = [
-        "src/js_native_api_qjs.c"
-    ]
+shared_library("quickjs") {
+    public_configs = [":quickjs_config", ":quickjs_build_config"]
     deps = [":quickjs_source_set"]
 }
 
-static_library("napi_jsc") {
-    configs = [
-        ":uthash"
-    ]
-
-    public_configs = [
-        ":napi",
-    ]
-
-    frameworks = [ "JavaScriptCore.framework" ]
-
-    sources = [
-        "src/js_native_api_jsc.c"
-    ]
+shared_library("napi_qjs") {
+    public_configs = [":napi"]
+    sources = ["src/js_native_api_qjs.c"]
+    deps = [":quickjs"]
 }
 
-source_set("test") {
-    testonly = true
-    include_dirs = [
-        "test/include"
-    ]
-    configs = [":napi"]
-    sources = [
-        "test/js_native_api_test.cpp",
-        "test/2_function_arguments.cpp",
-        "test/3_callbacks.cpp",
-        "test/4_object_factory.cpp",
-        "test/5_function_factory.cpp",
-        "test/6_object_wrap.cpp",
-        "test/test_array.cpp",
-        "test/common.c",
-        "test/test_constructor.cpp",
-        "test/test_conversions.cpp",
-        "test/test_error.cpp",
-        "test/test_exception.cpp",
-        "test/test_function.cpp",
-        "test/test_general.cpp",
-        "test/test_handle_scope.cpp",
-        "test/test_new_target.cpp",
-        "test/test_number.cpp",
-        "test/test_object.cpp",
-        "test/test_promise.cpp",
-        "test/test_properties.cpp",
-        "test/test_string.cpp",
-        "test/test_symbol.cpp"
-    ]
-    deps = [
-        ":gtest",
-    ]
-}
+#source_set("napi_qjs_source_set") {
+#    public_configs = [
+#        ":napi",
+#    ]
+#    sources = [
+#        "src/js_native_api_qjs.c",
+#        "src/js_native_api_common.c"
+#    ]
+#    deps = [":quickjs_source_set"]
+#}
 
-executable("test_jsc") {
-    testonly = true
-    deps = [
-        ":test",
-        ":napi_jsc"
-    ]
-}
+#static_library("napi_jsc") {
+#    configs = [
+#        ":uthash"
+#    ]
+#
+#    public_configs = [
+#        ":napi",
+#    ]
+#
+#    frameworks = [ "JavaScriptCore.framework" ]
+#
+#    sources = [
+#        "src/js_native_api_jsc.c"
+#    ]
+#}
 
-executable("test_qjs") {
-    testonly = true
-    deps = [
-        ":test",
-        ":napi_qjs_source_set"
-    ]
-}
+if (!build_android) {
+    source_set("test") {
+        testonly = true
+        include_dirs = [
+            "test/include"
+        ]
+        configs = [":napi"]
+        sources = [
+            "test/js_native_api_test.cpp",
+            "test/2_function_arguments.cpp",
+            "test/3_callbacks.cpp",
+            "test/4_object_factory.cpp",
+            "test/5_function_factory.cpp",
+            "test/test_array.cpp",
+            "test/test_constructor.cpp",
+            "test/test_conversions.cpp",
+            "test/test_error.cpp",
+            "test/test_exception.cpp",
+            "test/test_function.cpp",
+            "test/test_handle_scope.cpp",
+            "test/test_new_target.cpp",
+            "test/test_number.cpp",
+            "test/test_string.cpp",
+        ]
+        deps = [
+            ":gtest",
+        ]
+    }
 
-config("gtest_config") {
-    include_dirs = [
-        "third_party/googletest/googletest/include"
-    ]
-}
+    #executable("test_jsc") {
+    #    testonly = true
+    #    deps = [
+    #        ":test",
+    #        ":napi_jsc"
+    #    ]
+    #}
 
-source_set("gtest") {
-    testonly = true
-    sources = [
-        "third_party/googletest/googletest/src/gtest-death-test.cc",
-        "third_party/googletest/googletest/src/gtest-filepath.cc",
-        "third_party/googletest/googletest/src/gtest-matchers.cc",
-        "third_party/googletest/googletest/src/gtest-port.cc",
-        "third_party/googletest/googletest/src/gtest-printers.cc",
-        "third_party/googletest/googletest/src/gtest-test-part.cc",
-        "third_party/googletest/googletest/src/gtest-typed-test.cc",
-        "third_party/googletest/googletest/src/gtest.cc",
-    ]
+    executable("test_qjs") {
+        testonly = true
+        deps = [
+            ":test",
+            ":napi_qjs_source_set"
+        ]
+    }
 
-    # Some files include "src/gtest-internal-inl.h".
-    include_dirs = [ "third_party/googletest/googletest" ]
+    config("gtest_config") {
+        include_dirs = [
+            "third_party/googletest/googletest/include"
+        ]
+    }
 
-    public_configs = [ ":gtest_config" ]
-}
+    source_set("gtest") {
+        testonly = true
+        sources = [
+            "third_party/googletest/googletest/src/gtest-death-test.cc",
+            "third_party/googletest/googletest/src/gtest-filepath.cc",
+            "third_party/googletest/googletest/src/gtest-matchers.cc",
+            "third_party/googletest/googletest/src/gtest-port.cc",
+            "third_party/googletest/googletest/src/gtest-printers.cc",
+            "third_party/googletest/googletest/src/gtest-test-part.cc",
+            "third_party/googletest/googletest/src/gtest-typed-test.cc",
+            "third_party/googletest/googletest/src/gtest.cc",
+        ]
 
-source_set("gtest_main") {
-    testonly = true
-    sources = [ "third_party/googletest/googletest/src/gtest_main.cc" ]
-    deps = [ ":gtest" ]
+        # Some files include "src/gtest-internal-inl.h".
+        include_dirs = [ "third_party/googletest/googletest" ]
 
-    public_configs = [
-        ":gtest_config"
-    ]
+        public_configs = [ ":gtest_config" ]
+    }
+
+    source_set("gtest_main") {
+        testonly = true
+        sources = [ "third_party/googletest/googletest/src/gtest_main.cc" ]
+        deps = [ ":gtest" ]
+
+        public_configs = [
+            ":gtest_config"
+        ]
+    }
 }

@@ -8,52 +8,6 @@ EXTERN_C_START
 static double value_ = 1;
 static double static_value_ = 10;
 
-static NAPIValue TestDefineClass(NAPIEnv env, NAPICallbackInfo /*info*/)
-{
-    NAPIStatus status;
-    NAPIValue result, return_value;
-
-    NAPIPropertyDescriptor property_descriptor = {"TestDefineClass",
-                                                  nullptr,
-                                                  TestDefineClass,
-                                                  nullptr,
-                                                  nullptr,
-                                                  nullptr,
-                                                  static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic),
-                                                  nullptr};
-
-    NAPI_CALL(env, napi_create_object(env, &return_value));
-
-    status = napi_define_class(nullptr, "TrackedFunction", NAPI_AUTO_LENGTH, TestDefineClass, nullptr, 1,
-                               &property_descriptor, &result);
-
-    add_returned_status(env, "envIsNull", return_value, "Invalid argument", NAPIInvalidArg, status);
-
-    napi_define_class(env, nullptr, NAPI_AUTO_LENGTH, TestDefineClass, nullptr, 1, &property_descriptor, &result);
-
-    add_last_status(env, "nameIsNull", return_value);
-
-    napi_define_class(env, "TrackedFunction", NAPI_AUTO_LENGTH, nullptr, nullptr, 1, &property_descriptor, &result);
-
-    add_last_status(env, "cbIsNull", return_value);
-
-    napi_define_class(env, "TrackedFunction", NAPI_AUTO_LENGTH, TestDefineClass, nullptr, 1, &property_descriptor,
-                      &result);
-
-    add_last_status(env, "cbDataIsNull", return_value);
-
-    napi_define_class(env, "TrackedFunction", NAPI_AUTO_LENGTH, TestDefineClass, nullptr, 1, nullptr, &result);
-
-    add_last_status(env, "propertiesIsNull", return_value);
-
-    napi_define_class(env, "TrackedFunction", NAPI_AUTO_LENGTH, TestDefineClass, nullptr, 1, &property_descriptor,
-                      nullptr);
-
-    add_last_status(env, "resultIsNull", return_value);
-
-    return return_value;
-}
-
 static NAPIValue GetValue(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 0;
@@ -124,6 +78,9 @@ EXTERN_C_END
 
 TEST(TestConstructor, DefineClass)
 {
+    NAPIHandleScope handleScope;
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -146,8 +103,6 @@ TEST(TestConstructor, DefineClass)
          static_cast<NAPIPropertyAttributes>(NAPIDefault | NAPIStatic), nullptr},
         {"constructorName", nullptr, nullptr, nullptr, nullptr, cons,
          static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic), nullptr},
-        {"TestDefineClass", nullptr, TestDefineClass, nullptr, nullptr, nullptr,
-         static_cast<NAPIPropertyAttributes>(NAPIEnumerable | NAPIStatic), nullptr},
     };
 
     ASSERT_EQ(napi_define_class(globalEnv, "MyObject", NAPI_AUTO_LENGTH, New, nullptr,
@@ -158,7 +113,7 @@ TEST(TestConstructor, DefineClass)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{var r={991:(r,t,e)=>{e(7690);var o=e(5703);r.exports=o(\"Array\").includes},8557:(r,t,e)=>{var "
             "o=e(991),n=e(1631),a=Array.prototype,s=String.prototype;r.exports=function(r){var t=r.includes;return "
@@ -275,12 +230,13 @@ TEST(TestConstructor, DefineClass)
             "readwriteAccessor2=2,globalThis.assert.strictEqual(o.readwriteAccessor2,2),globalThis.assert.strictEqual("
             "o.readonlyAccessor2,2),globalThis.assert.strictEqual(globalThis.addon.staticReadonlyAccessor1,10),"
             "globalThis.assert.strictEqual(o.staticReadonlyAccessor1,void 0)})()})();",
-            "https://www.didi.com/test_constructor_test.js", &result),
+            "https://www.napi.com/test_constructor_test.js", &result),
         NAPIOK);
 
-    ASSERT_EQ(NAPIRunScriptWithSourceUrl(
-                  globalEnv,
-                  "(()=>{\"use strict\";globalThis.assert.strictEqual(globalThis.addon.name,\"MyObject\")})();",
-                  "https://www.didi.com/test_constructor_test2.js", &result),
-              NAPIOK);
+    ASSERT_EQ(
+        NAPIRunScript(globalEnv,
+                      "(()=>{\"use strict\";globalThis.assert.strictEqual(globalThis.addon.name,\"MyObject\")})();",
+                      "https://www.napi.com/test_constructor_test2.js", &result),
+        NAPIOK);
+    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }

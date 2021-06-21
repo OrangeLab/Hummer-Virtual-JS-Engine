@@ -160,7 +160,7 @@ TEST_F(Test, TestError)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{var "
             "r={7473:(r,t,e)=>{e(8922),e(5967),e(5824),e(8555),e(2615),e(1732),e(5903),e(1825),e(8394),e(5915),e(1766),"
@@ -438,6 +438,6 @@ TEST_F(Test, TestError)
             "TypeError\"),globalThis.assert.strictEqual(E.message,\"TypeError [type "
             "error]\"),globalThis.assert.strictEqual(E.code,\"ERR_TEST_CODE\"),globalThis.assert.strictEqual(E.name,"
             "\"TypeError\")})()})();",
-            "https://www.didi.com/test_error.js", &result),
+            "https://www.napi.com/test_error.js", &result),
         NAPIOK);
 }

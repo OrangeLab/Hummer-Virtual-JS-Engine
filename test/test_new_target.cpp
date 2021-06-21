@@ -57,10 +57,10 @@ TEST_F(Test, TestNewTarget)
     NAPIValue result;
 
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{\"use strict\";globalThis.assert.ok(globalThis.addon.OrdinaryFunction()),globalThis.assert.ok(new "
             "globalThis.addon.Constructor(globalThis.addon.Constructor)instanceof globalThis.addon.Constructor)})();",
-            "https://www.didi.com/test_new_target.js", &result),
+            "https://www.napi.com/test_new_target.js", &result),
         NAPIOK);
 }

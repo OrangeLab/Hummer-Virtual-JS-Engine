@@ -21,6 +21,9 @@ EXTERN_C_END
 
 TEST(FunctionFactory, CreateFunction)
 {
+    NAPIHandleScope handleScope;
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
 
@@ -30,9 +33,11 @@ TEST(FunctionFactory, CreateFunction)
 
     NAPIValue result;
     ASSERT_EQ(
-        NAPIRunScriptWithSourceUrl(
+        NAPIRunScript(
             globalEnv,
             "(()=>{\"use strict\";var l=globalThis.addon();globalThis.assert.strictEqual(l(),\"hello world\")})();",
-            "https://www.didi.com/5_function_factory.js", &result),
+            "https://www.napi.com/5_function_factory.js", &result),
         NAPIOK);
+
+    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }

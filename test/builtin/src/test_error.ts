@@ -66,26 +66,26 @@ globalThis.assert.throws(() => {
 
 globalThis.assert.throws(
   () => globalThis.addon.throwErrorCode(),
-//   {
-//     code: 'ERR_TEST_CODE',
-//     message: 'Error [error]'
-//   }
+  //   {
+  //     code: 'ERR_TEST_CODE',
+  //     message: 'Error [error]'
+  //   }
 );
 
 globalThis.assert.throws(
   () => globalThis.addon.throwRangeErrorCode(),
-//   {
-//     code: 'ERR_TEST_CODE',
-//     message: 'RangeError [range error]',
-//   },
+  //   {
+  //     code: 'ERR_TEST_CODE',
+  //     message: 'RangeError [range error]',
+  //   },
 );
 
 globalThis.assert.throws(
   () => globalThis.addon.throwTypeErrorCode(),
-//   {
-//     code: 'ERR_TEST_CODE',
-//     message: 'TypeError [type error]',
-//   },
+  //   {
+  //     code: 'ERR_TEST_CODE',
+  //     message: 'TypeError [type error]',
+  //   },
 );
 
 let error = globalThis.addon.createError();

@@ -89,21 +89,15 @@ typedef void (*NAPIFinalize)(NAPIEnv env, void *finalizeData, void *finalizeHint
 
 typedef struct
 {
-    // One of utf8name or name should be NULL.
-    union {
-        const char *utf8name;
-        NAPIValue name;
-    };
+    const char *utf8name;
+    NAPIValue name;
 
-    union {
-        NAPICallback method;
-        struct
-        {
-            NAPICallback getter;
-            NAPICallback setter;
-        };
-        NAPIValue value;
-    };
+    NAPICallback method;
+
+    NAPICallback getter;
+    NAPICallback setter;
+
+    NAPIValue value;
 
     NAPIPropertyAttributes attributes;
     void *data;

@@ -10,19 +10,12 @@ EXTERN_C_START
 // Empty value so that macros here are able to return NULL or void
 #define NAPI_RETVAL_NOTHING // Intentionally blank #define
 
-#define GET_AND_THROW_LAST_ERROR(env)                                                                                  \
+#define GET_AND_THROW_LAST_ERROR(env, status)                                                                          \
     do                                                                                                                 \
     {                                                                                                                  \
-        const NAPIExtendedErrorInfo *errorInfo;                                                                        \
-        napi_get_last_error_info((env), &errorInfo);                                                                   \
-        bool isPending;                                                                                                \
-        napi_is_exception_pending((env), &isPending);                                                                  \
-        /* If an exception is already pending, don't rethrow it */                                                     \
-        if (!isPending)                                                                                                \
+        if ((status) != NAPIPendingException)                                                                          \
         {                                                                                                              \
-            const char *errorMessage =                                                                                 \
-                errorInfo->errorMessage != NULL ? errorInfo->errorMessage : "empty error message";                     \
-            napi_throw_error((env), NULL, errorMessage);                                                               \
+            napi_throw_error((env), NULL, "empty error message");                                                      \
         }                                                                                                              \
     } while (0)
 
@@ -47,9 +40,10 @@ EXTERN_C_START
 #define NAPI_CALL_BASE(env, the_call, ret_val)                                                                         \
     do                                                                                                                 \
     {                                                                                                                  \
-        if ((the_call) != NAPIOK)                                                                                      \
+        NAPIStatus status = the_call;                                                                                  \
+        if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
-            GET_AND_THROW_LAST_ERROR((env));                                                                           \
+            GET_AND_THROW_LAST_ERROR((env), status);                                                                   \
             return ret_val;                                                                                            \
         }                                                                                                              \
     } while (0)
@@ -64,17 +58,6 @@ EXTERN_C_START
     {                                                                                                                  \
         (name), NULL, (func), NULL, NULL, NULL, NAPIDefault, NULL                                                      \
     }
-
-#define DECLARE_NAPI_GETTER(name, func)                                                                                \
-    {                                                                                                                  \
-        (name), NULL, NULL, (func), NULL, NULL, NAPIDefault, NULL                                                      \
-    }
-
-// expected_message 没做修改，添加 const
-void add_returned_status(NAPIEnv env, const char *key, NAPIValue object, const char *expected_message,
-                         NAPIStatus expected_status, NAPIStatus actual_status);
-
-void add_last_status(NAPIEnv env, const char *key, NAPIValue return_value);
 
 EXTERN_C_END
 

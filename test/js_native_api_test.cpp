@@ -18,7 +18,7 @@ class NAPIEnvironment : public ::testing::Environment
         ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
         NAPIValue result;
         ASSERT_EQ(
-            NAPIRunScriptWithSourceUrl(
+            NAPIRunScript(
                 globalEnv,
                 "(()=>{\"use strict\";function t(n,r){return(t=Object.setPrototypeOf||function(t,n){return "
                 "t.__proto__=n,t})(n,r)}function "
@@ -55,7 +55,7 @@ class NAPIEnvironment : public ::testing::Environment
                 "i(null!=r?r:`Expected \"actual\" to be strictly unequal to: ${f(t)}\\n`)},l.throws=function(t,n){var "
                 "r=!1,e=null;try{t()}catch(t){r=!0,e=t}if(!r)throw new i(\"Expected function to throw\"+(n?`: "
                 "${n}`:\".\"));return e},globalThis.assert=l})();",
-                "https://www.didi.com/assert.js", &result),
+                "https://www.napi.com/assert.js", &result),
             NAPIOK);
         ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
     }
@@ -90,7 +90,5 @@ void ::Test::SetUp()
 void ::Test::TearDown()
 {
     ::testing::Test::TearDown();
-    NAPIValue result;
-    ASSERT_EQ(napi_get_and_clear_last_exception(globalEnv, &result), NAPIOK);
     ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
 }
