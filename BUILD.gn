@@ -70,7 +70,7 @@ source_set("quickjs_source_set") {
         deps += [":bf",]
     }
     if (build_android) {
-        cflags_c += ["-Wno-unused-variable", "-Wno-implicit-const-int-float-conversion"]
+        cflags_c += ["-Wno-unused-variable"]
     }
 
     sources = [
@@ -78,45 +78,74 @@ source_set("quickjs_source_set") {
     ]
 }
 
-shared_library("quickjs") {
-    public_configs = [":quickjs_config", ":quickjs_build_config"]
-    deps = [":quickjs_source_set"]
-}
+if (build_android) {
+    shared_library("quickjs") {
+        public_configs = [":quickjs_config", ":quickjs_build_config"]
+        deps = [":quickjs_source_set"]
+    }
+    shared_library("napi_qjs") {
+        public_configs = [":napi"]
+        sources = ["src/js_native_api_qjs.c", "src/js_native_api_common.c"]
+        deps = [":quickjs"]
+    }
+} else if (build_ios) {
+    static_library("quickjs") {
+        public_configs = [":quickjs_config", ":quickjs_build_config"]
+        deps = [":quickjs_source_set"]
+    }
+    static_library("napi_qjs") {
+        public_configs = [
+            ":napi",
+        ]
+        sources = [
+            "src/js_native_api_qjs.c",
+            "src/js_native_api_common.c"
+        ]
+        deps = [":quickjs"]
+    }
+    static_library("napi_jsc") {
+        configs = [
+            ":uthash"
+        ]
 
-shared_library("napi_qjs") {
-    public_configs = [":napi"]
-    sources = ["src/js_native_api_qjs.c"]
-    deps = [":quickjs"]
-}
+        public_configs = [
+            ":napi",
+        ]
 
-#source_set("napi_qjs_source_set") {
-#    public_configs = [
-#        ":napi",
-#    ]
-#    sources = [
-#        "src/js_native_api_qjs.c",
-#        "src/js_native_api_common.c"
-#    ]
-#    deps = [":quickjs_source_set"]
-#}
+        frameworks = [ "JavaScriptCore.framework" ]
 
-#static_library("napi_jsc") {
-#    configs = [
-#        ":uthash"
-#    ]
-#
-#    public_configs = [
-#        ":napi",
-#    ]
-#
-#    frameworks = [ "JavaScriptCore.framework" ]
-#
-#    sources = [
-#        "src/js_native_api_jsc.c"
-#    ]
-#}
+        sources = [
+            "src/js_native_api_jsc.c",
+            "src/js_native_api_common.c"
+        ]
+    }
+} else {
+    source_set("napi_qjs_source_set") {
+        public_configs = [
+            ":napi",
+        ]
+        sources = [
+            "src/js_native_api_qjs.c",
+            "src/js_native_api_common.c"
+        ]
+        deps = [":quickjs_source_set"]
+    }
+    source_set("napi_jsc_source_set") {
+        configs = [
+            ":uthash"
+        ]
 
-if (!build_android) {
+        public_configs = [
+            ":napi",
+        ]
+
+        frameworks = [ "JavaScriptCore.framework" ]
+
+        sources = [
+            "src/js_native_api_jsc.c",
+            "src/js_native_api_common.c"
+        ]
+    }
     source_set("test") {
         testonly = true
         include_dirs = [
@@ -145,13 +174,13 @@ if (!build_android) {
         ]
     }
 
-    #executable("test_jsc") {
-    #    testonly = true
-    #    deps = [
-    #        ":test",
-    #        ":napi_jsc"
-    #    ]
-    #}
+    executable("test_jsc") {
+        testonly = true
+        deps = [
+            ":test",
+            ":napi_jsc_source_set"
+        ]
+    }
 
     executable("test_qjs") {
         testonly = true

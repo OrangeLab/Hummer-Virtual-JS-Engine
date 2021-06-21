@@ -23,6 +23,7 @@
 2. ninja -C out test
 3. ./out/test
 4. ubsan/asan 对于 QuickJS 开启，需要注释掉 CONFIG_STACK_CHECK，否则会报告 InternalError: stack overflow
+5. QuickJS 单元测试建议开启 DUMP_LEAKS
 
 ## 编辑器配置
 
@@ -50,10 +51,15 @@
 
 ## 交叉编译 Android 动态库
 
-1. gn gen out --args="build_android=true android_target=\"x86_64-none-linux-android21\""
-2. 架构有四种 armv7-none-linux-androideabi16 aarch64-none-linux-android21 i686-none-linux-android16
-   x86_64-none-linux-android21
-3. 64 位架构从 Android API 21 开始，正常提供 armv7 架构就行
+1. gn gen armv7 --args="build_android=true android_target=\"armv7-none-linux-androideabi18\"" && ninja -C armv7 napi_qjs
+2. gn gen arm64 --args="build_android=true android_target=\"aarch64-none-linux-android21\"" && ninja -C arm64 napi_qjs
+3. gn gen i386 --args="build_android=true android_target=\"i686-none-linux-android18\"" && ninja -C i386 napi_qjs
+4. gn gen x86_64 --args="build_android=true android_target=\"x86_64-none-linux-android21\"" && ninja -C x86_64 napi_qjs
+5. mkdir -p universal/armv7 && mkdir -p universal/arm64 && mkdir -p universal/i386 && mkdir -p universal/x86_64
+6. mv armv7/obj/*.so universal/armv7 && mv arm64/obj/*.so universal/arm64 && mv i386/obj/*.so universal/i386 && mv
+   x86_64/obj/*.so universal/x86_64
+7. cp -r include universal
+6. 使用非 LTS 版本 NDK 需要添加 -Wno-implicit-const-int-float-conversion 参数
 
 ## 注意事项
 
