@@ -119,6 +119,8 @@ namespace hermesImpl
 
 class Reference;
 class EscapableHandleScope;
+class CallBackInfoWrapper;
+class HandleScopeWrapper;
 
 //todo: 二叉搜索树替换，提高查找效率
 static std::list<Reference *> strongSet = {};
@@ -174,6 +176,78 @@ static inline void ClearWeak(Reference *ref) {
     }
 }
 
+
+/*
+ * C++'s idea of a reinterpret_cast lacks sufficient cojones.
+ */
+template <typename ToType, typename FromType> inline ToType hermes_bitwise_cast(FromType from)
+{
+    static_assert(sizeof(FromType) == sizeof(ToType), "bitwise_cast size of FromType and ToType must be equal!");
+    typename std::remove_const<ToType>::type to{};
+    std::memcpy(static_cast<void *>(&to), static_cast<void *>(&from), sizeof(to));
+    return to;
+}
+inline static NAPIEscapableHandleScope JsEscapableHandleScopeFromHermesEscapableHandleScope(EscapableHandleScope* s) {
+    return reinterpret_cast<NAPIEscapableHandleScope>(s);
+}
+
+inline static EscapableHandleScope* HermesEscapableHandleScopeFromJsEscapableHandleScope(
+    NAPIEscapableHandleScope s) {
+    return reinterpret_cast<EscapableHandleScope*>(s);
+}
+
+inline NAPICallbackInfo JSCallBackInfoFormHermesCallBackInfo(CallBackInfoWrapper &info)
+{
+    return reinterpret_cast<NAPICallbackInfo>(&info);
+}
+
+inline CallBackInfoWrapper* HermesCallBackInfoFromJSCallBackInfo(NAPICallbackInfo info)
+{
+    return hermes_bitwise_cast<CallBackInfoWrapper *>(info);
+}
+
+inline NAPIValue JsValueFromHermesHandle(hermes::vm::Handle<hermes::vm::HermesValue> handle)
+{
+    return hermes_bitwise_cast<NAPIValue>(handle.get());
+}
+
+inline NAPIValue JsValueFromHermesValue(hermes::vm::HermesValue value)
+{
+    return hermes_bitwise_cast<NAPIValue>(value);
+}
+
+inline hermes::vm::HermesValue HermesValueFromJsValue(NAPIValue value)
+{
+    return hermes_bitwise_cast<hermes::vm::HermesValue>(value);
+}
+
+inline NAPIValue JsValueFromPseudoHermesHandle(hermes::vm::PseudoHandle<hermes::vm::HermesValue> handle)
+{
+    return hermes_bitwise_cast<NAPIValue>(handle.get());
+}
+
+inline static NAPIHandleScope JsHandleScopeFromHermesScope(HandleScopeWrapper *scope)
+{
+    return reinterpret_cast<NAPIHandleScope>(scope);
+}
+
+inline static HandleScopeWrapper *HermesScopeFormeJsHandleScope(NAPIHandleScope scope)
+{
+    return reinterpret_cast<HandleScopeWrapper *>(scope);
+}
+
+inline static bool getException(hermes::vm::ExecutionStatus status, NAPIEnv env)
+{
+    if (status == hermes::vm::ExecutionStatus::RETURNED)
+    {
+        return true;
+    }
+    else
+    {
+        env->lastException = env->context->getThrownValue();
+        return false;
+    }
+};
 
 /**
  * hermes 不支持 escapable scope，使用强引用来模拟。
@@ -314,26 +388,73 @@ class Reference {
     };
 };
 
+class CallBackInfoWrapper {
+
+  public:
+    inline CallBackInfoWrapper(const hermes::vm::NativeArgs &args, void* data)
+        : args_(args),
+          data_(data) {}
+
+    inline hermes::vm::HermesValue GetNewTarget(){
+        return this->args_.getNewTarget();
+    }
+    inline size_t GetArgc(){
+        return this->args_.getArgCount();
+    }
+
+    inline void * GetData(){
+        return this->data_;
+    }
+
+    inline hermes::vm::HermesValue GetThisArg(){
+
+        return this->args_.getThisArg();
+    }
+
+    inline void GetArgs(NAPIValue *args, size_t bound, size_t expectedSize){
+        size_t i = 0;
+        for (; i < bound; ++i)
+        {
+            auto val = hermesImpl::JsValueFromHermesValue(this->args_.getArg(i));
+            args[i] = val;
+        }
+        if (i < expectedSize)
+        {
+            for (; i < expectedSize; ++i)
+            {
+                args[i] = hermesImpl::JsValueFromHermesValue(hermes::vm::HermesValue::encodeUndefinedValue());
+            }
+        }
+    }
+
+  protected:
+
+    const hermes::vm::NativeArgs args_;
+    void* data_;
+};
+//保存native function，data
 class FunctionInfo {
 
   public:
-    inline FunctionInfo(napi_value this_arg, size_t args_length, void* data)
-    : _this(this_arg), _args_length(args_length), _data(data) {}
+    inline FunctionInfo(NAPIEnv env, NAPICallback cb,void* data)
+        : env_(env),
+          cb_(cb),
+          data_(data) {}
 
-    virtual napi_value GetNewTarget() = 0;
-    virtual void Args(napi_value* buffer, size_t bufferlength) = 0;
-    virtual void SetReturnValue(napi_value value) = 0;
-
-    napi_value This() { return _this; }
-
-    size_t ArgsLength() { return _args_length; }
-
-    void* Data() { return _data; }
+    inline NAPICallback GetCb(){
+        return this->cb_;
+    }
+    inline void* GetData(){
+        return this->data_;
+    }
+    inline NAPIEnv GetEnv(){
+        return this->env_;
+    }
 
   protected:
-    const napi_value _this;
-    const size_t _args_length;
-    void* _data;
+    NAPIEnv env_ = nullptr;
+    NAPICallback cb_ = nullptr;
+    void *data_ = nullptr;
 };
 
 class HermesExternalObject : public hermes::vm::HostObjectProxy {
@@ -351,16 +472,16 @@ class HermesExternalObject : public hermes::vm::HostObjectProxy {
     }
 
   public:
-    void *getData() const {
+    inline void *getData() const {
         return data_;
     }
-    NAPIEnv getEnv() const {
+    inline NAPIEnv getEnv() const {
         return env_;
     }
-    NAPIFinalize getFinalizeCb() const {
+    inline NAPIFinalize getFinalizeCb() const {
         return finalize_cb_;
     }
-    void *getFinalizeHint() const {
+    inline void *getFinalizeHint() const {
         return finalize_hint_;
     }
 
@@ -395,32 +516,6 @@ class HermesExternalObject : public hermes::vm::HostObjectProxy {
     }
 };
 
-class CallbackBundle {
-  public:
-    // Creates an object to be made available to the static function callback
-    // wrapper, used to retrieve the native callback function and data pointer.
-    static inline hermes::vm::Handle<>
-    New(NAPIEnv env, NAPICallback cb, void* data) {
-        CallbackBundle* bundle = new CallbackBundle();
-        bundle->cb = cb;
-        bundle->cb_data = data;
-        bundle->env = env;
-
-        v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
-        Reference::New(env, cbdata, 0, true, Delete, bundle, nullptr);
-        return cbdata;
-    }
-    NAPIEnv       env;      // Necessary to invoke C++ NAPI callback
-    void*          cb_data;  // The user provided callback data
-    NAPICallback  cb;
-  private:
-    static void Delete(NAPIEnv env, void* data, void* hint) {
-        CallbackBundle* bundle = static_cast<CallbackBundle*>(data);
-        delete bundle;
-    }
-};
-
-
 // c++ RVO
 class HandleScopeWrapper
 {
@@ -438,67 +533,6 @@ static constexpr unsigned kMaxNumRegisters =
     (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) /
     sizeof(::hermes::vm::PinnedHermesValue);
 
-/*
- * C++'s idea of a reinterpret_cast lacks sufficient cojones.
- */
-template <typename ToType, typename FromType> inline ToType hermes_bitwise_cast(FromType from)
-{
-    static_assert(sizeof(FromType) == sizeof(ToType), "bitwise_cast size of FromType and ToType must be equal!");
-    typename std::remove_const<ToType>::type to{};
-    std::memcpy(static_cast<void *>(&to), static_cast<void *>(&from), sizeof(to));
-    return to;
-}
-inline static NAPIEscapableHandleScope JsEscapableHandleScopeFromHermesEscapableHandleScope(EscapableHandleScope* s) {
-    return reinterpret_cast<NAPIEscapableHandleScope>(s);
-}
-
-inline static EscapableHandleScope* HermesEscapableHandleScopeFromJsEscapableHandleScope(
-    NAPIEscapableHandleScope s) {
-    return reinterpret_cast<EscapableHandleScope*>(s);
-}
-
-inline NAPIValue JsValueFromHermesHandle(hermes::vm::Handle<hermes::vm::HermesValue> handle)
-{
-    return hermes_bitwise_cast<NAPIValue>(handle.get());
-}
-
-inline NAPIValue JsValueFromHermesValue(hermes::vm::HermesValue value)
-{
-    return hermes_bitwise_cast<NAPIValue>(value);
-}
-
-inline hermes::vm::HermesValue HermesValueFromJsValue(NAPIValue value)
-{
-    return hermes_bitwise_cast<hermes::vm::HermesValue>(value);
-}
-
-inline NAPIValue JsValueFromPseudoHermesHandle(hermes::vm::PseudoHandle<hermes::vm::HermesValue> handle)
-{
-    return hermes_bitwise_cast<NAPIValue>(handle.get());
-}
-
-inline static NAPIHandleScope JsHandleScopeFromHermesScope(HandleScopeWrapper *scope)
-{
-    return reinterpret_cast<NAPIHandleScope>(scope);
-}
-
-inline static HandleScopeWrapper *HermesScopeFormeJsHandleScope(NAPIHandleScope scope)
-{
-    return reinterpret_cast<HandleScopeWrapper *>(scope);
-}
-
-inline static bool getException(hermes::vm::ExecutionStatus status, NAPIEnv env)
-{
-    if (status == hermes::vm::ExecutionStatus::RETURNED)
-    {
-        return true;
-    }
-    else
-    {
-        env->lastException = env->context->getThrownValue();
-        return false;
-    }
-};
 
 static void convertUtf8ToUtf16(const uint8_t *utf8, size_t length, std::u16string &out)
 {
@@ -942,10 +976,42 @@ NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *res
 NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *argc, NAPIValue *argv,
                             NAPIValue *thisArg, void **data){
 
+    CHECK_ENV(env);
+    CHECK_ARG(env, callbackInfo);
+    auto hermesCbInfo = hermesImpl::HermesCallBackInfoFromJSCallBackInfo(callbackInfo);
+
+    if (argv){
+        CHECK_ARG(env, argc);
+        size_t inputSize = *argc;
+        *argc = hermesCbInfo->GetArgc();
+        size_t min = *argc < 0 || inputSize > *argc ? *argc : inputSize;
+        hermesCbInfo->GetArgs(argv,min,inputSize);
+    }
+    if (argc){
+        *argc = hermesCbInfo->GetArgc();
+    }
+    if (data){
+        *data = hermesCbInfo->GetData();
+    }
+    if (thisArg){
+        *thisArg = hermesImpl::JsValueFromHermesValue(hermesCbInfo->GetThisArg());
+    }
+    return clearLastError(env);
 }
 
 NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result){
 
+    CHECK_ENV(env);
+    CHECK_ARG(env, callbackInfo);
+
+    auto hermesCbInfo = hermesImpl::HermesCallBackInfoFromJSCallBackInfo(callbackInfo);
+    auto target = hermesCbInfo->GetNewTarget();
+    if (target.isUndefined()){
+        *result = NULL;
+    }else{
+        *result = hermesImpl::JsValueFromHermesValue(target);
+    };
+    return clearLastError(env);
 }
 
 // result 可空
@@ -1008,20 +1074,32 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length
 
     auto nameSym = nameSymRes.getValue().get();
 
+    //save functoin info
+    auto funcInfo = new hermesImpl::FunctionInfo(env,cb,data);
+
     //NAPICallback -> hermes::nativeFunction
     hermes::vm::NativeFunctionPtr funcPtr = [](void *context, hermes::vm::Runtime *runtime, hermes::vm::NativeArgs args) -> hermes::vm::CallResult<hermes::vm::HermesValue>{
 
+      hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
+      hermesImpl::CallBackInfoWrapper wrapper = hermesImpl::CallBackInfoWrapper(args, funcInfo->GetData());
+      auto jsCb = hermesImpl::JSCallBackInfoFormHermesCallBackInfo(wrapper);
+      auto callRes = funcInfo->GetCb()(funcInfo->GetEnv(), jsCb);
+      auto exception = runtime->getThrownValue();
+      if (!exception.isEmpty()){
 
-
-      return hermes::vm::CallResult<hermes::vm::HermesValue>(hermes::vm::HermesValue::encodeBoolValue(true));
+      }
+      return hermes::vm::CallResult<hermes::vm::HermesValue>(hermesImpl::HermesValueFromJsValue(callRes));
     };
+
     hermes::vm::FinalizeNativeFunctionPtr finalizeFuncPtr = [](void *context) -> void {
-      printf("finalizeNativeFunction \n");
+        // free functionInfo
+        hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
+        delete funcInfo;
     };
 
 
     //createNativefunction
-    auto funcValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(env->context, NULL, funcPtr, finalizeFuncPtr, nameSym, length);
+    auto funcValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(env->context, funcInfo, funcPtr, finalizeFuncPtr, nameSym, length);
     hermesImpl::getException(funcValRes.getStatus(), env);
     CHECK_HERMES(env);
 
