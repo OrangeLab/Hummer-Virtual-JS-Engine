@@ -295,6 +295,16 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
 
         return undefinedValue;
     }
+    bool useGlobalValue = false;
+    if (JS_IsUndefined(thisVal))
+    {
+        useGlobalValue = true;
+        thisVal = JS_GetGlobalObject(ctx);
+        if (JS_IsException(thisVal))
+        {
+            return thisVal;
+        }
+    }
     struct OpaqueNAPICallbackInfo callbackInfo = {undefinedValue, thisVal, argv, functionInfo->baseInfo.data, argc};
     // napi_open_handle_scope 失败需要容错，这里需要初始化为 NULL 判断
     NAPIHandleScope handleScope = NULL;
@@ -302,6 +312,10 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     RETURN_STATUS_IF_FALSE(napi_open_handle_scope(functionInfo->baseInfo.env, &handleScope) == NAPIOK, undefinedValue);
     // 正常返回值应当是由 HandleScope 持有，所以需要引用计数 +1
     NAPIValue retVal = functionInfo->callback(functionInfo->baseInfo.env, &callbackInfo);
+    if (useGlobalValue)
+    {
+        JS_FreeValue(ctx, thisVal);
+    }
     JSValue returnValue = undefinedValue;
     if (retVal)
     {
