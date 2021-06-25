@@ -145,20 +145,20 @@ NAPIStatus napi_coerce_to_object(NAPIEnv env, NAPIValue value, NAPIValue *result
     return NAPIOK;
 }
 
-//NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
+// NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
 //{
-//    CHECK_ARG(env);
-//    CHECK_ARG(object);
-//    CHECK_ARG(result);
+//     CHECK_ARG(env);
+//     CHECK_ARG(object);
+//     CHECK_ARG(result);
 //
-//    NAPIValue global, objectCtor, getPrototypeOf;
-//    CHECK_NAPI(napi_get_global(env, &global));
-//    CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
-//    CHECK_NAPI(napi_get_named_property(env, objectCtor, "getPrototypeOf", &getPrototypeOf));
-//    CHECK_NAPI(napi_call_function(env, objectCtor, getPrototypeOf, 1, &object, result));
+//     NAPIValue global, objectCtor, getPrototypeOf;
+//     CHECK_NAPI(napi_get_global(env, &global));
+//     CHECK_NAPI(napi_get_named_property(env, global, "Object", &objectCtor));
+//     CHECK_NAPI(napi_get_named_property(env, objectCtor, "getPrototypeOf", &getPrototypeOf));
+//     CHECK_NAPI(napi_call_function(env, objectCtor, getPrototypeOf, 1, &object, result));
 //
-//    return NAPIOK;
-//}
+//     return NAPIOK;
+// }
 
 NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name, NAPIValue value)
 {
@@ -447,6 +447,24 @@ NAPIStatus napi_is_error(NAPIEnv env, NAPIValue value, bool *result)
     NAPIValue error;
     CHECK_NAPI(napi_get_named_property(env, global, "Error", &error));
     CHECK_NAPI(napi_instanceof(env, value, error, result));
+
+    return NAPIOK;
+}
+
+NAPIStatus NAPIParseUTF8JSONString(NAPIEnv env, const char *utf8String, NAPIValue *result)
+{
+    CHECK_ARG(env);
+    CHECK_ARG(utf8String);
+    CHECK_ARG(result);
+
+    NAPIValue stringValue;
+    CHECK_NAPI(napi_create_string_utf8(env, utf8String, -1, &stringValue));
+    NAPIValue global;
+    CHECK_NAPI(napi_get_global(env, &global));
+    NAPIValue json, parse;
+    CHECK_NAPI(napi_get_named_property(env, global, "JSON", &json));
+    CHECK_NAPI(napi_get_named_property(env, json, "parse", &parse));
+    CHECK_NAPI(napi_call_function(env, json, parse, 1, &stringValue, result));
 
     return NAPIOK;
 }
