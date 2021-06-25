@@ -26,52 +26,31 @@
 
 // setLastErrorCode 会处理 env == NULL 问题
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
-    do                                                                                                                 \
     {                                                                                                                  \
         if (!(condition))                                                                                              \
         {                                                                                                              \
-            return setLastErrorCode(env, status);                                                                      \
+            return status;                                                                                             \
         }                                                                                                              \
-    } while (0)
+    }
 
 #define CHECK_ARG(env, arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
 // This does not call napi_set_last_error because the expression
 // is assumed to be a NAPI function call that already did.
 #define CHECK_NAPI(expr)                                                                                               \
-    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    } while (0)
-
-// clearLastError() 函数会调用 CHECK_ENV 检查 env 变量，所以不能在 CHECK_ENV
-// 中调用 clearLastError(env)
-#define CHECK_ENV(env)                                                                                                 \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        if (!(env))                                                                                                    \
-        {                                                                                                              \
-            return NAPIInvalidArg;                                                                                     \
-        }                                                                                                              \
-    } while (0)
+    }
 
 #define CHECK_JSC(env)                                                                                                 \
-    do                                                                                                                 \
     {                                                                                                                  \
-        CHECK_ENV(env);                                                                                                \
+        CHECK_ARG(env);                                                                                                \
         RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException);                                         \
-    } while (0)
-
-#define NAPI_PREAMBLE(env)                                                                                             \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        CHECK_JSC(env);                                                                                                \
-        clearLastError(env);                                                                                           \
-    } while (0)
+    }
 
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <assert.h>

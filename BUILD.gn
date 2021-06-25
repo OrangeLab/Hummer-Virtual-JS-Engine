@@ -56,7 +56,7 @@ source_set("quickjs_source_set") {
     public_configs = [":quickjs_include", ":quickjs_build"]
     defines = ["CONFIG_VERSION=\"2021-03-27\""]
     cflags_c = ["-Wno-sign-compare"]
-    if (build_android) {
+    if (build_android || build_ios) {
         cflags_c += ["-Wno-unused-variable"]
     }
     sources = [
