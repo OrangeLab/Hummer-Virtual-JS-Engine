@@ -3,7 +3,7 @@ depfile = "{{output}}.d"
 # all tools except "action"
 rspfile_name = "{{output}}.rsp"
 # all tools except "action" (required when "rspfile" is used)
-rspfile_compiler_content = "{{include_dirs}} {{defines}}"
+rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}}"
 compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
 
 if (debug) {
@@ -24,7 +24,8 @@ toolchain("android") {
     compiler_command = string_join(" ", [compiler_command, "-target $android_target --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"])
     tool("cc") {
         rspfile = rspfile_name
-        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_c}}"])
+        rspfile_content = rspfile_compiler_content
+        # -fpic 永远使用 GOT 全局偏移表，更严格
         command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -fpic", compiler_command])
         outputs = compiler_outputs
     }
@@ -34,12 +35,13 @@ toolchain("android") {
     tool("solink") {
         rspfile_content = "{{inputs}}"
         rspfile = rspfile_name
-        # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
-        # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
-        # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
         default_output_extension = ".so"
+        # target 选择 clang 具体工具链，指定 lto 参数 mcpu
         command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -Wl,-soname,{{target_output_name}}$default_output_extension -shared -flto -target $android_target -o {{output}} @$rspfile"
-        if (!debug) {
+        if (debug) {
+            command = string_join(" ", [command, "-O0"])
+        } else {
+        # 不能指定 -Os 否则会出错
             command = string_join(" ", [command, "-O3"])
         }
         default_output_dir = "{{target_out_dir}}"
@@ -74,7 +76,7 @@ toolchain("clang") {
 
     tool("cc") {
         rspfile = rspfile_name
-        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_c}}"])
+        rspfile_content = rspfile_compiler_content
         # depsformat = "gcc"
         command = string_join(" ", ["clang", compiler_command])
         outputs = compiler_outputs
@@ -82,7 +84,7 @@ toolchain("clang") {
 
     tool("cxx") {
         rspfile = rspfile_name
-        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_cc}}"])
+        rspfile_content = rspfile_compiler_content
         # 目前只用于单元测试，所以不考虑异常模型
         # 默认 C++98 + libc++ gtest 要求 C++11
         command = string_join(" ", ["clang++ -std=c++11", compiler_command])
