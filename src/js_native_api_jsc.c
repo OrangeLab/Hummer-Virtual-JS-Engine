@@ -49,14 +49,14 @@ struct OpaqueNAPIRef
 {
     LIST_ENTRY(OpaqueNAPIRef) node; // size_t
     JSValueRef value;               // size_t
-    uint32_t count;                 // 32
+    uint8_t count;                 // 8
 };
 
+// undefined 和 null 实际上也可以当做 exception
+// 抛出，所以异常检查只需要检查是否为 C NULL
 struct OpaqueNAPIEnv
 {
-    JSGlobalContextRef context; // size_t
-    // undefined 和 null 实际上也可以当做 exception
-    // 抛出，所以异常检查只需要检查是否为 C NULL
+    JSGlobalContextRef context;                     // size_t
     JSValueRef lastException;                       // size_t
     LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead; // size_t
 };
@@ -145,24 +145,26 @@ NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result)
     return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeNumber(env->context, (double)value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
 // JavaScriptCore 只能接受 \0 结尾的字符串
 // 传入 str NULL 则为 ""
 // V8 引擎传入 NULL 直接崩溃
+// NAPIMemoryError
 NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     RETURN_STATUS_IF_FALSE(length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
@@ -176,65 +178,17 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, 
     }
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
-}
-
-// V8 引擎传入 NULL 返回 ""
-NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t length, NAPIValue *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
-
-    static_assert(sizeof(char16_t) == sizeof(JSChar), "char16_t size not equal JSChar");
-    uint16_t value = 0x0102;
-    if (*((uint8_t *)&value) == 1)
-    {
-        // 大端
-        char16_t *newStr = malloc(sizeof(char16_t) * length);
-        RETURN_STATUS_IF_FALSE(str, NAPIMemoryError);
-        for (size_t i = 0; i < length; ++i)
-        {
-            newStr[i] = ((str[i] << 8) & 0xff00) | ((str[i] >> 8) & 0x00ff);
-        }
-        str = newStr;
-    }
-
-    RETURN_STATUS_IF_FALSE(length != NAPI_AUTO_LENGTH, NAPIInvalidArg);
-    JSStringRef stringRef = JSStringCreateWithCharacters(str, length);
-    *result = (NAPIValue)JSValueMakeString(env->context, stringRef);
-    if (stringRef)
-    {
-        JSStringRelease(stringRef);
-    }
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return clearLastError(env);
-}
-
-NAPIStatus napi_create_symbol(NAPIEnv env, NAPIValue description, NAPIValue *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
-
-    NAPIValue global, symbolFunc;
-    CHECK_NAPI(napi_get_global(env, &global));
-    // deployment target iOS 9
-    CHECK_NAPI(napi_get_named_property(env, global, "Symbol", &symbolFunc));
-    CHECK_NAPI(napi_call_function(env, global, symbolFunc, 1, &description, result));
-
-    return clearLastError(env);
+    return NAPIOK;
 }
 
 // Function
-
 struct OpaqueNAPICallbackInfo
 {
-    JSObjectRef newTarget;
-    JSObjectRef thisArg;
-    const JSValueRef *argv;
-    void *data;
-    // 32 位情况下为 4 字节长度，放到最后
-    size_t argc;
+    JSObjectRef newTarget;  // size_t
+    JSObjectRef thisArg;    // size_t
+    const JSValueRef *argv; // size_t
+    void *data;             // size_t
+    size_t argc;            // size_t
 };
 
 typedef struct
