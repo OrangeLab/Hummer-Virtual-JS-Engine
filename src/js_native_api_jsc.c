@@ -1,25 +1,3 @@
-// 如果一个函数返回的 NAPIStatus 为
-// NAPIOK，则没有异常被挂起，并且不需要做任何处理 如果 NAPIStatus 是除了 NAPIOK
-// 或者 NAPIPendingException，为了尝试恢复并继续执行，而不是直接返回，必须调用
-// napi_is_exception_pending 来确定是否存在挂起的异常
-
-// 大多数情况下，调用 N-API 函数的时候，如果已经有异常被挂起，函数会立即返回
-// NAPIPendingException，但是，N-API 允许一些函数被调用用来在返回 JavaScript
-// 环境前做最小化的清理 在这种情况下，NAPIStatus
-// 会反映函数的执行结果状态，而不是当前存在异常，为了避免混淆，在每次函数执行后请检查结果
-
-// 当异常被挂起的时候，有两种方法
-// 1. 进行适当的清理并返回，那么执行环境会返回到 JavaScript，作为返回到
-// JavaScript 的过渡的一部分，异常将在 JavaScript
-// 调用原生方法的语句处抛出，大多数 N-API
-// 函数在出现异常被挂起的时候，都只是简单的返回
-// NAPIPendingException，，所以在这种情况下，建议尽量少做事情，等待返回到
-// JavaScript 中处理异常
-// 2.
-// 尝试处理异常，在原生代码能捕获到异常的地方采取适当的操作，然后继续执行。只有当异常能被安全的处理的少数特定情况下推荐这样做，在这些情况下，napi_get_and_clear_last_exception
-// 可以被用来获取并清除异常，在此之后，如果发现异常还是无法处理，可以通过
-// napi_throw 重新抛出错误
-
 #include <sys/queue.h>
 
 #include <napi/js_native_api.h>
@@ -33,7 +11,7 @@
         }                                                                                                              \
     }
 
-#define CHECK_ARG(env, arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
+#define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
 // This does not call napi_set_last_error because the expression
 // is assumed to be a NAPI function call that already did.
@@ -69,260 +47,102 @@ static bool hashError = false;
 
 struct OpaqueNAPIRef
 {
-    LIST_ENTRY(OpaqueNAPIRef) node;
-    JSValueRef value;
-    uint32_t count;
+    LIST_ENTRY(OpaqueNAPIRef) node; // size_t
+    JSValueRef value;               // size_t
+    uint32_t count;                 // 32
 };
 
 struct OpaqueNAPIEnv
 {
-    JSGlobalContextRef context;
+    JSGlobalContextRef context; // size_t
     // undefined 和 null 实际上也可以当做 exception
     // 抛出，所以异常检查只需要检查是否为 C NULL
-    JSValueRef lastException;
-    NAPIExtendedErrorInfo lastError;
-    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead;
+    JSValueRef lastException;                       // size_t
+    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead; // size_t
 };
 
-static inline NAPIStatus setLastErrorCode(NAPIEnv env, NAPIStatus errorCode)
-{
-    CHECK_ENV(env);
-    env->lastError.errorCode = errorCode;
-
-    return errorCode;
-}
-
-static inline NAPIStatus clearLastError(NAPIEnv env)
-{
-    // env 空指针检查
-    CHECK_ENV(env);
-    env->lastError.errorCode = NAPIOK;
-
-    // TODO(boingoing): Should this be a callback?
-    env->lastError.engineErrorCode = 0;
-    env->lastError.engineReserved = NULL;
-
-    return NAPIOK;
-}
-
-static inline NAPIStatus setErrorCode(NAPIEnv env, NAPIValue error, NAPIValue code)
-{
-    // 应当允许 code 为 undefined
-    // 这是 Node.js 单元测试的要求
-    if (!code)
-    {
-        return clearLastError(env);
-    }
-    CHECK_ENV(env);
-
-    if (JSValueIsUndefined(env->context, (JSValueRef)code))
-    {
-        return clearLastError(env);
-    }
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)code), NAPIStringExpected);
-    CHECK_NAPI(napi_set_named_property(env, error, "code", code));
-
-    return clearLastError(env);
-}
-
-static inline bool checkIsExceptionPendingAndClear(NAPIEnv env)
-{
-    if (!env)
-    {
-        return false;
-    }
-    bool isPending = false;
-    napi_is_exception_pending(env, &isPending);
-    if (isPending)
-    {
-        // 忽略错误异常
-        NAPIValue exception;
-        napi_get_and_clear_last_exception(env, &exception);
-    }
-
-    return isPending;
-}
-
-// Warning: Keep in-sync with NAPIStatus enum
-static const char *errorMessages[] = {NULL,
-                                      "Invalid argument",
-                                      "An object was expected",
-                                      "A string was expected",
-                                      "A string or symbol was expected",
-                                      "A function was expected",
-                                      "A number was expected",
-                                      "A boolean was expected",
-                                      "An array was expected",
-                                      "Unknown failure",
-                                      "An exception is pending",
-                                      "The async work item was cancelled",
-                                      "napi_escape_handle already called on scope",
-                                      "Invalid handle scope usage",
-                                      "Invalid callback scope usage",
-                                      "Thread-safe function queue is full",
-                                      "Thread-safe function handle is closing",
-                                      "A bigint was expected",
-                                      "A date was expected",
-                                      "An arraybuffer was expected",
-                                      "A detachable arraybuffer was expected",
-                                      "Main thread would deadlock",
-                                      "Memory allocation error"};
-
-// The value of the constant below must be updated to reference the last
-// message in the `napi_status` enum each time a new error message is added.
-// We don't have a napi_status_last as this would result in an ABI
-// change each time a message was added.
-#define LAST_STATUS NAPIMemoryError
-
-NAPIStatus napi_get_last_error_info(NAPIEnv env, const NAPIExtendedErrorInfo **result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
-
-    static_assert(sizeof(errorMessages) / sizeof(*errorMessages) == LAST_STATUS + 1,
-                  "Count of error messages must match count of error values");
-
-    if (env->lastError.errorCode <= LAST_STATUS)
-    {
-        // Wait until someone requests the last error information to fetch the
-        // error message string
-        env->lastError.errorMessage = errorMessages[env->lastError.errorCode];
-    }
-    else
-    {
-        // Release 模式会添加 NDEBUG 关闭 C 断言
-        // 顶多缺失 errorMessage，尽量不要 Crash
-        assert(false);
-    }
-
-    *result = &(env->lastError);
-
-    // 这里不能使用 clearLastError(env);
-    return NAPIOK;
-}
-
+// NAPIMemoryError
 NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeUndefined(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeNull(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSContextGetGlobalObject(env->context);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeBoolean(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
-NAPIStatus napi_create_object(NAPIEnv env, NAPIValue *result)
-{
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
-
-    *result = (NAPIValue)JSObjectMake(env->context, NULL, NULL);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return clearLastError(env);
-}
-
-NAPIStatus napi_create_array(NAPIEnv env, NAPIValue *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, result);
-
-    *result = (NAPIValue)JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return clearLastError(env);
-}
-
-// 本质为 const array = new Array(); array.length = length;
-NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(env, result);
-
-    JSObjectRef objectRef = JSObjectMakeArray(env->context, 0, NULL, &env->lastException);
-    CHECK_JSC(env);
-    // JSObjectSetProperty 传入 NULL 会崩溃
-    RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
-
-    JSStringRef lengthStringRef = JSStringCreateWithUTF8CString("length");
-    // JSObjectSetProperty 传入 lengthStringRef == NULL 会崩溃
-    RETURN_STATUS_IF_FALSE(lengthStringRef, NAPIMemoryError);
-    JSObjectSetProperty(env->context, objectRef, lengthStringRef, JSValueMakeNumber(env->context, (double)length),
-                        kJSPropertyAttributeNone, &env->lastException);
-    JSStringRelease(lengthStringRef);
-    CHECK_JSC(env);
-
-    *result = (NAPIValue)objectRef;
-
-    return clearLastError(env);
-}
-
+// NAPIMemoryError
 NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
+// NAPIMemoryError
 NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result)
 {
-    CHECK_ENV(env);
-    CHECK_ARG(env, result);
+    CHECK_ARG(env);
+    CHECK_ARG(result);
 
     *result = (NAPIValue)JSValueMakeNumber(env->context, value);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
-    return clearLastError(env);
+    return NAPIOK;
 }
 
 NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result)
