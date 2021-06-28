@@ -105,16 +105,19 @@ if (build_android) {
     }
     if (build_ios) {
         static_library("quickjs") {
-            public_configs = [":quickjs_include", ":quickjs_build"]
+            complete_static_lib = true
             deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
             if (big_number) {
                 deps += [":bf"]
             }
         }
         static_library("napi_qjs") {
-            deps = [":quickjs", ":napi_qjs_source_set", ":napi_common"]
+            complete_static_lib = true
+            configs = [":quickjs_include", ":quickjs_build"]
+            deps = [":napi_qjs_source_set", ":napi_common"]
         }
         static_library("napi_jsc") {
+            complete_static_lib = true
             deps = [":napi_jsc_source_set", ":napi_common"]
         }
     } else {

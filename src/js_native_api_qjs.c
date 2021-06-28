@@ -737,6 +737,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
     // 指向第一个字节的时候也应当继续判断
     while (index >= 0)
     {
+        // 本质为 mov 指定地址的 一个字节，和 char 符号无关
         uint8_t codePoint = buf[index];
         if (codePoint >> 6 == 2 && index != 0)
         {
