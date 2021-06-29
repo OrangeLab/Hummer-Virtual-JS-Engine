@@ -1977,6 +1977,7 @@ NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **res
     CHECK_ARG(result);
 
     CHECK_ARG(env->context);
+    RETURN_STATUS_IF_FALSE(JS_IsString(*((JSValue *)value)), NAPIStringExpected);
 
     *result = JS_ToCString(env->context, *((JSValue *)value));
 
