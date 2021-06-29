@@ -12,9 +12,8 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### JavaScriptCore
 
-1. 静态分析 clang --analyze src/js_native_api_jsc.c --analyzer-output html -I./include -I./third_party/uthash/src
+1. 静态分析 clang --analyze src/js_native_api_jsc.c --analyzer-output html -I./include
 2. 报告输出 clang --analyze src/js_native_api_jsc.c --analyzer-output html -o ./static_analyze_report -I./include
-   -I./third_party/uthash/src
 
 ### QuickJS
 
@@ -48,7 +47,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 2. gn gen i386 --args="build_ios=true ios_archtecture=\"i386\""
 3. gn gen armv7 --args="build_ios=true ios_simulator=false ios_archtecture=\"armv7\""
 4. gn gen arm64 --args="build_ios=true ios_simulator=false ios_archtecture=\"arm64\""
-5. mkdir universal
+5. mkdir napi
 
 ### JavaScriptCore
 
@@ -57,8 +56,8 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 3. ninja -C armv7 napi_jsc
 4. ninja -C arm64 napi_jsc
 5. lipo -create x86_64/obj/libnapi_jsc.a i386/obj/libnapi_jsc.a armv7/obj/libnapi_jsc.a arm64/obj/libnapi_jsc.a -output
-   universal/libnapi_jsc.a
-6. universal/libnapi_jsc.a 即为最终产物
+   napi/libnapi_jsc.a
+6. napi/libnapi_jsc.a 即为最终产物
 
 ### QuickJS
 
@@ -67,10 +66,10 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 3. ninja -C armv7 quickjs && ninja -C armv7 napi_qjs
 4. ninja -C arm64 quickjs && ninja -C arm64 napi_qjs
 5. lipo -create x86_64/obj/libquickjs.a i386/obj/libquickjs.a armv7/obj/libquickjs.a arm64/obj/libquickjs.a -output
-   universal/libquickjs.a
+   napi/libquickjs.a
 6. lipo -create x86_64/obj/libnapi_qjs.a i386/obj/libnapi_qjs.a armv7/obj/libnapi_qjs.a arm64/obj/libnapi_qjs.a -output
-   universal/libnapi_qjs.a
-7. universal/lib{napi_qjs|quickjs}.a 即为最终产物
+   napi/libnapi_qjs.a
+7. napi/lib{napi_qjs|quickjs}.a 即为最终产物
 
 ## 交叉编译 Android 动态库
 
@@ -78,10 +77,10 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 2. gn gen arm64 --args="build_android=true android_target=\"aarch64-none-linux-android21\"" && ninja -C arm64 napi_qjs
 3. gn gen i386 --args="build_android=true android_target=\"i686-none-linux-android18\"" && ninja -C i386 napi_qjs
 4. gn gen x86_64 --args="build_android=true android_target=\"x86_64-none-linux-android21\"" && ninja -C x86_64 napi_qjs
-5. mkdir -p universal/armv7 && mkdir -p universal/arm64 && mkdir -p universal/i386 && mkdir -p universal/x86_64
-6. mv armv7/obj/*.so universal/armv7 && mv arm64/obj/*.so universal/arm64 && mv i386/obj/*.so universal/i386 && mv
-   x86_64/obj/*.so universal/x86_64
-7. cp -r include universal 复制头文件
+5. mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64
+6. mv armv7/obj/*.so napi/libs/armeabi-v7a && mv arm64/obj/*.so napi/libs/arm64-v8a && mv i386/obj/*.so napi/libs/x86 &&
+   mv x86_64/obj/*.so napi/libs/x86_64
+7. cp -r include napi 复制头文件
 6. 使用非 LTS 版本 NDK 需要添加 -Wno-implicit-const-int-float-conversion 参数，建议使用 BUILDCONFIG.gn 中定义的 NDK 版本
 
 ## 注意事项
