@@ -886,7 +886,6 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
                               NAPIValue *result)
 {
     CHECK_JSC(env);
-    CHECK_ARG(thisValue);
     CHECK_ARG(func);
     if (argc > 0)
     {
@@ -900,11 +899,10 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     RETURN_STATUS_IF_FALSE(JSObjectIsFunction(env->context, objectRef), NAPIFunctionExpected);
 
     JSObjectRef thisObjectRef = NULL;
-    if (JSValueIsObject(env->context, (JSValueRef)thisValue))
-    {
-        thisObjectRef = JSValueToObject(env->context, (JSValueRef)thisValue, &env->lastException);
-        CHECK_JSC(env);
-        RETURN_STATUS_IF_FALSE(thisObjectRef, NAPIMemoryError);
+    if (!thisValue) {
+        thisObjectRef = JSContextGetGlobalObject(env->context);
+    } else {
+        RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)thisValue), NAPIObjectExpected);
     }
     JSValueRef returnValue = NULL;
     if (!argc)

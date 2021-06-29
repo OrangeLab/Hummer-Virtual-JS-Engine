@@ -967,7 +967,6 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
                               NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(thisValue);
     CHECK_ARG(func);
 
     JSValue *internalArgv = NULL;
@@ -981,7 +980,9 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
             internalArgv[i] = *((JSValue *)argv[i]);
         }
     }
-
+    if (!thisValue) {
+        CHECK_NAPI(napi_get_global(env, &thisValue));
+    }
     // JS_Call 返回值带所有权
     JSValue returnValue = JS_Call(env->context, *((JSValue *)func), *((JSValue *)thisValue), (int)argc, internalArgv);
     free(internalArgv);

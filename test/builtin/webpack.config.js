@@ -19,7 +19,8 @@ module.exports = {
     general: './src/general.ts',
     typeof: './src/typeof.ts',
     conversion: './src/conversion.ts',
-    object: './src/object.ts'
+    object: './src/object.ts',
+    callable: './src/callable.ts'
   },
   mode: 'production',
   module: {
