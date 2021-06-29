@@ -122,7 +122,8 @@ if (build_android) {
                 "test/test.cpp",
                 "test/general.cpp",
                 "test/typeof.cpp",
-                "test/conversion.cpp"
+                "test/conversion.cpp",
+                "test/object.cpp"
             #                "test/js_native_api_test.cpp",
             #                "test/2_function_arguments.cpp",
             #                "test/3_callbacks.cpp",

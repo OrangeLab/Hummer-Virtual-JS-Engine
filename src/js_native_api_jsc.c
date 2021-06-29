@@ -4,31 +4,34 @@
 
 // setLastErrorCode 会处理 env == NULL 问题
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
+    do                                                                                                                 \
     {                                                                                                                  \
         if (!(condition))                                                                                              \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
 // This does not call napi_set_last_error because the expression
 // is assumed to be a NAPI function call that already did.
 #define CHECK_NAPI(expr)                                                                                               \
+    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_JSC(env)                                                                                                 \
+    do                                                                                                                 \
     {                                                                                                                  \
         CHECK_ARG(env);                                                                                                \
         RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException);                                         \
-    }
+    } while (0)
 
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <assert.h>
@@ -268,13 +271,6 @@ static JSValueRef callAsFunction(JSContextRef ctx, JSObjectRef function, JSObjec
 
     return returnValue;
 }
-
-struct Finalizer
-{
-    SLIST_ENTRY(Finalizer) node;
-    NAPIFinalize finalizeCallback;
-    void *finalizeHint;
-};
 
 static void functionFinalize(JSObjectRef object)
 {
@@ -619,7 +615,6 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
                             // ASCII
                             ++i;
                             continue;
-                            ;
                         }
                         else if (((uint8_t *)buffer)[i] == 0xc2 || ((uint8_t *)buffer)[i] == 0xc3)
                         {
@@ -652,7 +647,6 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 
                             ++i;
                             continue;
-                            ;
                         }
                         else
                         {
@@ -791,20 +785,17 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     CHECK_ARG(key);
     CHECK_ARG(value);
 
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
+                               JSValueIsNumber(env->context, (JSValueRef)key),
+                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key), NAPIStringExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
-
-    JSObjectSetProperty(env->context, objectRef, keyStringRef, (JSValueRef)value, kJSPropertyAttributeNone,
-                        &env->lastException);
-    JSStringRelease(keyStringRef);
+    JSObjectSetPropertyForKey(env->context, objectRef, (JSValueRef)key, (JSValueRef)value, kJSPropertyAttributeNone,
+                              &env->lastException);
     CHECK_JSC(env);
 
     return NAPIOK;
@@ -817,19 +808,17 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
     CHECK_ARG(key);
     CHECK_ARG(result);
 
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
+                               JSValueIsNumber(env->context, (JSValueRef)key),
+                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key), NAPIStringExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
+    *result = JSObjectHasPropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
     CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
-
-    *result = JSObjectHasProperty(env->context, objectRef, keyStringRef);
-    JSStringRelease(keyStringRef);
 
     return NAPIOK;
 }
@@ -841,19 +830,16 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     CHECK_ARG(key);
     CHECK_ARG(result);
 
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
+                               JSValueIsNumber(env->context, (JSValueRef)key),
+                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key), NAPIStringExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
-
-    *result = (NAPIValue)JSObjectGetProperty(env->context, objectRef, keyStringRef, &env->lastException);
-    JSStringRelease(keyStringRef);
+    *result = (NAPIValue)JSObjectGetPropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
 
@@ -866,19 +852,16 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
     CHECK_ARG(object);
     CHECK_ARG(key);
 
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
+                               JSValueIsNumber(env->context, (JSValueRef)key),
+                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key), NAPIStringExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSStringRef keyStringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(keyStringRef, NAPIMemoryError);
-
-    bool deleteSuccess = JSObjectDeleteProperty(env->context, objectRef, keyStringRef, &env->lastException);
-    JSStringRelease(keyStringRef);
+    bool deleteSuccess = JSObjectDeletePropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
     CHECK_JSC(env);
     if (result)
     {

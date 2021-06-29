@@ -18,7 +18,8 @@ module.exports = {
     test_string: './src/test_string.ts',
     general: './src/general.ts',
     typeof: './src/typeof.ts',
-    conversion: './src/conversion.ts'
+    conversion: './src/conversion.ts',
+    object: './src/object.ts'
   },
   mode: 'production',
   module: {
