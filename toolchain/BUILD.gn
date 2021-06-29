@@ -3,7 +3,7 @@ depfile = "{{output}}.d"
 # all tools except "action"
 rspfile_name = "{{output}}.rsp"
 # all tools except "action" (required when "rspfile" is used)
-rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}}"
+rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}} {{cflags}}"
 compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
 
 if (debug) {
@@ -87,7 +87,7 @@ toolchain("clang") {
         rspfile_content = rspfile_compiler_content
         # 目前只用于单元测试，所以不考虑异常模型
         # 默认 C++98 + libc++ gtest 要求 C++11
-        command = string_join(" ", ["clang++ -std=c++11", compiler_command])
+        command = string_join(" ", ["clang++ -std=c++14", compiler_command])
         outputs = compiler_outputs
     }
 
@@ -97,7 +97,7 @@ toolchain("clang") {
     }
 
     tool("link") {
-        rspfile_content = "{{inputs}} {{frameworks}}"
+        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
         rspfile = rspfile_name
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM

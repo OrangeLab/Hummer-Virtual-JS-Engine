@@ -9,6 +9,7 @@ if [  -d ./third_party/hermes/destroot/Library/Frameworks/iphoneos/hermes.framew
     rm -f ./third_party/hermes/destroot/
 fi
 cd ./third_party/hermes/
+DEBUG=true
 source ./utils/build-mac-framework.sh
 
 cd ..
