@@ -6,7 +6,8 @@
         [
             "@babel/preset-env",
             {
-                "bugfixes": true
+                "bugfixes": true,
+                "shippedProposals": true
             }
         ],
         [

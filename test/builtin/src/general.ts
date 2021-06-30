@@ -44,4 +44,10 @@ globalThis.assert(globalThis.addon.getNull.name === '')
 globalThis.assert(globalThis.addon.getGlobal.name === 'getGlobal')
 globalThis.assert(globalThis.addon.testNumber.name === '测试数字')
 
+globalThis.assert(globalThis.addon.doInstanceOf({}, Object))
+globalThis.assert(globalThis.addon.doInstanceOf([], Object))
+
+globalThis.assert(!globalThis.addon.doInstanceOf({}, Array))
+globalThis.assert(globalThis.addon.doInstanceOf([], Array))
+
 export { }

@@ -79,12 +79,12 @@ EXTERN_C_END
 TEST_F(Test, Typeof)
 {
     NAPIValue undefined, null, boolean, number, string, objectValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofUndefined, globalEnv, &undefined), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNull, globalEnv, &null), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofBoolean, globalEnv, &boolean), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNumber, globalEnv, &number), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofString, globalEnv, &string), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofObject, globalEnv, &objectValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofUndefined, nullptr, &undefined), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNull, nullptr, &null), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofBoolean, nullptr, &boolean), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNumber, nullptr, &number), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofString, nullptr, &string), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofObject, nullptr, &objectValue), NAPIOK);
 
     NAPIValue stringValue;
     ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofUndefined", -1, &stringValue), NAPIOK);

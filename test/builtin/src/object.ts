@@ -1,4 +1,22 @@
 globalThis.assert(globalThis.addon.isArray([]))
+globalThis.assert(globalThis.addon.getThis() === globalThis.addon)
+class TestA {
+    arg1?: number
+    arg2?: string
+    constructor(arg1: number, arg2: string) {
+        this.arg1 = arg1
+        this.arg2 = arg2
+    }
+}
+class TestB {
+
+}
+const testB = globalThis.addon.new(TestB)
+globalThis.assert(Object.getPrototypeOf(testB) === TestB.prototype)
+const testA = globalThis.addon.new(TestA, 1, 'hello')
+globalThis.assert(Object.getPrototypeOf(testA) === TestA.prototype)
+globalThis.assert(testA.arg1 === 1);
+globalThis.assert(testA.arg2 === 'hello')
 {
     const object = {
         hello: 'world'

@@ -72,11 +72,11 @@ EXTERN_C_END
 TEST_F(Test, Callable)
 {
     NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue, runWithThisValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithCNullThis, globalEnv, &runWithUndefinedThisValue),
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithCNullThis, nullptr, &runWithUndefinedThisValue),
               NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, run, globalEnv, &runValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithArgument, globalEnv, &runWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithThis, globalEnv, &runWithThisValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, run, nullptr, &runValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithArgument, nullptr, &runWithArgumentValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithThis, nullptr, &runWithThisValue), NAPIOK);
     NAPIValue stringValue;
     ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", -1, &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithUndefinedThisValue), NAPIOK);

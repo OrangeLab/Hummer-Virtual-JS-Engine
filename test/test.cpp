@@ -3,6 +3,8 @@
 
 NAPIEnv globalEnv = nullptr;
 
+bool finalizeIsCalled = false;
+
 EXTERN_C_START
 
 static NAPIValue jsAssert(NAPIEnv env, NAPICallbackInfo callbackInfo)
@@ -47,6 +49,7 @@ class NAPIEnvironment : public ::testing::Environment
     void TearDown() override
     {
         ASSERT_EQ(NAPIFreeEnv(globalEnv), NAPIOK);
+        ASSERT_TRUE(finalizeIsCalled);
     }
 };
 } // namespace

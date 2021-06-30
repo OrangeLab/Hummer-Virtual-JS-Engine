@@ -16,6 +16,8 @@ class Test : public ::testing::Test
     NAPIValue addonValue;
 };
 
+extern bool finalizeIsCalled;
+
 extern NAPIEnv globalEnv;
 
 #endif // SKIA_TEST_H
