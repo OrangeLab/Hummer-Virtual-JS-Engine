@@ -1174,11 +1174,9 @@ static JSObjectRef callAsConstructor(JSContextRef ctx, JSObjectRef constructor, 
         return NULL;
     }
 
-    if (!JSValueIsObject(ctx, returnValue))
+    if (!returnValue || !JSValueIsObject(ctx, returnValue))
     {
-        assert(false);
-
-        return NULL;
+        return instance;
     }
     JSObjectRef objectRef = JSValueToObject(ctx, returnValue, exception);
     if (*exception)

@@ -980,7 +980,8 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
             internalArgv[i] = *((JSValue *)argv[i]);
         }
     }
-    if (!thisValue) {
+    if (!thisValue)
+    {
         CHECK_NAPI(napi_get_global(env, &thisValue));
     }
     // JS_Call 返回值带所有权
@@ -1701,18 +1702,18 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     NAPIValue retVal =
         constructorInfo->functionInfo.callback(constructorInfo->functionInfo.baseInfo.env, &callbackInfo);
-    JSValue returnValue = undefinedValue;
     if (retVal)
     {
-        returnValue = JS_DupValue(ctx, *((JSValue *)retVal));
+        JSValue returnValue = JS_DupValue(ctx, *((JSValue *)retVal));
+        JS_FreeValue(ctx, thisValue);
+        thisValue = returnValue;
     }
-    JS_FreeValue(ctx, thisValue);
     JSValue exceptionValue = JS_GetException(ctx);
     status = napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
     if (status != NAPIOK)
     {
         assert(false);
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
         if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
         {
             constructorInfo->functionInfo.baseInfo.env->isThrowNull = false;
@@ -1730,19 +1731,19 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
     {
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
         constructorInfo->functionInfo.baseInfo.env->isThrowNull = false;
 
         return JS_EXCEPTION;
     }
     else if (!JS_IsNull(exceptionValue))
     {
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
 
         return JS_Throw(ctx, exceptionValue);
     }
 
-    return returnValue;
+    return thisValue;
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
