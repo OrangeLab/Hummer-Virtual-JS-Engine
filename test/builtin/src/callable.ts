@@ -12,7 +12,13 @@ globalThis.addon.run(function () {
 })
 globalThis.assert(flag)
 
-globalThis.addon.runWithArgument((...args: string[]) => {
+const hello = {}
+globalThis.addon.runWithThis(function () {
+    globalThis.assert(this === hello)
+}, hello)
+
+globalThis.addon.runWithArgument(function (...args: string[]) {
+    globalThis.assert(args.length === 2)
     globalThis.assert(args[0] === 'hello')
     globalThis.assert(args[1] === 'world')
 }, 'hello', 'world')

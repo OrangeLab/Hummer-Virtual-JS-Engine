@@ -51,15 +51,32 @@ static NAPIValue runWithArgument(NAPIEnv env, NAPICallbackInfo info)
     return nullptr;
 }
 
+static NAPIValue runWithThis(NAPIEnv env, NAPICallbackInfo info)
+{
+    size_t argc = 2;
+    NAPIValue argv[2];
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(argc == 2);
+    NAPIValueType valueType;
+    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(valueType == NAPIFunction);
+    assert(napi_typeof(env, argv[1], &valueType) == NAPIOK);
+    assert(valueType == NAPIObject);
+    assert(napi_call_function(env, argv[1], argv[0], 0, nullptr, nullptr) == NAPIOK);
+
+    return nullptr;
+}
+
 EXTERN_C_END
 
 TEST_F(Test, Callable)
 {
-    NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue;
+    NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue, runWithThisValue;
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithCNullThis, globalEnv, &runWithUndefinedThisValue),
               NAPIOK);
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, run, globalEnv, &runValue), NAPIOK);
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithArgument, globalEnv, &runWithArgumentValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithThis, globalEnv, &runWithThisValue), NAPIOK);
     NAPIValue stringValue;
     ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", -1, &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithUndefinedThisValue), NAPIOK);
@@ -67,13 +84,17 @@ TEST_F(Test, Callable)
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runValue), NAPIOK);
     ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithArgument", -1, &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithArgumentValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithThis", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithThisValue), NAPIOK);
     ASSERT_EQ(NAPIRunScript(
                   globalEnv,
                   "(()=>{\"use strict\";var "
                   "l=!1;globalThis.addon.runWithCNullThis((function(){l=!0,globalThis.assert(this===globalThis)})),"
                   "globalThis.assert(l),l=!1,globalThis.addon.run((function(){l=!0,globalThis.assert(this===globalThis)"
-                  "})),globalThis.assert(l),globalThis.addon.runWithArgument((function(){globalThis.assert(\"hello\"==="
-                  "(arguments.length<=0?void 0:arguments[0])),globalThis.assert(\"world\"===(arguments.length<=1?void "
+                  "})),globalThis.assert(l);var "
+                  "s={};globalThis.addon.runWithThis((function(){globalThis.assert(this===s)}),s),globalThis.addon."
+                  "runWithArgument((function(){globalThis.assert(2===arguments.length),globalThis.assert(\"hello\"===("
+                  "arguments.length<=0?void 0:arguments[0])),globalThis.assert(\"world\"===(arguments.length<=1?void "
                   "0:arguments[1]))}),\"hello\",\"world\")})();",
                   "https://www.napi.com/callable.js", nullptr),
               NAPIOK);

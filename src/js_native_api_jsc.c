@@ -899,10 +899,15 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     RETURN_STATUS_IF_FALSE(JSObjectIsFunction(env->context, objectRef), NAPIFunctionExpected);
 
     JSObjectRef thisObjectRef = NULL;
-    if (!thisValue) {
+    if (!thisValue)
+    {
         thisObjectRef = JSContextGetGlobalObject(env->context);
-    } else {
+    }
+    else
+    {
         RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)thisValue), NAPIObjectExpected);
+        thisObjectRef = JSValueToObject(env->context, (JSValueRef)thisValue, &env->lastException);
+        CHECK_JSC(env);
     }
     JSValueRef returnValue = NULL;
     if (!argc)
