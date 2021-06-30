@@ -53,6 +53,9 @@ source_set("quickjs_source_set") {
     if (build_android || build_ios) {
         cflags_c += ["-Wno-unused-variable"]
     }
+    if (ndk_path == "~/Library/Android/sdk/ndk/22.1.7171670") {
+        cflags_c += ["-Wno-implicit-const-int-float-conversion"]
+    }
     sources = [
         "third_party/quickjs/quickjs.c",
     ]

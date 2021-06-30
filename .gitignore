@@ -69,4 +69,5 @@ x86_64
 i386
 armv7
 arm64
-universal
+napi
+napi.tar.gz
