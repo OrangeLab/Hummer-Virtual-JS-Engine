@@ -737,6 +737,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
     // 指向第一个字节的时候也应当继续判断
     while (index >= 0)
     {
+        // 本质为 mov 指定地址的 一个字节，和 char 符号无关
         uint8_t codePoint = buf[index];
         if (codePoint >> 6 == 2 && index != 0)
         {
@@ -966,7 +967,6 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
                               NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(thisValue);
     CHECK_ARG(func);
 
     JSValue *internalArgv = NULL;
@@ -980,7 +980,9 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
             internalArgv[i] = *((JSValue *)argv[i]);
         }
     }
-
+    if (!thisValue) {
+        CHECK_NAPI(napi_get_global(env, &thisValue));
+    }
     // JS_Call 返回值带所有权
     JSValue returnValue = JS_Call(env->context, *((JSValue *)func), *((JSValue *)thisValue), (int)argc, internalArgv);
     free(internalArgv);
@@ -1976,6 +1978,7 @@ NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **res
     CHECK_ARG(result);
 
     CHECK_ARG(env->context);
+    RETURN_STATUS_IF_FALSE(JS_IsString(*((JSValue *)value)), NAPIStringExpected);
 
     *result = JS_ToCString(env->context, *((JSValue *)value));
 

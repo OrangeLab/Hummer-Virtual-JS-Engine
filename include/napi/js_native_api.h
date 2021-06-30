@@ -112,7 +112,7 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
 
 NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *result);
 
-// result 可空
+// thisValue/result 可空
 NAPI_NATIVE NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc,
                                           const NAPIValue *argv, NAPIValue *result);
 

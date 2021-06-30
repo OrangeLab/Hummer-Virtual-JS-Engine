@@ -16,6 +16,11 @@ module.exports = {
     test_new_target: './src/test_new_target.ts',
     test_number: './src/test_number.ts',
     test_string: './src/test_string.ts',
+    general: './src/general.ts',
+    typeof: './src/typeof.ts',
+    conversion: './src/conversion.ts',
+    object: './src/object.ts',
+    callable: './src/callable.ts'
   },
   mode: 'production',
   module: {
