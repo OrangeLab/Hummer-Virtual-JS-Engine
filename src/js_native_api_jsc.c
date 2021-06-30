@@ -1192,6 +1192,7 @@ static JSObjectRef callAsConstructor(JSContextRef ctx, JSObjectRef constructor, 
     return objectRef;
 }
 
+// 没有 .name 和 .prototype.constructor
 NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
                            NAPIValue *result)
 {
