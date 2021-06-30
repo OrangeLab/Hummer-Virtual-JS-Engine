@@ -168,9 +168,6 @@ source_set("hermes_library") {
         "build_hermes/libhermesPlatformUnicode.a",
         "build_hermes/libhermesVMRuntime.a",
     ]
-    cflags = [
-        "-DNDEBUG"
-    ]
     frameworks = [ "CoreFoundation.framework" ]
     sources = [
         "third_party/hermes/API/hermes/hermes.cpp"

@@ -543,7 +543,7 @@ class HermesExternalObject : public hermes::vm::HostObjectProxy {
 class HandleScopeWrapper
 {
   public:
-    explicit HandleScopeWrapper(hermes::vm::HandleRootOwner *runtime) : gcScope(runtime)
+    explicit HandleScopeWrapper(hermes::vm::HandleRootOwner *runtime) : gcScope(runtime,"hermes-napi", INT32_MAX)
     {
     }
 
@@ -610,10 +610,8 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
         hermes::vm::JSError::setupStack(errHandle, hermesRt->context_);
         hermesRt->context_->setThrownValue(errHandle.getHermesValue());
     }else{
-
+        hermesRt->context_->setThrownValue(hermesVal);
     }
-
-
     return NAPIOK;
 }
 
@@ -1025,9 +1023,10 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     auto callRes = hermes::vm::Callable::executeCall(rtPtr->makeHandle(function), hermesRt->context_, hermes::vm::Runtime::getUndefinedValue(), thisHandle, argumentsHandle);
     CHECK_HERMES(env, callRes.getStatus());
 
-
-    auto callRet = callRes->getHermesValue();
-    *result = hermesImpl::JsValueFromHermesValue(callRet);
+    if (result){
+        auto callRet = callRes->getHermesValue();
+        *result = hermesImpl::JsValueFromHermesValue(callRet);
+    }
     return NAPIOK;
 }
 
@@ -1787,13 +1786,6 @@ NAPI_NATIVE NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString){
 NAPIStatus NAPICreateEnv(NAPIEnv *env)
 {
     CHECK_ARG(env);
-    hermes::vm::RuntimeConfig rtConfig = hermes::vm::RuntimeConfig();
-    if (std::__libcpp_is_constant_evaluated) {
-        printf("1");
-    }else{
-        printf("2");
-    }
-    auto rt = hermes::vm::Runtime::create(rtConfig.rebuild().withRegisterStack(nullptr).withMaxNumRegisters(hermesImpl::Runtime::kMaxNumRegisters).build());
     auto hermesRt = new hermesImpl::Runtime();
     *env = reinterpret_cast<NAPIEnv>(hermesRt);
     return NAPIOK;
