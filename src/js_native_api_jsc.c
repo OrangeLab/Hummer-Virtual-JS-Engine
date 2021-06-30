@@ -115,52 +115,14 @@ NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
     return NAPIOK;
 }
 
-// NAPIMemoryError
-NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    *result = (NAPIValue)JSValueMakeNumber(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return NAPIOK;
-}
-
-// NAPIMemoryError
-NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    *result = (NAPIValue)JSValueMakeNumber(env->context, value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return NAPIOK;
-}
-
-// NAPIMemoryError
-NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    *result = (NAPIValue)JSValueMakeNumber(env->context, (double)value);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
-
-    return NAPIOK;
-}
-
 // JavaScriptCore 只能接受 \0 结尾的字符串
 // 传入 str NULL 则为 ""
 // V8 引擎传入 NULL 直接崩溃
 // NAPIMemoryError
-NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result)
+NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     // 传入 NULL，触发 OpaqueJSString()
     JSStringRef stringRef = JSStringCreateWithUTF8CString(str);
@@ -278,14 +240,11 @@ static void functionFinalize(JSObjectRef object)
 }
 
 // NAPIMemoryError
-NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb, void *data,
-                                NAPIValue *result)
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data, NAPIValue *result)
 {
     CHECK_JSC(env);
     CHECK_ARG(cb);
     CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     FunctionInfo *functionInfo = malloc(sizeof(FunctionInfo));
     RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError);
@@ -409,74 +368,6 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
     return NAPIOK;
 }
 
-NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result)
-{
-    CHECK_JSC(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef)value), NAPINumberExpected);
-
-    // 缺少 int64_t 作为中间转换，会固定在 -2147483648
-    // 虽然 ubsan 没有说明该行为是 UB，但是还是需要从规范上考虑是否该行为是 UB？ 但是 uint32_t 不会
-    *result = (int32_t)(int64_t)JSValueToNumber(env->context, (JSValueRef)value, &env->lastException);
-    CHECK_JSC(env);
-
-    return NAPIOK;
-}
-
-NAPIStatus napi_get_value_uint32(NAPIEnv env, NAPIValue value, uint32_t *result)
-{
-    CHECK_JSC(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef)value), NAPINumberExpected);
-
-    *result = (uint32_t)JSValueToNumber(env->context, (JSValueRef)value, &env->lastException);
-    CHECK_JSC(env);
-
-    return NAPIOK;
-}
-
-NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result)
-{
-    CHECK_JSC(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(JSValueIsNumber(env->context, (JSValueRef)value), NAPINumberExpected);
-
-    double doubleValue = JSValueToNumber(env->context, (JSValueRef)value, &env->lastException);
-    CHECK_JSC(env);
-
-    if (isfinite(doubleValue))
-    {
-        if (isnan(doubleValue))
-        {
-            *result = 0;
-        }
-        else if (doubleValue >= (double)QUAD_MAX)
-        {
-            *result = QUAD_MAX;
-        }
-        else if (doubleValue <= (double)QUAD_MIN)
-        {
-            *result = QUAD_MIN;
-        }
-        else
-        {
-            *result = (int64_t)doubleValue;
-        }
-    }
-    else
-    {
-        *result = 0;
-    }
-
-    return NAPIOK;
-}
-
 // NAPIBooleanExpected
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 {
@@ -486,249 +377,6 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 
     RETURN_STATUS_IF_FALSE(JSValueIsBoolean(env->context, (JSValueRef)value), NAPIBooleanExpected);
     *result = JSValueToBoolean(env->context, (JSValueRef)value);
-
-    return NAPIOK;
-}
-
-// Copies a JavaScript string into a UTF-8 string buffer. The result is the
-// number of bytes (excluding the null terminator) copied into buf.
-// A sufficient buffer size should be greater than the length of string,
-// reserving space for null terminator.
-// If bufsize is insufficient, the string will be truncated and null terminated.
-// If buf is NULL, this method returns the length of the string (in bytes)
-// via the result parameter.
-// The result argument is optional unless buf is NULL.
-NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufsize, size_t *result)
-{
-    CHECK_JSC(env);
-    CHECK_ARG(value);
-
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)value), NAPIStringExpected);
-
-    // 1. buf == NULL 计算长度，这是 N-API 文档规定
-    // 2. buf && bufsize 发生复制
-    // 3. buf && bufsize == 0 正常情况实际上也可以计算长度，但是 N-API
-    // 规定计算长度必须是 buf == NULL，因此只能返回 0 长度
-    if (buf && bufsize == 0)
-    {
-        // Node.js N-API 这里不检查 result 指针，会导致崩溃
-        if (result)
-        {
-            *result = 0;
-        }
-    }
-    else
-    {
-        if (!buf)
-        {
-            CHECK_ARG(result);
-        }
-        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)value, &env->lastException);
-        CHECK_JSC(env);
-        RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
-        // NOTE: By definition, maxBytes >= 1 since the null terminator is
-        // included.
-        size_t length = JSStringGetMaximumUTF8CStringSize(stringRef);
-        if (!buf)
-        {
-            // TODO(ChasonTang): 栈分配
-            assert(length);
-            char *buffer = malloc(sizeof(char) * length);
-            if (!buffer)
-            {
-                // malloc 失败，无法发生复制，则无法计算实际长度
-                JSStringRelease(stringRef);
-
-                return NAPIMemoryError;
-            }
-            // 返回值一定带 \0
-            size_t copied = JSStringGetUTF8CString(stringRef, buffer, length);
-            free(buffer);
-            if (!copied)
-            {
-                // 失败
-                JSStringRelease(stringRef);
-
-                return NAPIMemoryError;
-            }
-            *result = copied - 1;
-        }
-        else
-        {
-            // JSStringGetUTFCString 如果实际为 ASCII，则不会考虑传入的
-            // bufferSize 参数，如果是 Latin1，则会报错并返回 1 长度，这是一个
-            // bug 不包含 \0
-            if (length > bufsize)
-            {
-                // TODO(ChasonTang): 栈分配
-                char *buffer = malloc(sizeof(char) * length);
-                if (!buffer)
-                {
-                    JSStringRelease(stringRef);
-
-                    return NAPIOK;
-                }
-                length = JSStringGetUTF8CString(stringRef, buffer, length);
-                if (!length)
-                {
-                    JSStringRelease(stringRef);
-                    free(buffer);
-
-                    return NAPIMemoryError;
-                }
-                if (JSStringGetLength(stringRef) + 1 == length)
-                {
-                    // ASCII
-                    if (length <= bufsize)
-                    {
-                        memmove(buf, buffer, length);
-                        if (result)
-                        {
-                            // JSStringGetUTF8CString returns size with null
-                            // terminator.
-                            *result = length - 1;
-                        }
-                    }
-                    else
-                    {
-                        // 截断
-                        // bufsize 不等于 0
-                        buffer[bufsize - 1] = '\0';
-                        // 不要使用 memcpy
-                        memmove(buf, buffer, bufsize);
-                        if (result)
-                        {
-                            // JSStringGetUTF8CString returns size with null
-                            // terminator.
-                            *result = bufsize - 1;
-                        }
-                    }
-                }
-                else
-                {
-                    bool is8Bit = true;
-                    size_t i = 0;
-                    while (i < length)
-                    {
-                        if (((uint8_t *)buffer)[i] < 0x80)
-                        {
-                            // ASCII
-                            ++i;
-                            continue;
-                        }
-                        else if (((uint8_t *)buffer)[i] == 0xc2 || ((uint8_t *)buffer)[i] == 0xc3)
-                        {
-                            // 110xxxxx 10xxxxxx
-                            // 11000010 10000000 -> 11000011 10111111
-                            // 读取第二个字节
-                            // 越界检查
-                            if (++i >= length)
-                            {
-                                assert(false);
-                                JSStringRelease(stringRef);
-                                free(buffer);
-
-                                return NAPIMemoryError;
-                            }
-                            // 校验
-                            if (((uint8_t *)buffer)[i] >> 6 != 2)
-                            {
-                                assert(false);
-                                JSStringRelease(stringRef);
-                                free(buffer);
-
-                                return NAPIMemoryError;
-                            }
-                            if (((uint8_t *)buffer)[i] < 0x80 || ((uint8_t *)buffer)[i] > 0xbf)
-                            {
-                                is8Bit = false;
-                                break;
-                            }
-
-                            ++i;
-                            continue;
-                        }
-                        else
-                        {
-                            is8Bit = false;
-                            break;
-                        }
-                    }
-                    if (is8Bit)
-                    {
-                        // latin1
-                        if (length <= bufsize)
-                        {
-                            memmove(buf, buffer, length);
-                            if (result)
-                            {
-                                // JSStringGetUTF8CString returns size with null
-                                // terminator.
-                                *result = length - 1;
-                            }
-                        }
-                        else
-                        {
-                            buffer[bufsize - (bufsize % 2 ? 1 : 2)] = 0;
-                            // 不要使用 memcpy
-                            memmove(buf, buffer, bufsize);
-                            if (result)
-                            {
-                                // JSStringGetUTF8CString returns size with null
-                                // terminator.
-                                *result = bufsize - 1;
-                            }
-                        }
-                    }
-                    else if (length <= bufsize)
-                    {
-                        memmove(buf, buffer, length);
-                        if (result)
-                        {
-                            // JSStringGetUTF8CString returns size with null
-                            // terminator.
-                            *result = length - 1;
-                        }
-                    }
-                    else
-                    {
-                        // 重新复制
-                        length = JSStringGetUTF8CString(stringRef, buf, bufsize);
-                        if (!length)
-                        {
-                            JSStringRelease(stringRef);
-                            free(buffer);
-
-                            return NAPIMemoryError;
-                        }
-                        if (result)
-                        {
-                            // JSStringGetUTF8CString returns size with null
-                            // terminator.
-                            *result = length - 1;
-                        }
-                    }
-                }
-                free(buffer);
-            }
-            else
-            {
-                size_t copied = JSStringGetUTF8CString(stringRef, buf, bufsize);
-                if (!copied)
-                {
-                    JSStringRelease(stringRef);
-
-                    return NAPIMemoryError;
-                }
-                if (result)
-                {
-                    // JSStringGetUTF8CString returns size with null terminator.
-                    *result = copied - 1;
-                }
-            }
-        }
-        JSStringRelease(stringRef);
-    }
 
     return NAPIOK;
 }
@@ -1232,14 +880,11 @@ static JSObjectRef callAsConstructor(JSContextRef ctx, JSObjectRef constructor, 
 }
 
 // 没有 .name 和 .prototype.constructor
-NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
-                           NAPIValue *result)
+NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result)
 {
     CHECK_JSC(env);
     CHECK_ARG(constructor);
     CHECK_ARG(result);
-
-    RETURN_STATUS_IF_FALSE(length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
 
     ConstructorInfo *constructorInfo = malloc(sizeof(ConstructorInfo));
     RETURN_STATUS_IF_FALSE(constructorInfo, NAPIMemoryError);
@@ -1381,7 +1026,7 @@ static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     CHECK_ARG(ref);
 
     NAPIValue stringValue;
-    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, -1, &stringValue));
+    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, &stringValue));
     NAPIValue referenceValue;
     CHECK_NAPI(napi_get_property(env, value, stringValue, &referenceValue));
     NAPIValueType valueType;
@@ -1465,7 +1110,7 @@ static NAPIStatus clearWeak(NAPIEnv env, NAPIRef ref)
     CHECK_ARG(ref);
 
     NAPIValue stringValue;
-    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, -1, &stringValue));
+    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, &stringValue));
     NAPIValue externalValue;
     CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, stringValue, &externalValue));
     ReferenceInfo *referenceInfo;

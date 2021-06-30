@@ -74,44 +74,44 @@ EXTERN_C_END
 TEST_F(Test, General)
 {
     NAPIValue getUndefinedValue, getNullValue, getGlobalValue, testNumberValue, doInstanceOfValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, getUndefined, globalEnv, &getUndefinedValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "", -1, getNull, nullptr, &getNullValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "getGlobal", -1, getGlobal, nullptr, &getGlobalValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "测试数字", -1, testNumber, nullptr, &testNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, doInstanceOf, nullptr, &doInstanceOfValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getUndefined, globalEnv, &getUndefinedValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "", getNull, nullptr, &getNullValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "getGlobal", getGlobal, nullptr, &getGlobalValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "测试数字", testNumber, nullptr, &testNumberValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, doInstanceOf, nullptr, &doInstanceOfValue), NAPIOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getUndefined", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getUndefined", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getUndefinedValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getNull", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getNull", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getNullValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getGlobal", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getGlobal", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getGlobalValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "testNumber", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "testNumber", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, testNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "doInstanceOf", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "doInstanceOf", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, doInstanceOfValue), NAPIOK);
 
     NAPIValue trueValue, falseValue;
     ASSERT_EQ(napi_get_boolean(globalEnv, true, &trueValue), NAPIOK);
     ASSERT_EQ(napi_get_boolean(globalEnv, false, &falseValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "true", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "true", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, trueValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "false", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "false", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, falseValue), NAPIOK);
 
     NAPIValue nullCStringValue, emptyStringValue, asciiStringValue, utf8StringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, -1, &nullCStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "", -1, &emptyStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "Hello, world!", -1, &asciiStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "测试", -1, &utf8StringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, &nullCStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "", &emptyStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "Hello, world!", &asciiStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "测试", &utf8StringValue), NAPIOK);
 
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "nullCString", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "nullCString", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, nullCStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "emptyString", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "emptyString", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, emptyStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "asciiString", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "asciiString", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, asciiStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "utf8String", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "utf8String", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, utf8StringValue), NAPIOK);
 
     ASSERT_EQ(

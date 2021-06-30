@@ -181,27 +181,27 @@ TEST_F(Test, Object)
     ASSERT_EQ(valueType, NAPIExternal);
 
     NAPIValue getValue, setValue, hasValue, deleteValue, isArrayValue, newValue, getThisValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, get, nullptr, &getValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, set, nullptr, &setValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, has, nullptr, &hasValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, deleteFunction, nullptr, &deleteValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, isArray, nullptr, &isArrayValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, newFunction, nullptr, &newValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, getThis, nullptr, &getThisValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, get, nullptr, &getValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, set, nullptr, &setValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, has, nullptr, &hasValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, deleteFunction, nullptr, &deleteValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, isArray, nullptr, &isArrayValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newFunction, nullptr, &newValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getThis, nullptr, &getThisValue), NAPIOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "get", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "get", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "set", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "set", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, setValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "has", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "has", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, hasValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "delete", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "delete", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, deleteValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "isArray", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "isArray", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, isArrayValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "new", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "new", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getThis", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getThis", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getThisValue), NAPIOK);
     ASSERT_EQ(
         NAPIRunScript(

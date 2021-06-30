@@ -7,7 +7,7 @@ TEST_F(Test, Reference)
     ASSERT_EQ(napi_get_boolean(globalEnv, true, &trueValue), NAPIOK);
     ASSERT_EQ(napi_get_boolean(globalEnv, false, &falseValue), NAPIOK);
     ASSERT_EQ(napi_create_double(globalEnv, 100, &numberValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, &stringValue), NAPIOK);
     NAPIRef ref;
     ASSERT_EQ(napi_create_reference(globalEnv, nullValue, 0, &ref), NAPIOK);
     NAPIValue value;
@@ -49,7 +49,7 @@ TEST_F(Test, EscapableHandleScope)
 
     NAPIValue stringValue, nullValue;
     ASSERT_EQ(napi_get_null(globalEnv, &nullValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, &stringValue), NAPIOK);
     NAPIValue otherValue;
     ASSERT_EQ(napi_escape_handle(globalEnv, escapableHandleScope, stringValue, &otherValue), NAPIOK);
     NAPIValue otherNullValue;

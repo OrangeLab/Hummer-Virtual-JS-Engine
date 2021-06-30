@@ -79,25 +79,25 @@ EXTERN_C_END
 TEST_F(Test, Typeof)
 {
     NAPIValue undefined, null, boolean, number, string, objectValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofUndefined, nullptr, &undefined), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNull, nullptr, &null), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofBoolean, nullptr, &boolean), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofNumber, nullptr, &number), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofString, nullptr, &string), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, typeofObject, nullptr, &objectValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofUndefined, nullptr, &undefined), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofNull, nullptr, &null), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofBoolean, nullptr, &boolean), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofNumber, nullptr, &number), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofString, nullptr, &string), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, typeofObject, nullptr, &objectValue), NAPIOK);
 
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofUndefined", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofUndefined", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, undefined), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofNull", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofNull", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, null), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofBoolean", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofBoolean", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, boolean), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofNumber", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofNumber", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, number), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofString", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofString", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, string), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofObject", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "typeofObject", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, objectValue), NAPIOK);
 
     ASSERT_EQ(

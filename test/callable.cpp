@@ -142,41 +142,41 @@ TEST_F(Test, Callable)
 {
     NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue, runWithThisValue, throwValue,
         runWithCatchValue, newWithCatchValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithCNullThis, nullptr, &runWithUndefinedThisValue),
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCNullThis, nullptr, &runWithUndefinedThisValue),
               NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, run, nullptr, &runValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithArgument, nullptr, &runWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithThis, nullptr, &runWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, throwWithArgument, globalEnv, &throwValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, runWithCatch, nullptr, &runWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, newWithCatch, nullptr, &newWithCatchValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, run, nullptr, &runValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithArgument, nullptr, &runWithArgumentValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithThis, nullptr, &runWithThisValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, throwWithArgument, globalEnv, &throwValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCatch, nullptr, &runWithCatchValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newWithCatch, nullptr, &newWithCatchValue), NAPIOK);
     NAPIValue ctorValue, returnWithArgumentValue, returnWithThisValue, returnWithCNullValue;
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, -1, throwWithArgument, globalEnv, &ctorValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, -1, returnWithArgument, globalEnv, &returnWithArgumentValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, -1, returnWithThis, globalEnv, &returnWithThisValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, -1, returnWithCNull, globalEnv, &returnWithCNullValue), NAPIOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, throwWithArgument, globalEnv, &ctorValue), NAPIOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithArgument, globalEnv, &returnWithArgumentValue), NAPIOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithThis, globalEnv, &returnWithThisValue), NAPIOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithCNull, globalEnv, &returnWithCNullValue), NAPIOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithUndefinedThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "run", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "run", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithArgument", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithArgument", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithThis", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithThis", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "throwWithArgument", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "throwWithArgument", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, throwValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCatch", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCatch", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "ctor", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "ctor", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, ctorValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "newWithCatch", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "newWithCatch", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithArgument", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithArgument", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithThis", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithThis", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithCNull", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithCNull", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithCNullValue), NAPIOK);
     ASSERT_EQ(
         NAPIRunScript(

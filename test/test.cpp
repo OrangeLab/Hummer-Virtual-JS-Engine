@@ -36,11 +36,11 @@ class NAPIEnvironment : public ::testing::Environment
         NAPIHandleScope handleScope;
         ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
         NAPIValue assertValue;
-        ASSERT_EQ(napi_create_function(globalEnv, "assert", -1, jsAssert, nullptr, &assertValue), NAPIOK);
+        ASSERT_EQ(napi_create_function(globalEnv, "assert", jsAssert, nullptr, &assertValue), NAPIOK);
         NAPIValue globalValue;
         ASSERT_EQ(napi_get_global(globalEnv, &globalValue), NAPIOK);
         NAPIValue stringValue;
-        ASSERT_EQ(napi_create_string_utf8(globalEnv, "assert", -1, &stringValue), NAPIOK);
+        ASSERT_EQ(napi_create_string_utf8(globalEnv, "assert", &stringValue), NAPIOK);
         ASSERT_EQ(napi_set_property(globalEnv, globalValue, stringValue, assertValue), NAPIOK);
         ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
     }
@@ -70,7 +70,7 @@ void ::Test::SetUp()
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
     ASSERT_EQ(napi_create_object(globalEnv, &addonValue), NAPIOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "addon", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "addon", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, global, stringValue, addonValue), NAPIOK);
 }
 

@@ -43,15 +43,15 @@ EXTERN_C_END
 TEST_F(Test, Conversion)
 {
     NAPIValue toBoolValue, toNumberValue, toStringValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, toBool, nullptr, &toBoolValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, toNumber, nullptr, &toNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, -1, toString, nullptr, &toStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toBool, nullptr, &toBoolValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toNumber, nullptr, &toNumberValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toString, nullptr, &toStringValue), NAPIOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toBool", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toBool", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toBoolValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toNumber", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toNumber", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toString", -1, &stringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toString", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toStringValue), NAPIOK);
     ASSERT_EQ(
         NAPIRunScript(
