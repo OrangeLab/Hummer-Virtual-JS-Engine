@@ -785,17 +785,31 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     CHECK_ARG(key);
     CHECK_ARG(value);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
-                               JSValueIsNumber(env->context, (JSValueRef)key),
-                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    JSObjectSetPropertyForKey(env->context, objectRef, (JSValueRef)key, (JSValueRef)value, kJSPropertyAttributeNone,
-                              &env->lastException);
+    if (JSValueIsString(env->context, (JSValueRef)key))
+    {
+        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
+        CHECK_JSC(env);
+        RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+        JSObjectSetProperty(env->context, objectRef, stringRef, (JSValueRef)value, kJSPropertyAttributeNone,
+                            &env->lastException);
+        JSStringRelease(stringRef);
+    }
+    else if (JSValueIsNumber(env->context, (JSValueRef)key))
+    {
+        double doubleValue;
+        CHECK_NAPI(napi_get_value_double(env, key, &doubleValue));
+        JSObjectSetPropertyAtIndex(env->context, objectRef, (unsigned int)doubleValue, (JSValueRef)value,
+                                   &env->lastException);
+    }
+    else
+    {
+        return NAPINameExpected;
+    }
     CHECK_JSC(env);
 
     return NAPIOK;
@@ -808,17 +822,29 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
     CHECK_ARG(key);
     CHECK_ARG(result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
-                               JSValueIsNumber(env->context, (JSValueRef)key),
-                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    *result = JSObjectHasPropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
-    CHECK_JSC(env);
+    if (JSValueIsString(env->context, (JSValueRef)key))
+    {
+        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
+        RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+        *result = JSObjectHasProperty(env->context, objectRef, stringRef);
+        JSStringRelease(stringRef);
+    }
+    else if (JSValueIsNumber(env->context, (JSValueRef)key))
+    {
+        double doubleValue;
+        CHECK_NAPI(napi_get_value_double(env, key, &doubleValue));
+        *result = JSObjectGetPropertyAtIndex(env->context, objectRef, (unsigned int)doubleValue, &env->lastException);
+        CHECK_JSC(env);
+    }
+    else
+    {
+        return NAPINameExpected;
+    }
 
     return NAPIOK;
 }
@@ -830,38 +856,53 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     CHECK_ARG(key);
     CHECK_ARG(result);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
-                               JSValueIsNumber(env->context, (JSValueRef)key),
-                           NAPINameExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
-
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    *result = (NAPIValue)JSObjectGetPropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
-    CHECK_JSC(env);
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    if (JSValueIsString(env->context, (JSValueRef)key))
+    {
+        JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
+        RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+        *result = (NAPIValue)JSObjectGetProperty(env->context, objectRef, stringRef, &env->lastException);
+        JSStringRelease(stringRef);
+    }
+    else if (JSValueIsNumber(env->context, (JSValueRef)key))
+    {
+        double doubleValue;
+        CHECK_NAPI(napi_get_value_double(env, key, &doubleValue));
+        *result = (NAPIValue)JSObjectGetPropertyAtIndex(env->context, objectRef, (unsigned int)doubleValue,
+                                                        &env->lastException);
+    }
+    else
+    {
+        return NAPINameExpected;
+    }
 
     return NAPIOK;
 }
 
+// key 必须为字符串
 NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
     CHECK_JSC(env);
     CHECK_ARG(object);
     CHECK_ARG(key);
 
-    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key) ||
-                               JSValueIsNumber(env->context, (JSValueRef)key),
-                           NAPINameExpected);
+    RETURN_STATUS_IF_FALSE(JSValueIsString(env->context, (JSValueRef)key), NAPIStringExpected);
     RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)object), NAPIObjectExpected);
 
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)object, &env->lastException);
     CHECK_JSC(env);
     RETURN_STATUS_IF_FALSE(objectRef, NAPIMemoryError);
 
-    bool deleteSuccess = JSObjectDeletePropertyForKey(env->context, objectRef, (JSValueRef)key, &env->lastException);
+    JSStringRef stringRef = JSValueToStringCopy(env->context, (JSValueRef)key, &env->lastException);
+    CHECK_JSC(env);
+    RETURN_STATUS_IF_FALSE(stringRef, NAPIMemoryError);
+
+    bool deleteSuccess = JSObjectDeleteProperty(env->context, objectRef, stringRef, &env->lastException);
+    JSStringRelease(stringRef);
     CHECK_JSC(env);
     if (result)
     {

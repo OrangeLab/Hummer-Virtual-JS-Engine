@@ -100,9 +100,6 @@ NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool 
 
 NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue *result);
 
-// result 可空
-NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result);
-
 NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t propertyCount,
                                   const NAPIPropertyDescriptor *properties);
 

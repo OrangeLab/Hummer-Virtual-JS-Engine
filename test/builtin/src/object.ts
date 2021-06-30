@@ -30,9 +30,7 @@ globalThis.assert(testA.arg2 === 'hello')
     globalThis.assert(globalThis.addon.has(object, 0))
 
     globalThis.assert(globalThis.addon.delete(object, 'hello'))
-    globalThis.assert(globalThis.addon.delete(object, 0))
     globalThis.assert(!globalThis.addon.has(object, 'hello'))
-    globalThis.assert(!globalThis.addon.has(object, 0))
 }
 
 {
@@ -60,9 +58,7 @@ globalThis.assert(testA.arg2 === 'hello')
     globalThis.assert(globalThis.addon.get(obj, 1) === 2)
     globalThis.assert(globalThis.addon.get(obj, 2) === 4)
 
-    globalThis.assert(globalThis.addon.delete(obj, 2))
     globalThis.assert(globalThis.addon.delete(obj, 'baz'))
-    globalThis.assert(globalThis.addon.has(obj, 2))
     globalThis.assert(globalThis.addon.has(obj, 'baz'))
 }
 

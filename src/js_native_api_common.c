@@ -225,19 +225,6 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
     return NAPIOK;
 }
 
-NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(object);
-    CHECK_ARG(result);
-
-    NAPIValue indexValue;
-    CHECK_NAPI(napi_create_uint32(env, index, &indexValue));
-    CHECK_NAPI(napi_delete_property(env, object, indexValue, result));
-
-    return NAPIOK;
-}
-
 NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t propertyCount,
                                   const NAPIPropertyDescriptor *properties)
 {
