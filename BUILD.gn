@@ -126,21 +126,6 @@ if (build_android) {
                 "test/object.cpp",
                 "test/callable.cpp",
                 "test/reference.cpp"
-            #                "test/js_native_api_test.cpp",
-            #                "test/2_function_arguments.cpp",
-            #                "test/3_callbacks.cpp",
-            #                "test/4_object_factory.cpp",
-            #                "test/5_function_factory.cpp",
-            #                "test/test_array.cpp",
-            #                "test/test_constructor.cpp",
-            #                "test/test_conversions.cpp",
-            #                "test/test_error.cpp",
-            #                "test/test_exception.cpp",
-            #                "test/test_function.cpp",
-            #                "test/test_handle_scope.cpp",
-            #                "test/test_new_target.cpp",
-            #                "test/test_number.cpp",
-            #                "test/test_string.cpp",
             ]
             deps = [
                 ":gtest",

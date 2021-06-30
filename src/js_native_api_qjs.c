@@ -21,21 +21,23 @@
 #endif
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
+    do                                                                                                                 \
     {                                                                                                                  \
         if (!(condition))                                                                                              \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_NAPI(expr)                                                                                               \
+    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
@@ -46,6 +48,7 @@
 // !JS_IsUndefined(exceptionValue) && !JS_IsNull(exceptionValue)
 // NAPI_PREAMBLE 同时会检查 env->context
 #define NAPI_PREAMBLE(env)                                                                                             \
+    do                                                                                                                 \
     {                                                                                                                  \
         CHECK_ARG(env);                                                                                                \
         CHECK_ARG((env)->context);                                                                                     \
@@ -56,7 +59,7 @@
                                                                                                                        \
             return NAPIPendingException;                                                                               \
         }                                                                                                              \
-    }
+    } while (0)
 
 struct Handle
 {
