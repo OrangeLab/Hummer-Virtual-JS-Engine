@@ -991,6 +991,10 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
@@ -1041,6 +1045,10 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
@@ -1579,10 +1587,11 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     CHECK_ARG(env->context);
 
     JSValue exceptionValue = JS_GetException(env->context);
-    if (JS_IsNull(exceptionValue))
+    if (JS_IsNull(exceptionValue) && !env->isThrowNull)
     {
         exceptionValue = undefinedValue;
     }
+    env->isThrowNull = false;
     struct Handle *exceptionHandle;
     NAPIStatus status = addValueToHandleScope(env, exceptionValue, &exceptionHandle);
     if (status != NAPIOK)
@@ -1616,20 +1625,27 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
     }
     processPendingTask(env);
-    struct Handle *returnHandle;
-    NAPIStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
-    if (status != NAPIOK)
+    if (result)
     {
-        JS_FreeValue(env->context, returnValue);
+        struct Handle *returnHandle;
+        NAPIStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
+        if (status != NAPIOK)
+        {
+            JS_FreeValue(env->context, returnValue);
 
-        return status;
+            return status;
+        }
+        *result = (NAPIValue)&returnHandle->value;
     }
-    *result = (NAPIValue)&returnHandle->value;
 
     return NAPIOK;
 }
@@ -1702,7 +1718,7 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     NAPIValue retVal =
         constructorInfo->functionInfo.callback(constructorInfo->functionInfo.baseInfo.env, &callbackInfo);
-    if (retVal)
+    if (retVal && JS_IsObject(*((JSValue *)retVal)))
     {
         JSValue returnValue = JS_DupValue(ctx, *((JSValue *)retVal));
         JS_FreeValue(ctx, thisValue);
