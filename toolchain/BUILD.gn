@@ -3,7 +3,7 @@ depfile = "{{output}}.d"
 # all tools except "action"
 rspfile_name = "{{output}}.rsp"
 # all tools except "action" (required when "rspfile" is used)
-rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}}"
+rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags}}"
 compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
 
 if (debug) {
@@ -24,7 +24,7 @@ toolchain("android") {
     compiler_command = string_join(" ", [compiler_command, "-target $android_target --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"])
     tool("cc") {
         rspfile = rspfile_name
-        rspfile_content = rspfile_compiler_content
+        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_c}}"])
         # -fpic 永远使用 GOT 全局偏移表，更严格
         command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -fpic", compiler_command])
         outputs = compiler_outputs
@@ -76,6 +76,7 @@ toolchain("clang") {
 
     tool("cc") {
         rspfile = rspfile_name
+        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_c}}"])
         rspfile_content = rspfile_compiler_content
         # depsformat = "gcc"
         command = string_join(" ", ["clang", compiler_command])
@@ -84,10 +85,10 @@ toolchain("clang") {
 
     tool("cxx") {
         rspfile = rspfile_name
-        rspfile_content = rspfile_compiler_content
+        rspfile_content = string_join(" ", [rspfile_compiler_content, "{{cflags_cc}}"])
         # 目前只用于单元测试，所以不考虑异常模型
-        # 默认 C++98 + libc++ gtest 要求 C++11
-        command = string_join(" ", ["clang++ -std=c++11", compiler_command])
+        # 默认 C++98 + libc++
+        command = string_join(" ", ["clang++", compiler_command])
         outputs = compiler_outputs
     }
 

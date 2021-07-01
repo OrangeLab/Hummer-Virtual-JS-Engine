@@ -1,3 +1,43 @@
+static_library("llvh_demangle") {
+    include_dirs = ["third_party/hermes/external/llvh/include"]
+    sources = [
+        "third_party/hermes/external/llvh/lib/Demangle/ItaniumDemangle.cpp",
+        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
+        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
+    ]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti", "-Wno-unused-parameter"]
+}
+
+static_library("llvh_support") {
+    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/hermes_include"]
+    sources = [
+        "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
+        "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
+        "third_party/hermes/external/llvh/lib/Support/CommandLine.cpp",
+        "third_party/hermes/external/llvh/lib/Support/ConvertUTF.cpp",
+        "third_party/hermes/external/llvh/lib/Support/ConvertUTFWrapper.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Debug.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Errno.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Error.cpp",
+        "third_party/hermes/external/llvh/lib/Support/ErrorHandling.cpp",
+        "third_party/hermes/external/llvh/lib/Support/FileCheck.cpp",
+        "third_party/hermes/external/llvh/lib/Support/FoldingSet.cpp",
+        "third_party/hermes/external/llvh/lib/Support/GraphWriter.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Hashing.cpp",
+        "third_party/hermes/external/llvh/lib/Support/InitLLVM.cpp",
+        "third_party/hermes/external/llvh/lib/Support/LineIterator.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Locale.cpp",
+        "third_party/hermes/external/llvh/lib/Support/MD5.cpp",
+        "third_party/hermes/external/llvh/lib/Support/ManagedStatic.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Memory.cpp",
+        "third_party/hermes/external/llvh/lib/Support/MemoryBuffer.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Mutex.cpp",
+        "third_party/hermes/external/llvh/lib/Support/NativeFormatting.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Path.cpp",
+    ]
+    cflags_cc = ["-std=c++11", "-Wno-unused-parameter"]
+}
+
 config("napi_include") {
     include_dirs = [
         "include"
@@ -120,6 +160,7 @@ if (build_android) {
             include_dirs = [
                 "test/include"
             ]
+            cflags_cc = ["-std=c++11"]
             configs = [":napi_include"]
             sources = [
                 "test/test.cpp",
