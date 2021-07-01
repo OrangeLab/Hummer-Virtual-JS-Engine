@@ -71,6 +71,14 @@ static_library("llvh_support") {
     deps = [":llvh_demangle"]
 }
 
+static_library("hermes_frontend_defs") {
+    include_dirs = ["third_party/hermes/include"]
+    sources = [
+        "third_party/hermes/lib/FrontEndDefs/Builtins.cpp"
+    ]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+}
+
 config("napi_include") {
     include_dirs = [
         "include"
