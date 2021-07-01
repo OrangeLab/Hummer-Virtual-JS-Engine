@@ -1,5 +1,5 @@
 config("llvh_include") {
-    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include"]
+    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
     if (build_ios) {
         if (ios_simulator) {
             include_dirs += ["third_party/iphonesimulator"]
