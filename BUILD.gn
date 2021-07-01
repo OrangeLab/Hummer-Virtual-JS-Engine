@@ -190,6 +190,9 @@ source_set("quickjs_source_set") {
     if (build_android || build_ios) {
         cflags_c += ["-Wno-unused-variable"]
     }
+    if (ndk_path == "~/Library/Android/sdk/ndk/22.1.7171670") {
+        cflags_c += ["-Wno-implicit-const-int-float-conversion"]
+    }
     sources = [
         "third_party/quickjs/quickjs.c",
     ]
@@ -261,22 +264,8 @@ if (build_android) {
                 "test/typeof.cpp",
                 "test/conversion.cpp",
                 "test/object.cpp",
-                "test/callable.cpp"
-            #                "test/js_native_api_test.cpp",
-            #                "test/2_function_arguments.cpp",
-            #                "test/3_callbacks.cpp",
-            #                "test/4_object_factory.cpp",
-            #                "test/5_function_factory.cpp",
-            #                "test/test_array.cpp",
-            #                "test/test_constructor.cpp",
-            #                "test/test_conversions.cpp",
-            #                "test/test_error.cpp",
-            #                "test/test_exception.cpp",
-            #                "test/test_function.cpp",
-            #                "test/test_handle_scope.cpp",
-            #                "test/test_new_target.cpp",
-            #                "test/test_number.cpp",
-            #                "test/test_string.cpp",
+                "test/callable.cpp",
+                "test/reference.cpp"
             ]
             deps = [
                 ":gtest",

@@ -21,21 +21,23 @@
 #endif
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
+    do                                                                                                                 \
     {                                                                                                                  \
         if (!(condition))                                                                                              \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_NAPI(expr)                                                                                               \
+    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    }
+    } while (0)
 
 #define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
@@ -46,6 +48,7 @@
 // !JS_IsUndefined(exceptionValue) && !JS_IsNull(exceptionValue)
 // NAPI_PREAMBLE 同时会检查 env->context
 #define NAPI_PREAMBLE(env)                                                                                             \
+    do                                                                                                                 \
     {                                                                                                                  \
         CHECK_ARG(env);                                                                                                \
         CHECK_ARG((env)->context);                                                                                     \
@@ -56,7 +59,7 @@
                                                                                                                        \
             return NAPIPendingException;                                                                               \
         }                                                                                                              \
-    }
+    } while (0)
 
 struct Handle
 {
@@ -188,66 +191,21 @@ NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
     return NAPIOK;
 }
 
-// + addValueToHandleScope
-NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    JSValue jsValue = JS_NewInt32(env->context, value);
-    struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle));
-    *result = (NAPIValue)&handle->value;
-
-    return NAPIOK;
-}
-
-// + addValueToHandleScope
-NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    // uint32_t 需要用 int64_t 承载
-    JSValue jsValue = JS_NewInt64(env->context, value);
-    struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle));
-    *result = (NAPIValue)&handle->value;
-
-    return NAPIOK;
-}
-
-// + addValueToHandleScope
-NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    JSValue jsValue = JS_NewInt64(env->context, value);
-    struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle));
-    *result = (NAPIValue)&handle->value;
-
-    return NAPIOK;
-}
-
 // NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result)
+NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(result);
 
-    if (length == NAPI_AUTO_LENGTH)
+    size_t length;
+    if (str)
     {
-        if (str)
-        {
-            length = strlen(str);
-        }
-        else
-        {
-            // str 依旧保持 NULL
-            length = 0;
-        }
+        length = strlen(str);
+    }
+    else
+    {
+        // str 依旧保持 NULL
+        length = 0;
     }
     // length == 0 的情况下会返回 ""
     JSValue stringValue = JS_NewStringLen(env->context, str, length);
@@ -385,22 +343,21 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope + napi_create_string_utf8
-NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback callback, void *data,
-                                NAPIValue *result)
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
-    CHECK_ARG(callback);
+    CHECK_ARG(cb);
     CHECK_ARG(result);
 
     NAPIValue nameValue;
-    CHECK_NAPI(napi_create_string_utf8(env, utf8name, length, &nameValue));
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &nameValue));
 
     // malloc
     FunctionInfo *functionInfo = malloc(sizeof(FunctionInfo));
     RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError);
     functionInfo->baseInfo.env = env;
     functionInfo->baseInfo.data = data;
-    functionInfo->callback = callback;
+    functionInfo->callback = cb;
 
     // rc: 1
     JSValue dataValue = JS_NewObjectClass(env->context, (int)functionClassId);
@@ -516,104 +473,6 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
     return NAPIOK;
 }
 
-// NAPINumberExpected
-NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    JSValue jsValue = *((JSValue *)value);
-    int tag = JS_VALUE_GET_TAG(jsValue);
-    if (tag == JS_TAG_INT)
-    {
-        *result = JS_VALUE_GET_INT(jsValue);
-    }
-    else if (JS_TAG_IS_FLOAT64(tag))
-    {
-        *result = (int32_t)(int64_t)JS_VALUE_GET_FLOAT64(jsValue);
-    }
-    else
-    {
-        return NAPINumberExpected;
-    }
-
-    return NAPIOK;
-}
-
-// NAPINumberExpected
-NAPIStatus napi_get_value_uint32(NAPIEnv env, NAPIValue value, uint32_t *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    JSValue jsValue = *((JSValue *)value);
-    int tag = JS_VALUE_GET_TAG(jsValue);
-    if (tag == JS_TAG_INT)
-    {
-        *result = (uint32_t)JS_VALUE_GET_INT(jsValue);
-    }
-    else if (JS_TAG_IS_FLOAT64(tag))
-    {
-        *result = (uint32_t)JS_VALUE_GET_FLOAT64(jsValue);
-    }
-    else
-    {
-        return NAPINumberExpected;
-    }
-
-    return NAPIOK;
-}
-
-// NAPINumberExpected
-NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    JSValue jsValue = *((JSValue *)value);
-    int tag = JS_VALUE_GET_TAG(jsValue);
-    if (tag == JS_TAG_INT)
-    {
-        *result = (int64_t)JS_VALUE_GET_INT(jsValue);
-    }
-    else if (JS_TAG_IS_FLOAT64(tag))
-    {
-        double doubleValue = JS_VALUE_GET_FLOAT64(jsValue);
-        if (isfinite(doubleValue))
-        {
-            if (isnan(doubleValue))
-            {
-                *result = 0;
-            }
-            else if (doubleValue >= (double)INT64_MAX)
-            {
-                *result = INT64_MAX;
-            }
-            else if (doubleValue <= (double)INT64_MIN)
-            {
-                *result = INT64_MIN;
-            }
-            else
-            {
-                *result = (int64_t)doubleValue;
-            }
-        }
-        else
-        {
-            *result = 0;
-        }
-    }
-    else
-    {
-        return NAPINumberExpected;
-    }
-
-    return NAPIOK;
-}
-
 // NAPIBooleanExpected
 NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 {
@@ -623,170 +482,6 @@ NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 
     RETURN_STATUS_IF_FALSE(JS_IsBool(*((JSValue *)value)), NAPIBooleanExpected);
     *result = JS_VALUE_GET_BOOL(*((JSValue *)value));
-
-    return NAPIOK;
-}
-
-static bool getUTF8CharacterBytesLength(uint8_t codePoint, uint8_t *bytesToWrite)
-{
-    if (!bytesToWrite)
-    {
-        return false;
-    }
-    if (codePoint >> 7 == 0)
-    {
-        // 0xxxxxxx
-        *bytesToWrite = 1;
-    }
-    else if (codePoint >> 5 == 6)
-    {
-        // 110xxxxx
-        *bytesToWrite = 2;
-    }
-    else if (codePoint >> 4 == 0xe)
-    {
-        // 1110xxxx
-        *bytesToWrite = 3;
-    }
-    else if (codePoint >> 3 == 0x1e)
-    {
-        // 11110xxx
-        *bytesToWrite = 4;
-    }
-    else if (codePoint >> 2 == 0x3e)
-    {
-        // 111110xx
-        *bytesToWrite = 5;
-    }
-    else if (codePoint >> 1 == 0x7e)
-    {
-        // 1111110x
-        *bytesToWrite = 6;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
-}
-
-// NAPIStringExpected/NAPIPendingException/NAPIGenericFailure
-NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, size_t bufSize, size_t *result)
-{
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(value);
-
-    RETURN_STATUS_IF_FALSE(JS_IsString(*((JSValue *)value)), NAPIStringExpected);
-    if (buf && !bufSize)
-    {
-        if (result)
-        {
-            *result = 0;
-        }
-
-        return NAPIOK;
-    }
-    if (bufSize == 1 && buf)
-    {
-        buf[0] = '\0';
-        if (result)
-        {
-            *result = 0;
-        }
-
-        return NAPIOK;
-    }
-    size_t length;
-    // JS_ToCStringLen 长度不包括 \0
-    const char *cString = JS_ToCStringLen(env->context, &length, *((JSValue *)value));
-    // JS_ToCStringLen 返回 (NULL, 0) 表示发生异常
-    RETURN_STATUS_IF_FALSE(cString || length, NAPIPendingException);
-    if (!buf)
-    {
-        JS_FreeCString(env->context, cString);
-        CHECK_ARG(result);
-        *result = length;
-
-        return NAPIOK;
-    }
-    // bufSize >= 2 -> bufSize - 1 >= 1
-    if (length <= bufSize - 1)
-    {
-        // memmove 函数将复制 n 字节。如果 n 为零，它将不起任何作用。
-        memmove(buf, cString, length);
-        JS_FreeCString(env->context, cString);
-        buf[length] = '\0';
-        if (result)
-        {
-            *result = length;
-        }
-
-        return NAPIOK;
-    }
-    // TODO(ChasonTang): 应当将复制逻辑后移，如果该函数被干掉，则可以不做优化
-    // length > bufSize - 1 >= 1 -> length > 1
-    // 截断，留 [bufSize - 1] 位置给 \0
-    memmove(buf, cString, bufSize - 1);
-    JS_FreeCString(env->context, cString);
-    // 指向 UTF-8 串最后一个字节
-    // bufSize - 2 >= 0
-    size_t initialIndex = bufSize - 2;
-    size_t index = initialIndex;
-    uint8_t bytesToWrite = 0;
-    // 指向第一个字节的时候也应当继续判断
-    while (index >= 0)
-    {
-        // 本质为 mov 指定地址的 一个字节，和 char 符号无关
-        uint8_t codePoint = buf[index];
-        if (codePoint >> 6 == 2 && index != 0)
-        {
-            --index;
-            continue;
-        }
-        else if (codePoint >> 6 == 2)
-        {
-            assert(false);
-
-            return NAPIGenericFailure;
-        }
-        else if (codePoint >> 7 == 0 || codePoint >> 6 == 3)
-        {
-            // 0xxxxxxx 11xxxxxx
-            if (!getUTF8CharacterBytesLength(codePoint, &bytesToWrite))
-            {
-                assert(false);
-
-                return NAPIGenericFailure;
-            }
-            break;
-        }
-        else
-        {
-            assert(false);
-
-            return NAPIGenericFailure;
-        }
-    }
-    RETURN_STATUS_IF_FALSE(bytesToWrite, NAPIGenericFailure);
-    // getUTF8CharacterBytesLength 返回 bytesToWrite >= 1
-    // index + bytesToWrite - 1 < bufSize - 2 -> index + bytesToWrite < bufSize - 1
-    if (index + bytesToWrite - 1 <= initialIndex)
-    {
-        buf[index + bytesToWrite] = '\0';
-        if (result)
-        {
-            *result = index + bytesToWrite;
-        }
-    }
-    else if (index + bytesToWrite - 1 > initialIndex)
-    {
-        buf[index] = '\0';
-        if (result)
-        {
-            *result = index;
-        }
-    }
 
     return NAPIOK;
 }
@@ -969,6 +664,11 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     NAPI_PREAMBLE(env);
     CHECK_ARG(func);
 
+    if (!thisValue)
+    {
+        CHECK_NAPI(napi_get_global(env, &thisValue));
+    }
+
     JSValue *internalArgv = NULL;
     if (argc > 0)
     {
@@ -980,9 +680,7 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
             internalArgv[i] = *((JSValue *)argv[i]);
         }
     }
-    if (!thisValue) {
-        CHECK_NAPI(napi_get_global(env, &thisValue));
-    }
+
     // JS_Call 返回值带所有权
     JSValue returnValue = JS_Call(env->context, *((JSValue *)func), *((JSValue *)thisValue), (int)argc, internalArgv);
     free(internalArgv);
@@ -990,6 +688,10 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
@@ -1040,6 +742,10 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
@@ -1578,10 +1284,11 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     CHECK_ARG(env->context);
 
     JSValue exceptionValue = JS_GetException(env->context);
-    if (JS_IsNull(exceptionValue))
+    if (JS_IsNull(exceptionValue) && !env->isThrowNull)
     {
         exceptionValue = undefinedValue;
     }
+    env->isThrowNull = false;
     struct Handle *exceptionHandle;
     NAPIStatus status = addValueToHandleScope(env, exceptionValue, &exceptionHandle);
     if (status != NAPIOK)
@@ -1615,20 +1322,27 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
     {
         JSValue exceptionValue = JS_GetException(env->context);
         processPendingTask(env);
+        if (JS_IsNull(exceptionValue))
+        {
+            env->isThrowNull = true;
+        }
         JS_Throw(env->context, exceptionValue);
 
         return NAPIPendingException;
     }
     processPendingTask(env);
-    struct Handle *returnHandle;
-    NAPIStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
-    if (status != NAPIOK)
+    if (result)
     {
-        JS_FreeValue(env->context, returnValue);
+        struct Handle *returnHandle;
+        NAPIStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
+        if (status != NAPIOK)
+        {
+            JS_FreeValue(env->context, returnValue);
 
-        return status;
+            return status;
+        }
+        *result = (NAPIValue)&returnHandle->value;
     }
-    *result = (NAPIValue)&returnHandle->value;
 
     return NAPIOK;
 }
@@ -1701,18 +1415,18 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     NAPIValue retVal =
         constructorInfo->functionInfo.callback(constructorInfo->functionInfo.baseInfo.env, &callbackInfo);
-    JSValue returnValue = undefinedValue;
-    if (retVal)
+    if (retVal && JS_IsObject(*((JSValue *)retVal)))
     {
-        returnValue = JS_DupValue(ctx, *((JSValue *)retVal));
+        JSValue returnValue = JS_DupValue(ctx, *((JSValue *)retVal));
+        JS_FreeValue(ctx, thisValue);
+        thisValue = returnValue;
     }
-    JS_FreeValue(ctx, thisValue);
     JSValue exceptionValue = JS_GetException(ctx);
     status = napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
     if (status != NAPIOK)
     {
         assert(false);
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
         if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
         {
             constructorInfo->functionInfo.baseInfo.env->isThrowNull = false;
@@ -1730,30 +1444,28 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
     {
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
         constructorInfo->functionInfo.baseInfo.env->isThrowNull = false;
 
         return JS_EXCEPTION;
     }
     else if (!JS_IsNull(exceptionValue))
     {
-        JS_FreeValue(ctx, returnValue);
+        JS_FreeValue(ctx, thisValue);
 
         return JS_Throw(ctx, exceptionValue);
     }
 
-    return returnValue;
+    return thisValue;
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
-NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
-                           NAPIValue *result)
+NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result)
 {
     NAPI_PREAMBLE(env);
     CHECK_ARG(constructor);
     CHECK_ARG(result);
 
-    RETURN_STATUS_IF_FALSE(length == NAPI_AUTO_LENGTH, NAPIInvalidArg);
     CHECK_ARG(runtime);
 
     ConstructorInfo *constructorInfo = malloc(sizeof(ConstructorInfo));

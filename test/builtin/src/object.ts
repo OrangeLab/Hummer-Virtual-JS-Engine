@@ -1,4 +1,22 @@
 globalThis.assert(globalThis.addon.isArray([]))
+globalThis.assert(globalThis.addon.getThis() === globalThis.addon)
+class TestA {
+    arg1?: number
+    arg2?: string
+    constructor(arg1: number, arg2: string) {
+        this.arg1 = arg1
+        this.arg2 = arg2
+    }
+}
+class TestB {
+
+}
+const testB = globalThis.addon.new(TestB)
+globalThis.assert(Object.getPrototypeOf(testB) === TestB.prototype)
+const testA = globalThis.addon.new(TestA, 1, 'hello')
+globalThis.assert(Object.getPrototypeOf(testA) === TestA.prototype)
+globalThis.assert(testA.arg1 === 1);
+globalThis.assert(testA.arg2 === 'hello')
 {
     const object = {
         hello: 'world'
@@ -12,9 +30,7 @@ globalThis.assert(globalThis.addon.isArray([]))
     globalThis.assert(globalThis.addon.has(object, 0))
 
     globalThis.assert(globalThis.addon.delete(object, 'hello'))
-    globalThis.assert(globalThis.addon.delete(object, 0))
     globalThis.assert(!globalThis.addon.has(object, 'hello'))
-    globalThis.assert(!globalThis.addon.has(object, 0))
 }
 
 {
@@ -42,9 +58,7 @@ globalThis.assert(globalThis.addon.isArray([]))
     globalThis.assert(globalThis.addon.get(obj, 1) === 2)
     globalThis.assert(globalThis.addon.get(obj, 2) === 4)
 
-    globalThis.assert(globalThis.addon.delete(obj, 2))
     globalThis.assert(globalThis.addon.delete(obj, 'baz'))
-    globalThis.assert(globalThis.addon.has(obj, 2))
     globalThis.assert(globalThis.addon.has(obj, 'baz'))
 }
 

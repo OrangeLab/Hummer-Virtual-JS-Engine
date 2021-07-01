@@ -11,10 +11,6 @@ EXTERN_C_START
 
 #define NAPI_NATIVE
 
-#define NAPI_DEPRECATED
-
-#define NAPI_AUTO_LENGTH SIZE_MAX
-
 NAPI_NATIVE NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result);
 
 NAPI_NATIVE NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result);
@@ -31,19 +27,13 @@ NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *
 
 NAPI_NATIVE NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result);
 
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_create_int32(NAPIEnv env, int32_t value, NAPIValue *result);
-
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_create_uint32(NAPIEnv env, uint32_t value, NAPIValue *result);
-
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_create_int64(NAPIEnv env, int64_t value, NAPIValue *result);
-
 // 推荐实现层针对 str 为空情况做处理，比如当做 ""
-NAPI_NATIVE NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, size_t length, NAPIValue *result);
+NAPI_NATIVE NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result);
 
 // 推荐实现层针对 utf8name 为空情况做处理，比如当做 ""
 // data 可空
-NAPI_NATIVE NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, size_t length, NAPICallback cb,
-                                            void *data, NAPIValue *result);
+NAPI_NATIVE NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
+                                            NAPIValue *result);
 
 // code 可空
 NAPIStatus napi_create_error(NAPIEnv env, NAPIValue code, NAPIValue msg, NAPIValue *result);
@@ -58,18 +48,7 @@ NAPI_NATIVE NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *
 
 NAPI_NATIVE NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result);
 
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result);
-
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_get_value_uint32(NAPIEnv env, NAPIValue value, uint32_t *result);
-
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result);
-
 NAPI_NATIVE NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result);
-
-// buf 可空，表示计算长度（不包括 \0），当 buf 为空时候，result 不能为空
-// 实际上 buf 不为空，bufSize == 0 也能用来表示计算长度，但是暂时返回 0，建议不要依赖这个行为
-NAPI_NATIVE NAPI_DEPRECATED NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf,
-                                                                  size_t bufSize, size_t *result);
 
 NAPI_NATIVE NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result);
 
@@ -100,9 +79,6 @@ NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool 
 
 NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIValue *result);
 
-// result 可空
-NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result);
-
 NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t propertyCount,
                                   const NAPIPropertyDescriptor *properties);
 
@@ -129,7 +105,7 @@ NAPI_NATIVE NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackIn
 NAPI_NATIVE NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result);
 
 // utf8name/data/properties 可空
-NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
+NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
                              size_t propertyCount, const NAPIPropertyDescriptor *properties, NAPIValue *result);
 
 // finalizeCB/data/finalizeHint 可空
@@ -183,8 +159,8 @@ NAPI_NATIVE NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char
 
 // 推荐实现层针对 utf8name 为空情况做处理，比如当做 ""
 // data 可空
-NAPI_NATIVE NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor,
-                                       void *data, NAPIValue *result);
+NAPI_NATIVE NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
+                                       NAPIValue *result);
 
 NAPI_NATIVE NAPIStatus NAPICreateEnv(NAPIEnv *env);
 

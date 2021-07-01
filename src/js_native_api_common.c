@@ -54,7 +54,7 @@ NAPIStatus napi_create_array_with_length(NAPIEnv env, size_t length, NAPIValue *
     CHECK_ARG(result);
 
     NAPIValue lengthValue;
-    CHECK_NAPI(napi_create_uint32(env, length, &lengthValue));
+    CHECK_NAPI(napi_create_double(env, length, &lengthValue));
     NAPIValue globalValue;
     CHECK_NAPI(napi_get_global(env, &globalValue));
     NAPIValue objectConstructorValue;
@@ -167,7 +167,7 @@ NAPIStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *ut
     CHECK_ARG(value);
 
     NAPIValue keyValue;
-    CHECK_NAPI(napi_create_string_utf8(env, utf8name, -1, &keyValue));
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &keyValue));
     CHECK_NAPI(napi_set_property(env, object, keyValue, value));
 
     return NAPIOK;
@@ -180,7 +180,7 @@ NAPIStatus napi_get_named_property(NAPIEnv env, NAPIValue object, const char *ut
     CHECK_ARG(result);
 
     NAPIValue keyValue;
-    CHECK_NAPI(napi_create_string_utf8(env, utf8name, -1, &keyValue));
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &keyValue));
     CHECK_NAPI(napi_get_property(env, object, keyValue, result));
 
     return NAPIOK;
@@ -193,7 +193,7 @@ NAPIStatus napi_set_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
     CHECK_ARG(value);
 
     NAPIValue indexValue;
-    CHECK_NAPI(napi_create_uint32(env, index, &indexValue));
+    CHECK_NAPI(napi_create_double(env, index, &indexValue));
     CHECK_NAPI(napi_set_property(env, object, indexValue, value));
 
     return NAPIOK;
@@ -206,7 +206,7 @@ NAPIStatus napi_has_element(NAPIEnv env, NAPIValue object, uint32_t index, bool 
     CHECK_ARG(result);
 
     NAPIValue indexValue;
-    CHECK_NAPI(napi_create_uint32(env, index, &indexValue));
+    CHECK_NAPI(napi_create_double(env, index, &indexValue));
     CHECK_NAPI(napi_has_property(env, object, indexValue, result));
 
     return NAPIOK;
@@ -219,21 +219,8 @@ NAPIStatus napi_get_element(NAPIEnv env, NAPIValue object, uint32_t index, NAPIV
     CHECK_ARG(result);
 
     NAPIValue indexValue;
-    CHECK_NAPI(napi_create_uint32(env, index, &indexValue));
+    CHECK_NAPI(napi_create_double(env, index, &indexValue));
     CHECK_NAPI(napi_get_property(env, object, indexValue, result));
-
-    return NAPIOK;
-}
-
-NAPIStatus napi_delete_element(NAPIEnv env, NAPIValue object, uint32_t index, bool *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(object);
-    CHECK_ARG(result);
-
-    NAPIValue indexValue;
-    CHECK_NAPI(napi_create_uint32(env, index, &indexValue));
-    CHECK_NAPI(napi_delete_property(env, object, indexValue, result));
 
     return NAPIOK;
 }
@@ -266,13 +253,13 @@ NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property
             if (p->getter)
             {
                 NAPIValue getter;
-                CHECK_NAPI(napi_create_function(env, p->utf8name, -1, p->getter, p->data, &getter));
+                CHECK_NAPI(napi_create_function(env, p->utf8name, p->getter, p->data, &getter));
                 CHECK_NAPI(napi_set_named_property(env, descriptor, "get", getter));
             }
             if (p->setter)
             {
                 NAPIValue setter;
-                CHECK_NAPI(napi_create_function(env, p->utf8name, -1, p->setter, p->data, &setter));
+                CHECK_NAPI(napi_create_function(env, p->utf8name, p->setter, p->data, &setter));
                 CHECK_NAPI(napi_set_named_property(env, descriptor, "set", setter));
             }
         }
@@ -281,7 +268,7 @@ NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property
             NAPIValue value;
             if (p->method)
             {
-                CHECK_NAPI(napi_create_function(env, p->utf8name, -1, p->method, p->data, &value));
+                CHECK_NAPI(napi_create_function(env, p->utf8name, p->method, p->data, &value));
             }
             else if (p->value)
             {
@@ -303,7 +290,7 @@ NAPIStatus napi_define_properties(NAPIEnv env, NAPIValue object, size_t property
         }
         else
         {
-            CHECK_NAPI(napi_create_string_utf8(env, p->utf8name, -1, &propertyName));
+            CHECK_NAPI(napi_create_string_utf8(env, p->utf8name, &propertyName));
         }
         NAPIValue global, objectCtor, function;
         CHECK_NAPI(napi_get_global(env, &global));
@@ -333,7 +320,9 @@ NAPIStatus napi_get_array_length(NAPIEnv env, NAPIValue value, uint32_t *result)
     NAPIValueType valueType;
     CHECK_NAPI(napi_typeof(env, lengthValue, &valueType));
     RETURN_STATUS_IF_FALSE(valueType == NAPINumber, NAPIGenericFailure);
-    CHECK_NAPI(napi_get_value_uint32(env, lengthValue, result));
+    double doubleValue;
+    CHECK_NAPI(napi_get_value_double(env, lengthValue, &doubleValue));
+    *result = (uint32_t)doubleValue;
 
     return NAPIOK;
 }
@@ -361,14 +350,14 @@ NAPIStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, NAPIValue rhs, bool *r
     return NAPIOK;
 }
 
-NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, size_t length, NAPICallback constructor, void *data,
+NAPIStatus napi_define_class(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
                              size_t propertyCount, const NAPIPropertyDescriptor *properties, NAPIValue *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(constructor);
     CHECK_ARG(result);
 
-    CHECK_NAPI(NAPIDefineClass(env, utf8name, length, constructor, data, result));
+    CHECK_NAPI(NAPIDefineClass(env, utf8name, constructor, data, result));
     if (propertyCount > 0)
     {
         CHECK_ARG(properties);
@@ -393,9 +382,9 @@ NAPIStatus napi_throw_error(NAPIEnv env, const char *code, const char *msg)
     NAPIValue error, codeValue = NULL, message;
     if (code)
     {
-        CHECK_NAPI(napi_create_string_utf8(env, code, -1, &codeValue));
+        CHECK_NAPI(napi_create_string_utf8(env, code, &codeValue));
     }
-    CHECK_NAPI(napi_create_string_utf8(env, msg, -1, &message));
+    CHECK_NAPI(napi_create_string_utf8(env, msg, &message));
     CHECK_NAPI(napi_create_error(env, codeValue, message, &error));
     CHECK_NAPI(napi_throw(env, error));
 
@@ -410,9 +399,9 @@ NAPIStatus napi_throw_type_error(NAPIEnv env, const char *code, const char *msg)
     NAPIValue error, codeValue = NULL, message;
     if (code)
     {
-        CHECK_NAPI(napi_create_string_utf8(env, code, -1, &codeValue));
+        CHECK_NAPI(napi_create_string_utf8(env, code, &codeValue));
     }
-    CHECK_NAPI(napi_create_string_utf8(env, msg, -1, &message));
+    CHECK_NAPI(napi_create_string_utf8(env, msg, &message));
     CHECK_NAPI(napi_create_type_error(env, codeValue, message, &error));
     CHECK_NAPI(napi_throw(env, error));
 
@@ -427,9 +416,9 @@ NAPIStatus napi_throw_range_error(NAPIEnv env, const char *code, const char *msg
     NAPIValue error, codeValue = NULL, message;
     if (code)
     {
-        CHECK_NAPI(napi_create_string_utf8(env, code, -1, &codeValue));
+        CHECK_NAPI(napi_create_string_utf8(env, code, &codeValue));
     }
-    CHECK_NAPI(napi_create_string_utf8(env, msg, -1, &message));
+    CHECK_NAPI(napi_create_string_utf8(env, msg, &message));
     CHECK_NAPI(napi_create_range_error(env, codeValue, message, &error));
     CHECK_NAPI(napi_throw(env, error));
 
@@ -458,7 +447,7 @@ NAPIStatus NAPIParseUTF8JSONString(NAPIEnv env, const char *utf8String, NAPIValu
     CHECK_ARG(result);
 
     NAPIValue stringValue;
-    CHECK_NAPI(napi_create_string_utf8(env, utf8String, -1, &stringValue));
+    CHECK_NAPI(napi_create_string_utf8(env, utf8String, &stringValue));
     NAPIValue global;
     CHECK_NAPI(napi_get_global(env, &global));
     NAPIValue json, parse;
