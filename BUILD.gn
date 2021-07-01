@@ -68,6 +68,7 @@ static_library("llvh_support") {
     ]
     cflags = ["-Wno-unused-parameter"]
     cflags_cc = ["-std=c++11"]
+    deps = [":llvh_demangle"]
 }
 
 config("napi_include") {
