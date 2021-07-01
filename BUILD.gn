@@ -170,10 +170,6 @@ source_set("hermes_library") {
 
 # hermes&napi static library
 static_library("napi_hermes") {
-
-    configs = [
-        ":uthash_include",
-    ]
     public_configs = [
         ":napi_include",
     ]
