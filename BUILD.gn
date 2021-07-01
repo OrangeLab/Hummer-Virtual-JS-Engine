@@ -1,14 +1,4 @@
-static_library("llvh_demangle") {
-    include_dirs = ["third_party/hermes/external/llvh/include"]
-    sources = [
-        "third_party/hermes/external/llvh/lib/Demangle/ItaniumDemangle.cpp",
-        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
-        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
-    ]
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti", "-Wno-unused-parameter"]
-}
-
-static_library("llvh_support") {
+config("llvh_include") {
     include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include"]
     if (build_ios) {
         if (ios_simulator) {
@@ -19,6 +9,20 @@ static_library("llvh_support") {
     } else {
         include_dirs += ["third_party/macos"]
     }
+}
+
+static_library("llvh_demangle") {
+    public_configs = [":llvh_include"]
+    sources = [
+        "third_party/hermes/external/llvh/lib/Demangle/ItaniumDemangle.cpp",
+        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
+        "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
+    ]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti", "-Wno-unused-parameter"]
+}
+
+static_library("llvh_support") {
+    public_configs = [":llvh_include"]
     libs = ["pthread"]
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
@@ -87,6 +91,35 @@ static_library("hermes_frontend_defs") {
         "third_party/hermes/lib/FrontEndDefs/Builtins.cpp"
     ]
     cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+}
+
+static_library("hermes_optimizer") {
+    include_dirs = ["third_party/hermes/include"]
+    sources = [
+        "third_party/hermes/lib/Optimizer/PassManager/Pipeline.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/SimplifyCFG.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/CSE.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/CodeMotion.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/DCE.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/Mem2Reg.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/TypeInference.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/StackPromotion.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/InstSimplify.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/Auditor.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/SimpleCallGraphProvider.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/ResolveStaticRequire.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/FuncSigOpts.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/BundlerUtils.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/Utils.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/Inlining.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/HoistStartGenerator.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/InstructionEscapeAnalysis.cpp",
+        "third_party/hermes/lib/Optimizer/Scalar/TDZDedup.cpp",
+        "third_party/hermes/lib/IR/Analysis.cpp",
+        "third_party/hermes/lib/IR/IREval.cpp",
+    ]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti", "-Wno-unused-parameter"]
+    deps = [":llvh_support"]
 }
 
 config("napi_include") {
