@@ -24,6 +24,7 @@ static_library("llvh_support") {
         "third_party/hermes/external/llvh/lib/Support/FoldingSet.cpp",
         "third_party/hermes/external/llvh/lib/Support/GraphWriter.cpp",
         "third_party/hermes/external/llvh/lib/Support/Hashing.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Host.cpp",
         "third_party/hermes/external/llvh/lib/Support/InitLLVM.cpp",
         "third_party/hermes/external/llvh/lib/Support/LineIterator.cpp",
         "third_party/hermes/external/llvh/lib/Support/Locale.cpp",
@@ -34,8 +35,39 @@ static_library("llvh_support") {
         "third_party/hermes/external/llvh/lib/Support/Mutex.cpp",
         "third_party/hermes/external/llvh/lib/Support/NativeFormatting.cpp",
         "third_party/hermes/external/llvh/lib/Support/Path.cpp",
+        "third_party/hermes/external/llvh/lib/Support/PrettyStackTrace.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Process.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Program.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Regex.cpp",
+        "third_party/hermes/external/llvh/lib/Support/SHA1.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Signals.cpp",
+        "third_party/hermes/external/llvh/lib/Support/SmallPtrSet.cpp",
+        "third_party/hermes/external/llvh/lib/Support/SmallVector.cpp",
+        "third_party/hermes/external/llvh/lib/Support/SourceMgr.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Statistic.cpp",
+        "third_party/hermes/external/llvh/lib/Support/StringExtras.cpp",
+        "third_party/hermes/external/llvh/lib/Support/StringMap.cpp",
+        "third_party/hermes/external/llvh/lib/Support/StringRef.cpp",
+        "third_party/hermes/external/llvh/lib/Support/StringSaver.cpp",
+        "third_party/hermes/external/llvh/lib/Support/TargetParser.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Threading.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Timer.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Triple.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Twine.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Unicode.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Valgrind.cpp",
+        "third_party/hermes/external/llvh/lib/Support/Watchdog.cpp",
+        "third_party/hermes/external/llvh/lib/Support/circular_raw_ostream.cpp",
+        "third_party/hermes/external/llvh/lib/Support/raw_os_ostream.cpp",
+        "third_party/hermes/external/llvh/lib/Support/raw_ostream.cpp",
+        "third_party/hermes/external/llvh/lib/Support/regcomp.c",
+        "third_party/hermes/external/llvh/lib/Support/regerror.c",
+        "third_party/hermes/external/llvh/lib/Support/regexec.c",
+        "third_party/hermes/external/llvh/lib/Support/regfree.c",
+        "third_party/hermes/external/llvh/lib/Support/regstrlcpy.c",
     ]
-    cflags_cc = ["-std=c++11", "-Wno-unused-parameter"]
+    cflags = ["-Wno-unused-parameter"]
+    cflags_cc = ["-std=c++11"]
 }
 
 config("napi_include") {
