@@ -9,7 +9,17 @@ static_library("llvh_demangle") {
 }
 
 static_library("llvh_support") {
-    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/hermes_include"]
+    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include"]
+    if (build_ios) {
+        if (ios_simulator) {
+            include_dirs += ["third_party/iphonesimulator"]
+        } else {
+            include_dirs += ["third_party/iphoneos"]
+        }
+    } else {
+        include_dirs += ["third_party/macos"]
+    }
+    libs = ["pthread"]
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
         "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
