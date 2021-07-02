@@ -1,3 +1,14 @@
+static_library("dtoa") {
+    sources = [
+        "third_party/hermes/external/dtoa/dtoa.c",
+        "third_party/hermes/external/dtoa/g_fmt.c",
+        "third_party/hermes/external/dtoa/locks.cpp",
+    ]
+    defines = ["IEEE_8087", "Long=int", "NO_HEX_FP", "NO_INFNAN_CHECK", "MULTIPLE_THREADS"]
+    cflags_c = ["-Wno-parentheses", "-Wno-unused-label", "-Wno-sign-compare"]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+}
+
 config("llvh_include") {
     include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
     if (build_ios) {
@@ -23,7 +34,6 @@ static_library("llvh_demangle") {
 
 static_library("llvh_support") {
     public_configs = [":llvh_include"]
-    libs = ["pthread"]
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
         "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
