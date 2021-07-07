@@ -80,7 +80,12 @@ toolchain("clang") {
     tool("cxx") {
         command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
         # 目前只用于单元测试，所以不考虑异常模型
+<<<<<<< HEAD
+        # 默认 C++98 + libc++ gtest 要求 C++11
+        command = string_join(" ", ["clang++ -std=c++14", compiler_command])
+=======
         # 默认 C++98 + libc++
+>>>>>>> main
         outputs = compiler_outputs
     }
 
@@ -90,7 +95,12 @@ toolchain("clang") {
     }
 
     tool("link") {
+<<<<<<< HEAD
+        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
+        rspfile = rspfile_name
+=======
         command = "clang++ -o {{output}} {{inputs}} {{frameworks}}"
+>>>>>>> main
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
         # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
