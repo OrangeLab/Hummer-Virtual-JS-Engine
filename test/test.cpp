@@ -68,7 +68,9 @@ void ::Test::SetUp()
     ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
     NAPIValue global;
     ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
-    ASSERT_EQ(napi_create_object(globalEnv, &addonValue), NAPIOK);
+    NAPIValue objectCtor;
+    ASSERT_EQ(napi_get_named_property(globalEnv, global, "Object", &objectCtor), NAPIOK);
+    ASSERT_EQ(napi_new_instance(globalEnv, objectCtor, 0, nullptr, &addonValue), NAPIOK);
     NAPIValue stringValue;
     ASSERT_EQ(napi_create_string_utf8(globalEnv, "addon", &stringValue), NAPIOK);
     ASSERT_EQ(napi_set_property(globalEnv, global, stringValue, addonValue), NAPIOK);

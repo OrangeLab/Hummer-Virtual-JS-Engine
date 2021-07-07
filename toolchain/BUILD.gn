@@ -1,17 +1,17 @@
 # compiler tools
 depfile = "{{output}}.d"
 # all tools except "action"
-rspfile_name = "{{output}}.rsp"
-# all tools except "action" (required when "rspfile" is used)
-rspfile_compiler_content = "{{include_dirs}} {{defines}} {{cflags_c}} {{cflags}}"
-compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile @$rspfile_name"
+compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
 
 if (debug) {
+    test = ""
     compiler_command = string_join(" ", ["-O0", compiler_command])
 } else {
 # NDEBUG for assert.h
     compiler_command = string_join(" ", ["-Os -flto -DNDEBUG", compiler_command])
 }
+
+compiler_command = string_join(" ", [test, compiler_command])
 
 compiler_outputs = [
     "{{source_out_dir}}/{{source_name_part}}.o"
@@ -21,29 +21,25 @@ linker_outputs = [
 ]
 
 toolchain("android") {
-    compiler_command = string_join(" ", [compiler_command, "-target $android_target --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"])
+    compiler_command = string_join(" ", ["-target $android_target --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot", compiler_command])
     tool("cc") {
-        rspfile = rspfile_name
-        rspfile_content = rspfile_compiler_content
+        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -fpic", compiler_command, "{{cflags_cc}}"])
         # -fpic 永远使用 GOT 全局偏移表，更严格
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -fpic", compiler_command])
         outputs = compiler_outputs
     }
     tool("stamp") {
         command = "touch {{output}}"
     }
     tool("solink") {
-        rspfile_content = "{{inputs}}"
-        rspfile = rspfile_name
-        default_output_extension = ".so"
-        # target 选择 clang 具体工具链，指定 lto 参数 mcpu
-        command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -Wl,-soname,{{target_output_name}}$default_output_extension -shared -flto -target $android_target -o {{output}} @$rspfile"
         if (debug) {
-            command = string_join(" ", [command, "-O0"])
+            optimize_level = "-O0"
         } else {
-        # 不能指定 -Os 否则会出错
-            command = string_join(" ", [command, "-O3"])
+            optimize_level = "-O3"
         }
+        default_output_extension = ".so"
+        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -Wl,-soname,{{target_output_name}}$default_output_extension -shared -flto -target $android_target -o {{output}}", optimize_level, "{{inputs}}"])
+        # target 选择 clang 具体工具链，指定 lto 参数 mcpu
+        # 不能指定 -Os 否则会出错
         default_output_dir = "{{target_out_dir}}"
         outputs = linker_outputs
         output_prefix = "lib"
@@ -67,27 +63,29 @@ toolchain("clang") {
         target_option = "-target $ios_archtecture-apple-ios9.0"
         if (ios_simulator) {
             target_option = string_join("-", [target_option, "simulator"])
-            compiler_command = string_join(" ", [compiler_command, "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk"])
+            compiler_command = string_join(" ", ["-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk", compiler_command])
         } else {
-            compiler_command = string_join(" ", [compiler_command, "-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"])
+            compiler_command = string_join(" ", ["-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk", compiler_command])
         }
-        compiler_command = string_join(" ", [compiler_command, target_option])
+        compiler_command = string_join(" ", [target_option, compiler_command])
     }
 
     tool("cc") {
-        rspfile = rspfile_name
-        rspfile_content = rspfile_compiler_content
+        command = string_join(" ", ["clang", compiler_command, "{{cflags_c}}"])
         # depsformat = "gcc"
-        command = string_join(" ", ["clang", compiler_command])
+        #        command = string_join(" ", ["clang", compiler_command])
         outputs = compiler_outputs
     }
 
     tool("cxx") {
-        rspfile = rspfile_name
-        rspfile_content = rspfile_compiler_content
+        command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
         # 目前只用于单元测试，所以不考虑异常模型
+<<<<<<< HEAD
         # 默认 C++98 + libc++ gtest 要求 C++11
         command = string_join(" ", ["clang++ -std=c++14", compiler_command])
+=======
+        # 默认 C++98 + libc++
+>>>>>>> main
         outputs = compiler_outputs
     }
 
@@ -97,12 +95,15 @@ toolchain("clang") {
     }
 
     tool("link") {
+<<<<<<< HEAD
         rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
         rspfile = rspfile_name
+=======
+        command = "clang++ -o {{output}} {{inputs}} {{frameworks}}"
+>>>>>>> main
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
         # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
-        command = "clang++ -o {{output}} @$rspfile"
         if (code_coverage) {
             command = string_join(" ", [command, "-fprofile-instr-generate"])
         }
@@ -117,9 +118,7 @@ toolchain("clang") {
     }
 
     tool("alink") {
-        rspfile_content = "{{inputs}}"
-        rspfile = rspfile_name
-        command = "libtool -static -o {{output}} @$rspfile"
+        command = "libtool -static -o {{output}} {{inputs}}"
         default_output_dir = "{{target_out_dir}}"
         outputs = linker_outputs
         default_output_extension = ".a"
