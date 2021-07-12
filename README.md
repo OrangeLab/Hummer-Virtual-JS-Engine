@@ -62,10 +62,10 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### Android 动态库
 
-1. `gn gen armv7 --args="build_android=true android_target=\"armv7-none-linux-androideabi18\""`
-2. `gn gen arm64 --args="build_android=true android_target=\"aarch64-none-linux-android21\""`
-3. `gn gen i386 --args="build_android=true android_target=\"i686-none-linux-android18\""`
-4. `gn gen x86_64 --args="build_android=true android_target=\"x86_64-none-linux-android21\""`
+1. `gn gen armv7 --args="build_android=true android_target=\"armv7-\""`
+2. `gn gen arm64 --args="build_android=true android_target=\"arm64\""`
+3. `gn gen i386 --args="build_android=true android_target=\"i386\""`
+4. `gn gen x86_64 --args="build_android=true android_target=\"x86_64\""`
 5. `ninja -C armv7 napi_qjs && ninja -C arm64 napi_qjs && ninja -C i386 napi_qjs && ninja -C x86_64 napi_qjs`
 6. `mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64`
 7. `mv armv7/obj/*.so napi/libs/armeabi-v7a && mv arm64/obj/*.so napi/libs/arm64-v8a && mv i386/obj/*.so napi/libs/x86 && mv x86_64/obj/*.so napi/libs/x86_64`

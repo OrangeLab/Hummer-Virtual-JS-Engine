@@ -6,7 +6,7 @@ declare_args() {
     build_android = false
     # NDK 路径
     ndk_path = "~/Library/Android/sdk/ndk/21.4.7075529"
-    android_target = "armv7-none-linux-androideabi18"
+    android_target = "armv7"
 
     # 暂时只对 clang 工具链有效
     code_coverage = false

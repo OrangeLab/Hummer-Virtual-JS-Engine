@@ -1,17 +1,16 @@
 # compiler tools
 depfile = "{{output}}.d"
 # all tools except "action"
+# TODO(ChasonTang): 添加 -fvisibility=hidden
 compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
+stamp_command = "touch {{output}}"
 
 if (debug) {
-    test = ""
     compiler_command = string_join(" ", ["-O0", compiler_command])
 } else {
 # NDEBUG for assert.h
     compiler_command = string_join(" ", ["-Os -flto -DNDEBUG", compiler_command])
 }
-
-compiler_command = string_join(" ", [test, compiler_command])
 
 compiler_outputs = [
     "{{source_out_dir}}/{{source_name_part}}.o"
@@ -21,14 +20,29 @@ linker_outputs = [
 ]
 
 toolchain("android") {
-    compiler_command = string_join(" ", ["-target $android_target --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot", compiler_command])
+    compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong", compiler_command])
+    if (debug) {
+        compiler_command = string_join(" ", ["-fdata-sections -ffunction-sections", compiler_command])
+    }
+    if (android_target == "armv7") {
+        compiler_command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", compiler_command])
+    } else if (android_target == "arm64") {
+        compiler_command = string_join(" ", ["-target aarch64-none-linux-android21", compiler_command])
+    } else if (android_target == "i386") {
+        compiler_command = string_join(" ", ["-target i686-none-linux-android18 -mstackrealign", compiler_command])
+    } else {
+        compiler_command = string_join(" ", ["-target x86_64-none-linux-android21", compiler_command])
+    }
     tool("cc") {
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -fpic", compiler_command, "{{cflags_cc}}"])
-        # -fpic 永远使用 GOT 全局偏移表，更严格
+        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", compiler_command, "{{cflags_c}}"])
+        outputs = compiler_outputs
+    }
+    tool("cc") {
+        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++", compiler_command, "{{cflags_cc}}"])
         outputs = compiler_outputs
     }
     tool("stamp") {
-        command = "touch {{output}}"
+        command = stamp_command
     }
     tool("solink") {
         if (debug) {
@@ -37,7 +51,17 @@ toolchain("android") {
             optimize_level = "-O3"
         }
         default_output_extension = ".so"
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang -Wl,-soname,{{target_output_name}}$default_output_extension -shared -flto -target $android_target -o {{output}}", optimize_level, "{{inputs}}"])
+        command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -flto -fdata-sections -ffunction-sections -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--fatal-warnings -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}}"
+        if (android_target == "armv7") {
+            command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", command])
+        } else if (android_target == "arm64") {
+            command = string_join(" ", ["-target aarch64-none-linux-android21", command])
+        } else if (android_target == "i386") {
+            command = string_join(" ", ["-target i686-none-linux-android18", command])
+        } else {
+            command = string_join(" ", ["-target x86_64-none-linux-android21", command])
+        }
+        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", command, optimize_level])
         # target 选择 clang 具体工具链，指定 lto 参数 mcpu
         # 不能指定 -Os 否则会出错
         default_output_dir = "{{target_out_dir}}"
@@ -73,34 +97,21 @@ toolchain("clang") {
     tool("cc") {
         command = string_join(" ", ["clang", compiler_command, "{{cflags_c}}"])
         # depsformat = "gcc"
-        #        command = string_join(" ", ["clang", compiler_command])
         outputs = compiler_outputs
     }
 
     tool("cxx") {
         command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
-        # 目前只用于单元测试，所以不考虑异常模型
-<<<<<<< HEAD
-        # 默认 C++98 + libc++ gtest 要求 C++11
-        command = string_join(" ", ["clang++ -std=c++14", compiler_command])
-=======
         # 默认 C++98 + libc++
->>>>>>> main
         outputs = compiler_outputs
     }
 
     tool("stamp") {
-    # source_set
-        command = "touch {{output}}"
+        command = stamp_command
     }
 
     tool("link") {
-<<<<<<< HEAD
-        rspfile_content = "{{inputs}} {{frameworks}} {{libs}}"
-        rspfile = rspfile_name
-=======
         command = "clang++ -o {{output}} {{inputs}} {{frameworks}}"
->>>>>>> main
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
         # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o

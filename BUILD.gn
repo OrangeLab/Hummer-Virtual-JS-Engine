@@ -13,20 +13,20 @@ source_set("dtoa") {
     cflags_c = ["-Wno-parentheses", "-Wno-unused-label", "-Wno-sign-compare"]
 }
 
+config("llvm_include") {
+    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
+}
+
 source_set("llvm_demangle") {
-    include_dirs = ["third_party/hermes/external/llvh/include"]
     sources = [
         "third_party/hermes/external/llvh/lib/Demangle/ItaniumDemangle.cpp",
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
     ]
-    configs = [":hermes_cpp_build"]
+    configs = [":hermes_cpp_build", ":llvm_include"]
     cflags_cc = ["-Wno-unused-parameter"]
 }
 
-config("llvm_include") {
-    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
-}
 
 source_set("llvm_support") {
     configs = [":llvm_include", ":hermes_cpp_build"]
@@ -173,10 +173,12 @@ source_set("hermes_platform_intl") {
 }
 
 source_set("hermes_platform") {
-    configs = [":hermes_cpp_build", ":hermes_include"]
+    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include"]
+    include_dirs = ["third_party/include"]
     sources = [
         "third_party/hermes/lib/Platform/Logging.cpp"
     ]
+    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_ast") {
@@ -509,139 +511,14 @@ source_set("bf") {
 config("quickjs_build") {
     cflags_c = ["-funsigned-char", "-Wno-unused-parameter", "-Wno-pedantic"]
 }
-# -------- hermes start ---------
-# hermes config
-config("hermes_external_include") {
-    include_dirs = [
-        "third_party/hermes/external/llvh/include",
-        "third_party/hermes/external/llvh/gen/include"
-    ]
-}
-# hermesAPI & jsi include
-config("hermes_HermesAPI_include") {
 
-    include_dirs = [
-        "third_party/hermes/API/hermes",
-    ]
-}
-config("hermes_jsi_include") {
-
-    include_dirs = [
-        "third_party/hermes/API/jsi"
-    ]
-}
-
-config("hermes_public_API_include") {
-    
-    include_dirs = [
-        "third_party/hermes/public",
-        "third_party/hermes/API",
-    ]
-}
-
-config("hermes_config_include") {
-    
-    include_dirs = [
-        "third_party/hermes/config"
-    ]
-}
-
-config("hermes_library_build_flags"){
-    cflags = ["-Wno-sign-compare", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions","-Wno-nested-anon-types"]
-}
-
-config("hermes_VM_define") {
-   
-    defines = [
-        "HERMESVM_GC_HADES",
-        "HERMESVM_INDIRECT_THREADING",
-        "HERMESVM_ALLOW_COMPRESSED_POINTERS",
-        "HERMESVM_HEAP_SEGMENT_SIZE_KB=4096",
-        "HERMESVM_ALLOW_CONCURRENT_GC",
-        "HERMES_ENABLE_DEBUGGER",
-        "HERMES_LLVMHERMESVM_HEAP_SEGMENT_SIZE_KB=4096"
-    ]
-}
-
-config("hermes_VM_include") {
-
-    include_dirs = [
-        "third_party/hermes/include",
-    ]
-}
-
-# hermes jsi source
-source_set("hermes_jsi_source") {
-    public_configs = [
-        ":hermes_jsi_include"
-    ]
-    sources = [
-        "third_party/hermes/API/jsi/jsi/jsi.cpp"
-    ]
-}
-# hermes debuggerAPI source
-source_set("hermes_debuggerAPI_source") {
-    public_configs = [
-        ":hermes_VM_define",
-        ":hermes_VM_include",
-        ":hermes_jsi_include",
-        ":hermes_HermesAPI_include",
-        ":hermes_external_include",
-        ":hermes_public_API_include",
-        ":hermes_config_include",
-        ":hermes_library_build_flags",
-    ]
-    sources = [
-        "third_party/hermes/API/hermes/DebuggerAPI.cpp"
-    ]
-}
-
-# hermes static library
-source_set("hermes_library") {
-
-    public_deps = [
-        ":hermes_jsi_source",
-        ":hermes_debuggerAPI_source"
-    ]
-    lib_dirs = ["build_hermes"]
-    libs = [
-        "build_hermes/libdtoa.a",
-        "build_hermes/libLLVHSupport.a",
-        "build_hermes/libLLVHDemangle.a",
-        "build_hermes/libhermesFrontend.a",
-        "build_hermes/libhermesOptimizer.a",
-        "build_hermes/libhermesInst.a",
-        "build_hermes/libhermesFrontEndDefs.a",
-        "build_hermes/libhermesADT.a",
-        "build_hermes/libhermesAST.a",
-        "build_hermes/libhermesSourceMap.a",
-        "build_hermes/libhermesSupport.a",
-        "build_hermes/libhermesBackend.a",
-        "build_hermes/libhermesParser.a",
-        "build_hermes/libhermesHBCBackend.a",
-        "build_hermes/libhermesRegex.a",
-        "build_hermes/libhermesHBCBackend.a",
-        "build_hermes/libhermesPlatform.a",
-        "build_hermes/libhermesInternalBytecode.a",        
-        "build_hermes/libhermesPlatformUnicode.a",
-        "build_hermes/libhermesVMRuntime.a",
-    ]
-    frameworks = [ "CoreFoundation.framework" ]
-    sources = [
-        "third_party/hermes/API/hermes/hermes.cpp"
-    ]
-}
-
-# hermes&napi static library
-static_library("napi_hermes") {
+source_set("napi_hermes_source_set") {
     public_configs = [
         ":napi_include",
     ]
-    #(解决clion编译问题)-std=c++14 clion gn_to_cmake 的cxxflags 只会获取主动声明的 flags，toolchain中写好的flags并不会生效。
-    cflags = ["-Wno-unused-variable","-Wno-unused-function","-std=c++14", "-Wno-vexing-parse", "-Wno-pointer-bool-conversion"]
-    deps = [":hermes_library"]
+    configs = [":hermes_cpp_build", ":hermes_include"]
     sources = [
-        "src/js_native_api_hermes.cc"
+        "src/js_native_api_hermes.cpp"
     ]
 }
 
@@ -763,8 +640,27 @@ if (build_android) {
             testonly = true
             deps = [
                 ":test",
-                ":napi_hermes",
+                ":napi_hermes_source_set",
                 ":napi_common",
+
+                ":llvm_demangle",
+                ":llvm_support",
+                ":hermes_frontend",
+                ":hermes_optimizer",
+                ":hermes_inst",
+                ":hermes_frontend_defs",
+                ":hermes_ast",
+                ":hermes_adt",
+                ":hermes_parser",
+                ":hermes_source_map",
+                ":hermes_support",
+                ":hermes_backend",
+                ":hermes_hbc_backend",
+                ":hermes_regex",
+                ":hermes_platform",
+                ":hermes_platform_intl",
+                ":hermes_platform_unicode",
+                ":dtoa"
             ]
         }
 
