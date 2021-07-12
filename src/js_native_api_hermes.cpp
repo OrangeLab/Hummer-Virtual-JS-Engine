@@ -1,42 +1,26 @@
-#include <assert.h>
-#include <hermes/DebuggerAPI.h>
-#include <hermes/VM/Callable.h>
-#include <hermes/VM/HandleRootOwner.h>
-#include <hermes/VM/HermesValue.h>
-#include <hermes/VM/JSArray.h>
-#include <hermes/VM/JSError.h>
-#include <hermes/VM/JSObject.h>
-#include <hermes/VM/Operations.h>
+//#include <cassert>
+//#include <hermes/DebuggerAPI.h>
+//#include <hermes/VM/Callable.h>
+//#include <hermes/VM/HandleRootOwner.h>
+//#include <hermes/VM/HermesValue.h>
+//#include <hermes/VM/HostModel.h>
+//#include <hermes/VM/JSArray.h>
+//#include <hermes/VM/JSError.h>
+//#include <hermes/VM/JSObject.h>
+//#include <hermes/VM/Operations.h>
 #include <hermes/VM/Runtime.h>
-#include <hermes/VM/HostModel.h>
-#include <hermes/VM/WeakRef.h>
-#include <hermes/hermes.h>
+#include <hermes/VM/StringPrimitive.h>
 #include <llvh/Support/ConvertUTF.h>
+//#include <hermes/VM/WeakRef.h>
+//#include <hermes/hermes.h>
+//#include <llvh/Support/ConvertUTF.h>
+//#include <cstdio>
+//#include <cstdlib>
+//#include <hermes/BCGen/HBC/BytecodeProviderFromSrc.h>
+//#include <hermes/VM/SlotAcceptor.h>
+//#include <list>
+#include <hermes/Public/GCConfig.h>
 #include <napi/js_native_api.h>
-#include <hermes/VM/SlotAcceptor.h>
-#include <hermes/BCGen/HBC/BytecodeProviderFromSrc.h>
-#include <napi/js_native_api_types.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <list>
-
-// 如果一个函数返回的 NAPIStatus 为 NAPIOK，则没有异常被挂起，并且不需要做任何处理
-// 如果 NAPIStatus 是除了 NAPIOK 或者 NAPIPendingException，为了尝试恢复并继续执行，而不是直接返回，必须调用
-// napi_is_exception_pending 来确定是否存在挂起的异常
-
-// 大多数情况下，调用 N-API 函数的时候，如果已经有异常被挂起，函数会立即返回 NAPIPendingException，但是，N-API
-// 允许一些函数被调用用来在返回 JavaScript 环境前做最小化的清理 在这种情况下，NAPIStatus
-// 会反映函数的执行结果状态，而不是当前存在异常，为了避免混淆，在每次函数执行后请检查结果
-
-// 当异常被挂起的时候，有两种方法
-// 1. 进行适当的清理并返回，那么执行环境会返回到 JavaScript，作为返回到 JavaScript 的过渡的一部分，异常将在 JavaScript
-// 调用原生方法的语句处抛出，大多数 N-API 函数在出现异常被挂起的时候，都只是简单的返回
-// NAPIPendingException，，所以在这种情况下，建议尽量少做事情，等待返回到 JavaScript 中处理异常
-// 2.
-// 尝试处理异常，在原生代码能捕获到异常的地方采取适当的操作，然后继续执行。只有当异常能被安全的处理的少数特定情况下推荐这样做，在这些情况下，napi_get_and_clear_last_exception
-// 可以被用来获取并清除异常，在此之后，如果发现异常还是无法处理，可以通过 napi_throw 重新抛出错误
-
-#include <sys/queue.h>
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
     {                                                                                                                  \
@@ -48,8 +32,6 @@
 
 #define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
 
-// This does not call napi_set_last_error because the expression
-// is assumed to be a NAPI function call that already did.
 #define CHECK_NAPI(expr)                                                                                               \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
@@ -58,33 +40,59 @@
             return status;                                                                                             \
         }                                                                                                              \
     }
-//  获取hermes js 执行异常
-#define CHECK_HERMES(env, status)                                                                                      \
+
+#define CHECK_HERMES(expr)                                                                                             \
     {                                                                                                                  \
-        CHECK_ARG(env);                                                                                                \
-        if (status != hermes::vm::ExecutionStatus::RETURNED)                                                           \
+        if ((expr) == ::hermes::vm::ExecutionStatus::EXCEPTION)                                                        \
         {                                                                                                              \
-            CHECK_EXCEPTION(env);                                                                                      \
+            return NAPIPendingException;                                                                               \
         }                                                                                                              \
-    }                                                                                                                  \
+    }
 
 // check throw value
-#define CHECK_EXCEPTION(env)                                                                                           \
-    {                                                                                                                  \
-        CHECK_ARG(env);                                                                                                \
-        auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);                                                       \
-        RETURN_STATUS_IF_FALSE((hermesImpl::HermesRuntimeFromJsEnv(env)->context_->getThrownValue().isEmpty()), NAPIPendingException);   \
-    }                                                                                                                  \
+//#define CHECK_EXCEPTION(env) \
+//    { \
+//        CHECK_ARG(env); \
+//        auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env); \
+//        RETURN_STATUS_IF_FALSE((hermesImpl::HermesRuntimeFromJsEnv(env)->context_->getThrownValue().isEmpty()),
+//        NAPIPendingException);   \
+//    } \
 
+namespace
+{
+// hermes.cpp -> kMaxNumRegisters
+constexpr unsigned kMaxNumRegisters =
+    (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) / sizeof(::hermes::vm::PinnedHermesValue);
+} // namespace
 
-// #define HASH_NONFATAL_OOM 1
+EXTERN_C_START
 
-// 先 hashError = false; 再判断是否变为 true，发生错误需要回滚内存分配
-static bool hashError = false;
+struct OpaqueNAPIEnv
+{
+    OpaqueNAPIEnv()
+    {
+        // HermesExecutorFactory -> heapSizeMB 1024 -> HermesExecutor -> initHybrid
+        // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L85
+        // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L33
+        auto gcConfigBuilder = ::hermes::vm::GCConfig::Builder()
+                                   .withName("N-API")
+                                   .withAllocInYoung(false)
+                                   .withRevertToYGAtTTI(true)
+                                   .withMaxHeapSize(1024 << 20);
+        auto runtimeConfig = ::hermes::vm::RuntimeConfig::Builder()
+                                 .withGCConfig(gcConfigBuilder.build())
+                                 .withRegisterStack(nullptr)
+                                 .withMaxNumRegisters(kMaxNumRegisters)
+                                 .build();
+        runtime = ::hermes::vm::Runtime::create(runtimeConfig);
+    }
 
-#define uthash_nonfatal_oom(elt) hashError = true;
+    ::std::shared_ptr<::hermes::vm::Runtime> runtime;
+};
 
+EXTERN_C_END
 
+/*
 namespace hermesImpl
 {
 
@@ -94,9 +102,7 @@ class EscapableHandleScope;
 class CallBackInfoWrapper;
 class HandleScopeWrapper;
 
-/*
- * C++'s idea of a reinterpret_cast lacks sufficient cojones.
- */
+// C++'s idea of a reinterpret_cast lacks sufficient cojones.
 template <typename ToType, typename FromType> inline ToType hermes_bitwise_cast(FromType from)
 {
     static_assert(sizeof(FromType) == sizeof(ToType), "bitwise_cast size of FromType and ToType must be equal!");
@@ -167,7 +173,8 @@ class Runtime {
         sizeof(::hermes::vm::PinnedHermesValue);
     explicit Runtime(){
         hermes::vm::RuntimeConfig rtConfig = hermes::vm::RuntimeConfig();
-        this->rt_ = hermes::vm::Runtime::create(rtConfig.rebuild().withRegisterStack(nullptr).withMaxNumRegisters(kMaxNumRegisters).build());
+        this->rt_ =
+hermes::vm::Runtime::create(rtConfig.rebuild().withRegisterStack(nullptr).withMaxNumRegisters(kMaxNumRegisters).build());
         this->context_ = &(*this->rt_);
         this->context_->getThrownValue().isEmpty();
         this->addCustomGCFunc();
@@ -235,9 +242,7 @@ class Runtime {
     void addCustomGCFunc();
 };
 
-/**
- * hermes 不支持 escapable scope，使用强引用来模拟。
- * */
+// hermes 不支持 escapable scope，使用强引用来模拟。
 class EscapableHandleScope {
   public:
     explicit EscapableHandleScope()
@@ -264,7 +269,7 @@ class EscapableHandleScope {
   private:
     bool escapeCalled_;
 };
-
+*/
 
 /*
  * 基本类型不受GC影响: 当GC进行内存压缩时，基本类型的值不会被改变。
@@ -273,6 +278,7 @@ class EscapableHandleScope {
  * iOS 目前的方案由于会直接持有 JSValue，因此存在 堆内存 被回收的问题。所以需要堆 string 支持引用。
  * 后续 iOS 侧做类型识别后，NAPI 内部可修改为：只支持对象 引用
  */
+/*
 class Reference {
 
   public:
@@ -284,9 +290,9 @@ class Reference {
         : env_(env),
           runtimeFromEnv_(reinterpret_cast<Runtime *>(env)),
           hv_(hv),
-          wr_(hermes::vm::WeakRoot<hermes::vm::GCCell>(hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv), runtimeFromEnv_->context_)),
-          count_(initial_count){
-        this->isGCCell_ = hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv) ? true : false;
+          wr_(hermes::vm::WeakRoot<hermes::vm::GCCell>(hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv),
+runtimeFromEnv_->context_)), count_(initial_count){ this->isGCCell_ =
+hermes::vm::dyn_vmcast_or_null<hermes::vm::GCCell>(hv) ? true : false;
         //GCCell(string & object)才创建引用，否则只为护 count
         if (isGCCell_){
             if (initial_count){
@@ -522,7 +528,8 @@ class HermesExternalObject : public hermes::vm::HostObjectProxy {
     }
 
     virtual hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>> getHostPropertyNames() override {
-        return hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>>(hermes::vm::Runtime::makeNullHandle<hermes::vm::JSArray>());
+        return
+hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>>(hermes::vm::Runtime::makeNullHandle<hermes::vm::JSArray>());
     }
 
     HermesExternalObject(const HermesExternalObject &) = delete;
@@ -533,8 +540,9 @@ class HermesExternalObject : public hermes::vm::HostObjectProxy {
 
     HermesExternalObject &operator=(HermesExternalObject &&) = delete;
 
-    static std::unique_ptr<HermesExternalObject> create(NAPIEnv env, void *data, NAPIFinalize finalize_cb, void *finalize_hint) {
-        return std::unique_ptr<HermesExternalObject>(new HermesExternalObject(env,data,finalize_cb,finalize_hint));
+    static std::unique_ptr<HermesExternalObject> create(NAPIEnv env, void *data, NAPIFinalize finalize_cb, void
+*finalize_hint) { return std::unique_ptr<HermesExternalObject>(new
+HermesExternalObject(env,data,finalize_cb,finalize_hint));
     }
 };
 
@@ -585,11 +593,123 @@ static void convertUtf16ToUtf8(ArrayRef<char16_t> src, size_t length, std::strin
 }
 
 } // namespace hermesImpl
-#pragma mark <Private>
-// 以下函数需要 外置 scope
+ */
 
-#pragma mark <Error Handling>
+NAPIStatus napi_get_undefined(NAPIEnv /*env*/, NAPIValue *result)
+{
+    CHECK_ARG(result)
 
+    *result = (NAPIValue)::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_get_null(NAPIEnv /*env*/, NAPIValue *result)
+{
+    CHECK_ARG(result)
+
+    *result = (NAPIValue)::hermes::vm::Runtime::getNullValue().unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(result)
+
+    *result = (NAPIValue)env->runtime->getGlobal().unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_get_boolean(NAPIEnv /*env*/, bool value, NAPIValue *result)
+{
+    CHECK_ARG(result)
+
+    *result = (NAPIValue)::hermes::vm::Runtime::getBoolValue(value).unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(result)
+
+    // HermesValue.h -> encodeNumberValue
+    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->runtime.get())
+                  ->makeHandle(::hermes::vm::HermesValue::encodeNumberValue(value))
+                  .unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(result)
+
+    if (!str)
+    {
+        str = "";
+    }
+    size_t length = strlen(str);
+    ::hermes::vm::CallResult<::hermes::vm::HermesValue> callResult = ::hermes::vm::ExecutionStatus::EXCEPTION;
+    if (::hermes::isAllASCII(str, str + length))
+    {
+        // length 0 也算 ASCII，但是 ::hermes::vm::createASCIIRef 不能传入 nullptr，因此不能直接使用 (nullptr, 0) 构造
+        callResult =
+            ::hermes::vm::StringPrimitive::createEfficient(env->runtime.get(), ::hermes::vm::createASCIIRef(str));
+    }
+    else
+    {
+        // 多一个 \0
+        auto out = static_cast<uint16_t *>(malloc(sizeof(uint16_t) * (length + 1)));
+        RETURN_STATUS_IF_FALSE(out, NAPIMemoryError)
+        // ::std::u16string resize 失败会抛出异常，因此使用 malloc
+        auto sourceStart = (const ::llvh::UTF8 *)str;
+        auto sourceEnd = sourceStart + length;
+        auto targetStart = out;
+        auto targetEnd = targetStart + length;
+        ::llvh::ConversionResult conversionResult;
+        conversionResult =
+            ::llvh::ConvertUTF8toUTF16(&sourceStart, sourceEnd, &targetStart, targetEnd, ::llvh::lenientConversion);
+        if (conversionResult != ::llvh::ConversionResult::conversionOK)
+        {
+            free(out);
+
+            return NAPIMemoryError;
+        }
+        *targetStart = '\0';
+        // ::std::u16string 会作为后备存储使用并调用 ::std::move，但是这里不是
+        callResult = ::hermes::vm::StringPrimitive::createEfficient(
+            env->runtime.get(), ::hermes::vm::createUTF16Ref(reinterpret_cast<const char16_t *>(out)));
+        free(out);
+        CHECK_HERMES(callResult)
+    }
+    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->runtime.get())
+                  ->makeHandle(callResult.getValue())
+                  .unsafeGetPinnedHermesValue();
+
+    return NAPIOK;
+}
+
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback callback, void *data, NAPIValue *result)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(callback)
+    CHECK_ARG(result)
+
+    NAPIHandleScope handleScope;
+    NAPIValue stringValue;
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue))
+
+
+    return NAPIOK;
+}
+
+/*
 NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
 {
 
@@ -602,13 +722,16 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
     auto hermesVal = hermesImpl::HermesValueFromJsValue(error);
     auto jsError = hermes::vm::dyn_vmcast_or_null<hermes::vm::JSError>(hermesVal);
 
-    if (jsError){
+    if (jsError)
+    {
         hermes::vm::HandleRootOwner *rtPtr = reinterpret_cast<hermes::vm::HandleRootOwner *>(hermesRt->context_);
         auto errHandle = rtPtr->makeHandle(jsError);
         hermes::vm::JSError::recordStackTrace(errHandle, hermesRt->context_);
         hermes::vm::JSError::setupStack(errHandle, hermesRt->context_);
         hermesRt->context_->setThrownValue(errHandle.getHermesValue());
-    }else{
+    }
+    else
+    {
         hermesRt->context_->setThrownValue(hermesVal);
     }
     return NAPIOK;
@@ -622,7 +745,6 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
 // napi_create_type_error
 // napi_create_range_error
 // Methods to support catching exceptions
-
 
 NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
 {
@@ -644,32 +766,6 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
 }
 
 #pragma mark <create | constructor>
-NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-    *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getUndefinedValue());
-    return NAPIOK;
-}
-
-NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-    *result = hermesImpl::JsValueFromHermesHandle(hermes::vm::Runtime::getNullValue());
-    return NAPIOK;
-}
-
-NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
-{
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
-    RETURN_STATUS_IF_FALSE(hermesRt->context_->getGlobal(), NAPIMemoryError);
-    *result = hermesImpl::JsValueFromHermesHandle(hermesRt->context_->getGlobal());
-    return NAPIOK;
-}
 
 NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 {
@@ -683,16 +779,17 @@ NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 // napi_create_object
 // see common.c
 
-NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint,
-                                NAPIValue *result){
+NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result)
+{
     CHECK_ARG(env);
     CHECK_ARG(result);
 
     auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    auto hostObjectRes = hermes::vm::HostObject::createWithoutPrototype(hermesRt->context_, hermesImpl::HermesExternalObject::create(env,data,finalizeCB,finalizeHint));
-    CHECK_HERMES(env,hostObjectRes.getStatus());
+    auto hostObjectRes = hermes::vm::HostObject::createWithoutPrototype(
+        hermesRt->context_, hermesImpl::HermesExternalObject::create(env, data, finalizeCB, finalizeHint));
+    CHECK_HERMES(env, hostObjectRes.getStatus());
     *result = hermesImpl::JsValueFromHermesValue(hostObjectRes.getValue());
     return NAPIOK;
 }
@@ -744,12 +841,15 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
 
     // c++ 默认为 ""
     std::u16string str16;
-         // strlen 以char 计算字节长度，uint8 = char
-        if (str){
-            length = strlen(str);
-        }else{
-            length = 0;
-        }
+    // strlen 以char 计算字节长度，uint8 = char
+    if (str)
+    {
+        length = strlen(str);
+    }
+    else
+    {
+        length = 0;
+    }
     //
     hermesImpl::convertUtf8ToUtf16(reinterpret_cast<const uint8_t *>(str), length, str16);
     auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
@@ -782,7 +882,6 @@ NAPIStatus napi_create_string_utf16(NAPIEnv env, const char16_t *str, size_t len
 }
 #pragma mark <Working with JavaScript Properties>
 
-
 // todo
 NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
 {
@@ -803,7 +902,6 @@ NAPIStatus napi_get_prototype(NAPIEnv env, NAPIValue object, NAPIValue *result)
     return NAPIOK;
 }
 
-
 NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value)
 {
     CHECK_ARG(env);
@@ -818,11 +916,13 @@ NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 
     auto keyString =
         hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(key));
-    if (!keyString){
-        //toString()
+    if (!keyString)
+    {
+        // toString()
         NAPIValue toStringKey;
         CHECK_NAPI(napi_coerce_to_string(env, key, &toStringKey));
-        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(toStringKey));
+        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(
+            hermesImpl::HermesValueFromJsValue(toStringKey));
     }
     RETURN_STATUS_IF_FALSE(keyString, NAPIStringExpected);
 
@@ -855,11 +955,13 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
 
     auto keyString =
         hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(key));
-    if (!keyString){
-        //toString()
+    if (!keyString)
+    {
+        // toString()
         NAPIValue toStringKey;
         CHECK_NAPI(napi_coerce_to_string(env, key, &toStringKey));
-        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(toStringKey));
+        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(
+            hermesImpl::HermesValueFromJsValue(toStringKey));
     }
     RETURN_STATUS_IF_FALSE(keyString, NAPIStringExpected);
 
@@ -867,7 +969,8 @@ NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool 
     auto symbolRes = hermes::vm::stringToSymbolID(hermesRt->context_, hermes::vm::createPseudoHandle(keyString));
     CHECK_HERMES(env, symbolRes.getStatus());
 
-    auto callRes = hermes::vm::JSObject::hasNamed(hermesRt->context_->makeHandle(jsObject), hermesRt->context_, symbolRes->get());
+    auto callRes =
+        hermes::vm::JSObject::hasNamed(hermesRt->context_->makeHandle(jsObject), hermesRt->context_, symbolRes->get());
     CHECK_HERMES(env, callRes.getStatus());
 
     *result = callRes.getValue();
@@ -889,11 +992,13 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
 
     auto keyString =
         hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(key));
-    if (!keyString){
-        //toString()
+    if (!keyString)
+    {
+        // toString()
         NAPIValue toStringKey;
         CHECK_NAPI(napi_coerce_to_string(env, key, &toStringKey));
-        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(toStringKey));
+        keyString = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(
+            hermesImpl::HermesValueFromJsValue(toStringKey));
     }
     RETURN_STATUS_IF_FALSE(keyString, NAPIStringExpected);
 
@@ -905,7 +1010,6 @@ NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIV
     auto getterRes = hermes::vm::JSObject::getNamed_RJS(hermesRt->context_->makeHandle(jsObject), hermesRt->context_,
                                                         symbolRes.getValue().get());
     CHECK_HERMES(env, getterRes.getStatus());
-
 
     // PseudoHandle 本质上为指针
     *result = hermesImpl::JsValueFromHermesValue(getterRes.getValue().get());
@@ -927,11 +1031,13 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
     hermes::vm::GCScope scope{hermesRt->context_};
 
     auto named = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(key));
-    if (!named){
-        //toString()
+    if (!named)
+    {
+        // toString()
         NAPIValue toStringKey;
         CHECK_NAPI(napi_coerce_to_string(env, key, &toStringKey));
-        named = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(toStringKey));
+        named = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(
+            hermesImpl::HermesValueFromJsValue(toStringKey));
     }
     RETURN_STATUS_IF_FALSE(named, NAPIStringExpected);
 
@@ -939,11 +1045,12 @@ NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bo
     auto symbolRes = hermes::vm::stringToSymbolID(hermesRt->context_, hermes::vm::createPseudoHandle(named));
     CHECK_HERMES(env, symbolRes.getStatus());
 
-
-    auto callRes = hermes::vm::JSObject::deleteNamed(hermesRt->context_->makeHandle(jsObject), hermesRt->context_, symbolRes.getValue().get());
+    auto callRes = hermes::vm::JSObject::deleteNamed(hermesRt->context_->makeHandle(jsObject), hermesRt->context_,
+                                                     symbolRes.getValue().get());
     CHECK_HERMES(env, callRes.getStatus());
 
-    if (result){
+    if (result)
+    {
         *result = callRes.getValue();
     }
     return NAPIOK;
@@ -975,7 +1082,6 @@ NAPIStatus napi_has_named_property(NAPIEnv env, NAPIValue object, const char *ut
     auto keyCallRes = hermes::vm::StringPrimitive::createEfficient(hermesRt->context_, std::move(nameUTF16));
     CHECK_HERMES(env, keyCallRes.getStatus());
 
-
     CHECK_NAPI(napi_has_property(env, object, hermesImpl::JsValueFromHermesValue(keyCallRes.getValue()), result));
     return NAPIOK;
 }
@@ -987,43 +1093,52 @@ NAPIStatus napi_has_named_property(NAPIEnv env, NAPIValue object, const char *ut
 #pragma mark <Working with JavaScript functions>
 
 NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *argc, NAPIValue *argv,
-                            NAPIValue *thisArg, void **data){
+                            NAPIValue *thisArg, void **data)
+{
 
     CHECK_ARG(env);
     CHECK_ARG(callbackInfo);
 
     auto hermesCbInfo = hermesImpl::HermesCallBackInfoFromJSCallBackInfo(callbackInfo);
 
-    if (argv){
+    if (argv)
+    {
         CHECK_ARG(env);
         CHECK_ARG(argv);
         size_t inputSize = *argc;
         *argc = hermesCbInfo->GetArgc();
         size_t min = *argc < 0 || inputSize > *argc ? *argc : inputSize;
-        hermesCbInfo->GetArgs(argv,min,inputSize);
+        hermesCbInfo->GetArgs(argv, min, inputSize);
     }
-    if (argc){
+    if (argc)
+    {
         *argc = hermesCbInfo->GetArgc();
     }
-    if (data){
+    if (data)
+    {
         *data = hermesCbInfo->GetData();
     }
-    if (thisArg){
+    if (thisArg)
+    {
         *thisArg = hermesImpl::JsValueFromHermesValue(hermesCbInfo->GetThisArg());
     }
     return NAPIOK;
 }
 
-NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result){
+NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result)
+{
 
     CHECK_ARG(env);
     CHECK_ARG(callbackInfo);
 
     auto hermesCbInfo = hermesImpl::HermesCallBackInfoFromJSCallBackInfo(callbackInfo);
     auto target = hermesCbInfo->GetNewTarget();
-    if (target.isUndefined()){
+    if (target.isUndefined())
+    {
         *result = NULL;
-    }else{
+    }
+    else
+    {
         *result = hermesImpl::JsValueFromHermesValue(target);
     };
     return NAPIOK;
@@ -1032,28 +1147,32 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIV
 // result 可空
 // thisValue 可空
 NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc, const NAPIValue *argv,
-                              NAPIValue *result){
+                              NAPIValue *result)
+{
     CHECK_ARG(env);
     CHECK_ARG(func);
 
     auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
 
     // this
-    if (!thisValue){
+    if (!thisValue)
+    {
         CHECK_NAPI(napi_get_global(env, &thisValue));
     }
     auto hermesThis = hermesImpl::HermesValueFromJsValue(thisValue);
     auto thisObject = hermes::vm::dyn_vmcast_or_null<hermes::vm::JSObject>(hermesThis);
 
-    //callable
+    // callable
     auto hermesFunc = hermesImpl::HermesValueFromJsValue(func);
     auto function = hermes::vm::dyn_vmcast_or_null<hermes::vm::Callable>(hermesFunc);
     RETURN_STATUS_IF_FALSE(function, NAPIObjectExpected);
 
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    //arg
-    auto argumentsRes = hermes::vm::Arguments::create(hermesRt->context_, static_cast<unsigned int>(argc), hermes::vm::HandleRootOwner::makeNullHandle<hermes::vm::Callable>(), true);
+    // arg
+    auto argumentsRes =
+        hermes::vm::Arguments::create(hermesRt->context_, static_cast<unsigned int>(argc),
+                                      hermes::vm::HandleRootOwner::makeNullHandle<hermes::vm::Callable>(), true);
     hermes::vm::Handle<hermes::vm::Arguments> argumentsHandle = argumentsRes.getValue();
     for (int i = 0; i < argc; ++i)
     {
@@ -1063,10 +1182,13 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
                                             hermesRt->context_->makeHandle(arg));
     }
     auto thisHandle = hermesRt->context_->makeHandle(thisObject);
-    auto callRes = hermes::vm::Callable::executeCall(hermesRt->context_->makeHandle(function), hermesRt->context_, hermes::vm::Runtime::getUndefinedValue(), thisHandle, argumentsHandle);
+    auto callRes =
+        hermes::vm::Callable::executeCall(hermesRt->context_->makeHandle(function), hermesRt->context_,
+                                          hermes::vm::Runtime::getUndefinedValue(), thisHandle, argumentsHandle);
     CHECK_HERMES(env, callRes.getStatus());
 
-    if (result){
+    if (result)
+    {
         auto callRet = callRes->getHermesValue();
         *result = hermesImpl::JsValueFromHermesValue(callRet);
     }
@@ -1074,10 +1196,10 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
 }
 
 // The newly created function is not automatically visible from script after this call.
-// Instead, a property must be explicitly set on any object that is visible to JavaScript, in order for the function to be accessible from script.
+// Instead, a property must be explicitly set on any object that is visible to JavaScript, in order for the function to
+// be accessible from script.
 
-NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
-                                NAPIValue *result)
+NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data, NAPIValue *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(result);
@@ -1090,26 +1212,30 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
     NAPIValue nameValue;
     CHECK_NAPI(napi_create_string_utf8(env, utf8name, &nameValue));
 
-    auto nameStr = hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(nameValue));
-    RETURN_STATUS_IF_FALSE(nameStr,  NAPIMemoryError);
+    auto nameStr =
+        hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(hermesImpl::HermesValueFromJsValue(nameValue));
+    RETURN_STATUS_IF_FALSE(nameStr, NAPIMemoryError);
 
-    auto nameSymRes = hermes::vm::stringToSymbolID(hermesRt->context_,  hermes::vm::createPseudoHandle(nameStr));
+    auto nameSymRes = hermes::vm::stringToSymbolID(hermesRt->context_, hermes::vm::createPseudoHandle(nameStr));
     CHECK_HERMES(env, nameSymRes.getStatus());
 
     auto nameSym = nameSymRes.getValue().get();
 
-    //save functoin info
-    auto funcInfo = new hermesImpl::FunctionInfo(env,cb,data);
+    // save functoin info
+    auto funcInfo = new hermesImpl::FunctionInfo(env, cb, data);
 
-    //NAPICallback -> hermes::nativeFunction
-    hermes::vm::NativeFunctionPtr funcPtr = [](void *context, hermes::vm::Runtime *runtime, hermes::vm::NativeArgs args) -> hermes::vm::CallResult<hermes::vm::HermesValue>{
+    // NAPICallback -> hermes::nativeFunction
+    hermes::vm::NativeFunctionPtr funcPtr =
+        [](void *context, hermes::vm::Runtime *runtime,
+           hermes::vm::NativeArgs args) -> hermes::vm::CallResult<hermes::vm::HermesValue> {
         hermes::vm::GCScope scope{runtime};
         hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
         hermesImpl::CallBackInfoWrapper wrapper = hermesImpl::CallBackInfoWrapper(args, funcInfo->GetData());
         auto jsCb = hermesImpl::JSCallBackInfoFormHermesCallBackInfo(wrapper);
         auto callRes = funcInfo->GetCb()(funcInfo->GetEnv(), jsCb);
         auto exception = runtime->getThrownValue();
-        if (!exception.isEmpty()){
+        if (!exception.isEmpty())
+        {
 
             return hermes::vm::ExecutionStatus::EXCEPTION;
         }
@@ -1122,10 +1248,10 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
         delete funcInfo;
     };
 
-    //createNativefunction
-    auto funcValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(hermesRt->context_, funcInfo, funcPtr, finalizeFuncPtr, nameSym, 0);
+    // createNativefunction
+    auto funcValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(
+        hermesRt->context_, funcInfo, funcPtr, finalizeFuncPtr, nameSym, 0);
     CHECK_HERMES(env, funcValRes.getStatus());
-
 
     *result = hermesImpl::JsValueFromHermesValue(funcValRes.getValue());
     return NAPIOK;
@@ -1148,8 +1274,8 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
 
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    if (argc > std::numeric_limits<uint32_t>::max() ||
-        !hermesRt->context_->checkAvailableStack((uint32_t)argc)) {
+    if (argc > std::numeric_limits<uint32_t>::max() || !hermesRt->context_->checkAvailableStack((uint32_t)argc))
+    {
         RETURN_STATUS_IF_FALSE(false, NAPIMemoryError);
     }
 
@@ -1183,18 +1309,16 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
     //
     // For us result == res.
 
-    hermes::vm::ScopedNativeCallFrame newFrame{
-        hermesRt->context_,
-        static_cast<uint32_t>(argc),
-        callableHandle.getHermesValue(),
-        callableHandle.getHermesValue(),
-        objHandle.getHermesValue()};
-    if (newFrame.overflowed()) {
+    hermes::vm::ScopedNativeCallFrame newFrame{hermesRt->context_, static_cast<uint32_t>(argc),
+                                               callableHandle.getHermesValue(), callableHandle.getHermesValue(),
+                                               objHandle.getHermesValue()};
+    if (newFrame.overflowed())
+    {
         auto res = hermesRt->context_->raiseStackOverflow(::hermes::vm::StackRuntime::StackOverflowKind::NativeStack);
         CHECK_HERMES(env, res);
-
     }
-    for (uint32_t i = 0; i != argc; ++i) {
+    for (uint32_t i = 0; i != argc; ++i)
+    {
         newFrame->getArgRef(i) = hermesImpl::HermesValueFromJsValue(argv[i]);
     }
     // The last parameter indicates that this call should construct an object.
@@ -1308,7 +1432,8 @@ NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result
     auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    auto callRes = hermes::vm::toNumeric_RJS(hermesRt->context_, hermesRt->context_->makeHandle(hermesImpl::HermesValueFromJsValue(value)));
+    auto callRes = hermes::vm::toNumeric_RJS(hermesRt->context_,
+                                             hermesRt->context_->makeHandle(hermesImpl::HermesValueFromJsValue(value)));
     CHECK_HERMES(env, callRes.getStatus());
 
     *result = hermesImpl::JsValueFromHermesValue(callRes.getValue());
@@ -1324,7 +1449,8 @@ NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result
 
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    auto callRes = hermes::vm::toString_RJS(hermesRt->context_, hermesRt->context_->makeHandle(hermesImpl::HermesValueFromJsValue(value)));
+    auto callRes = hermes::vm::toString_RJS(hermesRt->context_,
+                                            hermesRt->context_->makeHandle(hermesImpl::HermesValueFromJsValue(value)));
     CHECK_HERMES(env, callRes.getStatus());
 
     *result = hermesImpl::JsValueFromHermesValue(callRes->getHermesValue());
@@ -1348,13 +1474,13 @@ NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor,
 
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    auto callRes = hermes::vm::instanceOfOperator_RJS(hermesRt->context_, hermesRt->context_->makeHandle(obj_hv), hermesRt->context_->makeHandle(ctor_hv));
+    auto callRes = hermes::vm::instanceOfOperator_RJS(hermesRt->context_, hermesRt->context_->makeHandle(obj_hv),
+                                                      hermesRt->context_->makeHandle(ctor_hv));
     CHECK_HERMES(env, callRes.getStatus());
     *result = callRes.getValue();
     return NAPIOK;
 }
 // napi_strict_equals
-
 
 #pragma mark <Methods to work with Objects>
 #pragma mark <Functions to convert from Node-API to C types>
@@ -1377,9 +1503,12 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
     CHECK_ARG(result);
 
     auto hermesVal = hermesImpl::HermesValueFromJsValue(value);
-    if (hermesVal.isNumber()){
+    if (hermesVal.isNumber())
+    {
         *result = hermesVal.getNumber();
-    }else if(hermesVal.isDouble()){
+    }
+    else if (hermesVal.isDouble())
+    {
         *result = hermesVal.getDouble();
     }
     else
@@ -1396,9 +1525,12 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result)
     CHECK_ARG(result);
 
     auto hermesVal = hermesImpl::HermesValueFromJsValue(value);
-    if (hermesVal.isNumber()){
-        *result =(int64_t)hermesVal.getNumber();
-    }else if(hermesVal.isDouble()){
+    if (hermesVal.isNumber())
+    {
+        *result = (int64_t)hermesVal.getNumber();
+    }
+    else if (hermesVal.isDouble())
+    {
         double doubleValue = hermesVal.getDouble();
         if (isfinite(doubleValue))
         {
@@ -1423,7 +1555,9 @@ NAPIStatus napi_get_value_int64(NAPIEnv env, NAPIValue value, int64_t *result)
         {
             *result = 0;
         }
-    }else{
+    }
+    else
+    {
         return NAPINumberExpected;
     }
     return NAPIOK;
@@ -1435,11 +1569,16 @@ NAPIStatus napi_get_value_uint32(NAPIEnv env, NAPIValue value, uint32_t *result)
     CHECK_ARG(result);
 
     auto hermesVal = hermesImpl::HermesValueFromJsValue(value);
-    if (hermesVal.isNumber()){
-        *result =(uint32_t)hermesVal.getNumber();
-    }else if(hermesVal.isDouble()){
-        *result =(uint32_t)hermesVal.getDouble();
-    }else{
+    if (hermesVal.isNumber())
+    {
+        *result = (uint32_t)hermesVal.getNumber();
+    }
+    else if (hermesVal.isDouble())
+    {
+        *result = (uint32_t)hermesVal.getDouble();
+    }
+    else
+    {
         return NAPINumberExpected;
     }
     return NAPIOK;
@@ -1451,11 +1590,16 @@ NAPIStatus napi_get_value_int32(NAPIEnv env, NAPIValue value, int32_t *result)
     CHECK_ARG(result);
 
     auto hermesVal = hermesImpl::HermesValueFromJsValue(value);
-    if (hermesVal.isNumber()){
-        *result =(uint32_t)hermesVal.getNumber();
-    }else if(hermesVal.isDouble()){
-        *result =(uint32_t)hermesVal.getDouble();
-    }else{
+    if (hermesVal.isNumber())
+    {
+        *result = (uint32_t)hermesVal.getNumber();
+    }
+    else if (hermesVal.isDouble())
+    {
+        *result = (uint32_t)hermesVal.getDouble();
+    }
+    else
+    {
         return NAPINumberExpected;
     }
     return NAPIOK;
@@ -1510,11 +1654,14 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 
     // 总长度：字节
     size_t length;
-    if (jsString->isASCII()){
-        //ascii code unit = 1byte
+    if (jsString->isASCII())
+    {
+        // ascii code unit = 1byte
         length = jsString->getStringLength();
-    }else{
-        //sizeof(utf16) * array.length
+    }
+    else
+    {
+        // sizeof(utf16) * array.length
         auto utf16Str = jsString->getStringRef<char16_t>();
         length = utf16Str.size() * sizeof(char16_t);
     }
@@ -1530,7 +1677,8 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
 
     // 有效长度：最后一字节为 \0， 因此实际为 minLength - 1;
     size_t effectiveLen = minLength - 1;
-    if (jsString->isASCII()){
+    if (jsString->isASCII())
+    {
         auto ascString = jsString->getStringRef<char>();
         //避免重叠
         memmove(buf, ascString.data(), effectiveLen);
@@ -1543,7 +1691,7 @@ NAPIStatus napi_get_value_string_utf8(NAPIEnv env, NAPIValue value, char *buf, s
     auto u16String = jsString->getStringRef<char16_t>();
     // utf16 -> utf8, 如果 minLength 为偶数，可能出现 unpaird surrogate， 导致 u8string 出现 0xfffd(�)
     // 因此提前取偶数(可完整转换为utf8)，之后再替换末位 0xfffd(�) -> '\0'
-    std::string u8string;//C++ 默认为初始 \0
+    std::string u8string; // C++ 默认为初始 \0
     auto evenLength = effectiveLen >> 1 << 1;
     hermesImpl::convertUtf16ToUtf8(u16String, evenLength, u8string);
     // C++ 默认补 \0
@@ -1586,7 +1734,6 @@ NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope result)
     delete scopeWrapper;
     return NAPIOK;
 }
-
 
 // NAPIMemoryError
 NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result)
@@ -1634,18 +1781,19 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
 
     return NAPIOK;
 }
+ */
 
 #pragma mark <References to objects with a lifespan longer than that of the native method>
 /*
- * 值类型（string symbol除外）只会返回 Reference 对象(因为值类型不受GC影响，因此只维护 引用计数)，如果不显式 delete，只会造成 Reference 对象的内存泄漏
- * 对象类型(包括 string symbol)支持引用
+ * 值类型（string symbol除外）只会返回 Reference 对象(因为值类型不受GC影响，因此只维护 引用计数)，如果不显式
+ * delete，只会造成 Reference 对象的内存泄漏 对象类型(包括 string symbol)支持引用
  * */
+/*
 NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(value);
     CHECK_ARG(result);
-
 
     auto hermsValue = hermesImpl::HermesValueFromJsValue(value);
     auto ref = new hermesImpl::Reference(env, hermsValue, initialRefCount);
@@ -1655,7 +1803,6 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     return NAPIOK;
 }
 
-
 // clearWeak
 NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
@@ -1664,12 +1811,11 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
     CHECK_ARG(result);
 
     hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
-    //has been freed
+    // has been freed
     RETURN_STATUS_IF_FALSE(_ref->IsValid(), NAPIGenericFailure);
     *result = _ref->Ref();
     return NAPIOK;
 }
-
 
 // NAPIGenericFailure + setWeak
 NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
@@ -1691,10 +1837,13 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
     CHECK_ARG(result);
 
     hermesImpl::Reference *_ref = reinterpret_cast<hermesImpl::Reference *>(ref);
-    if (!_ref->IsValid()){
+    if (!_ref->IsValid())
+    {
 
         *result = NULL;
-    } else {
+    }
+    else
+    {
 
         auto hermesValue = _ref->GetValue();
         *result = hermesImpl::JsValueFromHermesValue(hermesValue);
@@ -1712,13 +1861,11 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
     return NAPIOK;
 }
 
-
-
 #pragma mark <Custom Function>
 
-
 // utf8Script/utf8SourceUrl/result 可空
-NAPI_NATIVE NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result){
+NAPI_NATIVE NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
+{
 
     CHECK_ARG(env);
     // script 传入 NULL 会崩
@@ -1737,15 +1884,15 @@ NAPI_NATIVE NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char
     CHECK_HERMES(env, runRes.getStatus());
 
     auto hermesVal = hermesImpl::JsValueFromHermesValue(runRes.getValue());
-    if (result){
+    if (result)
+    {
         *result = hermesVal;
     }
     return NAPIOK;
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
-NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
-                           NAPIValue *result)
+NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result)
 {
     CHECK_ARG(env);
     CHECK_ARG(constructor);
@@ -1753,26 +1900,29 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
 
     auto hermesRt = hermesImpl::HermesRuntimeFromJsEnv(env);
 
-    //save functoin info
+    // save functoin info
     auto funcInfo = new hermesImpl::FunctionInfo(env, constructor, data);
 
     hermes::vm::GCScope scope{hermesRt->context_};
 
-    //create class
-    hermes::vm::NativeFunctionPtr ctor = [](void *context, hermes::vm::Runtime *runtime, hermes::vm::NativeArgs args) -> hermes::vm::CallResult<hermes::vm::HermesValue>{
-
-      hermes::vm::GCScope scope{runtime};
+    // create class
+    hermes::vm::NativeFunctionPtr ctor =
+        [](void *context, hermes::vm::Runtime *runtime,
+           hermes::vm::NativeArgs args) -> hermes::vm::CallResult<hermes::vm::HermesValue> {
+        hermes::vm::GCScope scope{runtime};
         hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
         hermesImpl::CallBackInfoWrapper wrapper = hermesImpl::CallBackInfoWrapper(args, funcInfo->GetData());
         auto jsCb = hermesImpl::JSCallBackInfoFormHermesCallBackInfo(wrapper);
         auto callRes = funcInfo->GetCb()(funcInfo->GetEnv(), jsCb);
         auto exception = runtime->getThrownValue();
-        if (!exception.isEmpty()){
+        if (!exception.isEmpty())
+        {
             return hermes::vm::ExecutionStatus::EXCEPTION;
         }
         auto retHV = hermesImpl::HermesValueFromJsValue(callRes);
         auto newRet = hermes::vm::dyn_vmcast_or_null<hermes::vm::JSObject>(retHV);
-        if (newRet){
+        if (newRet)
+        {
             return retHV;
         }
         return args.getThisHandle().getHermesValue();
@@ -1781,7 +1931,9 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     // create class
     // class.__prop__ = functionPrototype
     auto func__prop__ = hermes::vm::Handle<hermes::vm::JSObject>::vmcast(&hermesRt->context_->functionPrototype);
-    auto func = hermes::vm::NativeConstructor::create(hermesRt->context_, func__prop__, funcInfo, ctor, 0, hermes::vm::NativeConstructor::creatorFunction<hermes::vm::JSObject>, hermes::vm::CellKind::FunctionKind);
+    auto func = hermes::vm::NativeConstructor::create(
+        hermesRt->context_, func__prop__, funcInfo, ctor, 0,
+        hermes::vm::NativeConstructor::creatorFunction<hermes::vm::JSObject>, hermes::vm::CellKind::FunctionKind);
 
     // create proptotype
     auto objectProp = hermes::vm::dyn_vmcast_or_null<hermes::vm::JSObject>(hermesRt->context_->objectPrototype);
@@ -1790,27 +1942,31 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     // set class.proptotype
     // set .name
     std::u16string str16;
-    if (utf8name){
+    if (utf8name)
+    {
         std::u16string str16;
         hermesImpl::convertUtf8ToUtf16(reinterpret_cast<const uint8_t *>(utf8name), strlen(utf8name), str16);
     }
     auto namedStr = hermes::vm::StringPrimitive::createEfficient(hermesRt->context_, std::move(str16));
     CHECK_HERMES(env, namedStr.getStatus());
-    auto namedStrSymHandle = hermes::vm::stringToSymbolID(hermesRt->context_, hermes::vm::createPseudoHandle(namedStr.getValue().getString()));
+    auto namedStrSymHandle = hermes::vm::stringToSymbolID(
+        hermesRt->context_, hermes::vm::createPseudoHandle(namedStr.getValue().getString()));
     auto nameSym = namedStrSymHandle->get();
 
     auto castToCallable = hermes::vm::dyn_vmcast<hermes::vm::Callable>(func.get());
-    auto status = hermes::vm::Callable::defineNameLengthAndPrototype(hermesRt->context_->makeHandle(castToCallable), hermesRt->context_, nameSym, 0, hermesRt->context_->makeHandle(thisProp.get()),hermes::vm::Callable::WritablePrototype::Yes, false);
+    auto status = hermes::vm::Callable::defineNameLengthAndPrototype(
+        hermesRt->context_->makeHandle(castToCallable), hermesRt->context_, nameSym, 0,
+        hermesRt->context_->makeHandle(thisProp.get()), hermes::vm::Callable::WritablePrototype::Yes, false);
     CHECK_HERMES(env, status);
 
-
-    //finalize function
+    // finalize function
     hermes::vm::FinalizeNativeFunctionPtr finalizeFuncPtr = [](void *context) -> void {
-      // free functionInfo
-      hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
-      delete funcInfo;
+        // free functionInfo
+        hermesImpl::FunctionInfo *funcInfo = static_cast<hermesImpl::FunctionInfo *>(context);
+        delete funcInfo;
     };
-    auto finalizeFuncValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(hermesRt->context_, funcInfo, NULL, finalizeFuncPtr, nameSym, 0);
+    auto finalizeFuncValRes = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(
+        hermesRt->context_, funcInfo, NULL, finalizeFuncPtr, nameSym, 0);
     CHECK_HERMES(env, finalizeFuncValRes.getStatus());
 
     auto finalizeFunc_jsVal = finalizeFuncValRes.getValue();
@@ -1823,7 +1979,8 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     return NAPIOK;
 }
 
-NAPI_NATIVE NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result){
+NAPI_NATIVE NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)
+{
 
     CHECK_ARG(env);
     CHECK_ARG(value);
@@ -1835,23 +1992,27 @@ NAPI_NATIVE NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, cons
 
     // 总长度：字节
     size_t length;
-    if (jsString->isASCII()){
-        //ascii code unit = 1byte
+    if (jsString->isASCII())
+    {
+        // ascii code unit = 1byte
         length = jsString->getStringLength();
-    }else{
-        //sizeof(utf16) * array.length
+    }
+    else
+    {
+        // sizeof(utf16) * array.length
         auto utf16Str = jsString->getStringRef<char16_t>();
         length = utf16Str.size() * sizeof(char16_t);
     }
     // \0
-    char *cString = (char *)malloc(sizeof(char) * (length+1));
+    char *cString = (char *)malloc(sizeof(char) * (length + 1));
 
     // 最小长度：字节
-    size_t minLength = length + 1;//
+    size_t minLength = length + 1; //
 
     // 有效长度：最后一字节为 \0， 因此实际为 minLength - 1;
     size_t effectiveLen = minLength - 1;
-    if (jsString->isASCII()){
+    if (jsString->isASCII())
+    {
         auto ascString = jsString->getStringRef<char>();
         //避免重叠
         memmove(cString, ascString.data(), effectiveLen);
@@ -1864,7 +2025,7 @@ NAPI_NATIVE NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, cons
     auto u16String = jsString->getStringRef<char16_t>();
     // utf16 -> utf8, 如果 minLength 为偶数，可能出现 unpaird surrogate， 导致 u8string 出现 0xfffd(�)
     // 因此提前取偶数(可完整转换为utf8)，之后再替换末位 0xfffd(�) -> '\0'
-    std::string u8string;//C++ 默认为初始 \0
+    std::string u8string; // C++ 默认为初始 \0
     auto evenLength = effectiveLen >> 1 << 1;
     hermesImpl::convertUtf16ToUtf8(u16String, evenLength, u8string);
     // C++ 默认补 \0
@@ -1874,10 +2035,10 @@ NAPI_NATIVE NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, cons
     // 真正长度为 evenLength。
     *result = cString;
     return NAPIOK;
-
 }
 
-NAPI_NATIVE NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString){
+NAPI_NATIVE NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
+{
 
     free((void *)cString);
     return NAPIOK;
@@ -1899,3 +2060,4 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env)
     delete hermesRt;
     return NAPIOK;
 }
+ */

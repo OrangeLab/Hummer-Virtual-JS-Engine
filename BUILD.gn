@@ -516,7 +516,8 @@ source_set("napi_hermes_source_set") {
     public_configs = [
         ":napi_include",
     ]
-    configs = [":hermes_cpp_build", ":hermes_include"]
+    include_dirs = ["third_party/hermes/public"]
+    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include"]
     sources = [
         "src/js_native_api_hermes.cpp"
     ]
