@@ -66,6 +66,30 @@ namespace
 // hermes.cpp -> kMaxNumRegisters
 constexpr unsigned kMaxNumRegisters =
     (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) / sizeof(::hermes::vm::PinnedHermesValue);
+
+struct FunctionInfo
+{
+    FunctionInfo(NAPIEnv env, NAPICallback callback, void *data) : env(env), callback(callback), data(data)
+    {
+    }
+    NAPIEnv getEnv() const
+    {
+        return env;
+    }
+    NAPICallback getCallback() const
+    {
+        return callback;
+    }
+    void *getData() const
+    {
+        return data;
+    }
+
+  private:
+    NAPIEnv env;
+    NAPICallback callback;
+    void *data;
+};
 } // namespace
 
 EXTERN_C_START
@@ -710,8 +734,6 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
     CHECK_ARG(callback)
     CHECK_ARG(result)
 
-    NAPIHandleScope handleScope;
-    CHECK_NAPI(napi_open_handle_scope(env, &handleScope))
     NAPIValue stringValue;
     CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue))
     auto stringPrimitive = ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
@@ -721,15 +743,23 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
         ::hermes::vm::stringToSymbolID(env->getRuntime().get(), ::hermes::vm::createPseudoHandle(stringPrimitive));
     CHECK_HERMES(callResult)
     auto symbolId = callResult.getValue().get();
+    auto functionInfo = new (::std::nothrow) FunctionInfo(env, callback, data);
+    RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError)
     ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =
         [](void *context, ::hermes::vm::Runtime *runtime,
            ::hermes::vm::NativeArgs args) -> ::hermes::vm::CallResult<::hermes::vm::HermesValue> {
-          // TODO(ChasonTang): handler
+        // TODO(ChasonTang): call handler
     };
     ::hermes::vm::FinalizeNativeFunctionPtr finalizeNativeFunctionPtr = [](void *context) {
-
+        auto functionInfo = (FunctionInfo *)context;
+        delete functionInfo;
     };
-    CHECK_NAPI(napi_close_handle_scope(env, handleScope))
+    auto functionCallResult = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(
+        env->getRuntime().get(), functionInfo, nativeFunctionPtr, finalizeNativeFunctionPtr, symbolId, 0);
+    CHECK_HERMES(functionCallResult)
+    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->getRuntime().get())
+                  ->makeHandle(functionCallResult.getValue())
+                  .unsafeGetPinnedHermesValue();
 
     return NAPIOK;
 }
