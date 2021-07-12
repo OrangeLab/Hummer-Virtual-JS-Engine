@@ -18,6 +18,10 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 1. `clang --analyze src/js_native_api_qjs.c --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/quickjs`
 
+### Hermes
+
+1. `clang++ --analyze src/js_native_api_hermes.cpp --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/hermes/include -I./third_party/hermes/public -DHERMESVM_GC_NONCONTIG_GENERATIONAL -DHERMESVM_ALLOW_COMPRESSED_POINTERS -DHERMES_ENABLE_DEBUGGER -std=c++11 -I./third_party/include -I./third_party/hermes/external/llvh/include -I./third_party/hermes/external/llvh/gen/include`
+
 ## 单元测试
 
 1. `gn gen out --args="debug=true asan=true ubsan=true"`（Release 模式下 assert 失效，会隐藏很多问题，特殊情况下启用 asan + ubsan）

@@ -20,6 +20,9 @@
 //#include <hermes/VM/SlotAcceptor.h>
 //#include <list>
 #include <hermes/Public/GCConfig.h>
+#include <hermes/VM/Callable.h>
+#include <hermes/VM/HostModel.h>
+#include <hermes/VM/Operations.h>
 #include <napi/js_native_api.h>
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
@@ -86,7 +89,12 @@ struct OpaqueNAPIEnv
                                  .build();
         runtime = ::hermes::vm::Runtime::create(runtimeConfig);
     }
+    const std::shared_ptr<::hermes::vm::Runtime> &getRuntime() const
+    {
+        return runtime;
+    }
 
+  private:
     ::std::shared_ptr<::hermes::vm::Runtime> runtime;
 };
 
@@ -618,7 +626,7 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
     CHECK_ARG(env)
     CHECK_ARG(result)
 
-    *result = (NAPIValue)env->runtime->getGlobal().unsafeGetPinnedHermesValue();
+    *result = (NAPIValue)env->getRuntime()->getGlobal().unsafeGetPinnedHermesValue();
 
     return NAPIOK;
 }
@@ -638,7 +646,7 @@ NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
     CHECK_ARG(result)
 
     // HermesValue.h -> encodeNumberValue
-    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->runtime.get())
+    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->getRuntime().get())
                   ->makeHandle(::hermes::vm::HermesValue::encodeNumberValue(value))
                   .unsafeGetPinnedHermesValue();
 
@@ -660,7 +668,7 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
     {
         // length 0 也算 ASCII，但是 ::hermes::vm::createASCIIRef 不能传入 nullptr，因此不能直接使用 (nullptr, 0) 构造
         callResult =
-            ::hermes::vm::StringPrimitive::createEfficient(env->runtime.get(), ::hermes::vm::createASCIIRef(str));
+            ::hermes::vm::StringPrimitive::createEfficient(env->getRuntime().get(), ::hermes::vm::createASCIIRef(str));
     }
     else
     {
@@ -684,11 +692,12 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
         *targetStart = '\0';
         // ::std::u16string 会作为后备存储使用并调用 ::std::move，但是这里不是
         callResult = ::hermes::vm::StringPrimitive::createEfficient(
-            env->runtime.get(), ::hermes::vm::createUTF16Ref(reinterpret_cast<const char16_t *>(out)));
+            env->getRuntime().get(), ::hermes::vm::createUTF16Ref(reinterpret_cast<const char16_t *>(out)));
         free(out);
+
         CHECK_HERMES(callResult)
     }
-    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->runtime.get())
+    *result = (NAPIValue)((::hermes::vm::HandleRootOwner *)env->getRuntime().get())
                   ->makeHandle(callResult.getValue())
                   .unsafeGetPinnedHermesValue();
 
@@ -702,9 +711,25 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
     CHECK_ARG(result)
 
     NAPIHandleScope handleScope;
+    CHECK_NAPI(napi_open_handle_scope(env, &handleScope))
     NAPIValue stringValue;
     CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue))
+    auto stringPrimitive = ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
+        *(const ::hermes::vm::PinnedHermesValue *)stringValue);
+    RETURN_STATUS_IF_FALSE(stringPrimitive, NAPIMemoryError)
+    auto callResult =
+        ::hermes::vm::stringToSymbolID(env->getRuntime().get(), ::hermes::vm::createPseudoHandle(stringPrimitive));
+    CHECK_HERMES(callResult)
+    auto symbolId = callResult.getValue().get();
+    ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =
+        [](void *context, ::hermes::vm::Runtime *runtime,
+           ::hermes::vm::NativeArgs args) -> ::hermes::vm::CallResult<::hermes::vm::HermesValue> {
+          // TODO(ChasonTang): handler
+    };
+    ::hermes::vm::FinalizeNativeFunctionPtr finalizeNativeFunctionPtr = [](void *context) {
 
+    };
+    CHECK_NAPI(napi_close_handle_scope(env, handleScope))
 
     return NAPIOK;
 }
