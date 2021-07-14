@@ -112,7 +112,7 @@ config("hermes_include") {
 }
 
 config("hermes_build") {
-    defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER_"]
+    defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
 }
 
 source_set("hermes_optimizer") {
@@ -517,10 +517,11 @@ source_set("napi_hermes_source_set") {
         ":napi_include",
     ]
     include_dirs = ["third_party/hermes/public"]
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include"]
+    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
     sources = [
         "src/js_native_api_hermes.cpp"
     ]
+    cflags_cc = ["-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
 # -------- hermes end ---------

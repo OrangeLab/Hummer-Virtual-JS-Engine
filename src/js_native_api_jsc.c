@@ -52,7 +52,6 @@ struct OpaqueNAPIEnv
 {
     JSGlobalContextRef context;                     // size_t
     JSValueRef lastException;                       // size_t
-    LIST_HEAD(, OpaqueNAPIRef) strongReferenceHead; // size_t
 };
 
 // NAPIMemoryError
@@ -1387,7 +1386,6 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
     contextCount += 1;
     (*env)->context = globalContext;
     (*env)->lastException = NULL;
-    LIST_INIT(&(*env)->strongReferenceHead);
 
     return NAPIOK;
 }
