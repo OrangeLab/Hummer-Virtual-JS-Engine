@@ -1,4 +1,4 @@
-#include "HermesExternalObject.h"
+#include "external.h"
 #include <hermes/BCGen/HBC/BytecodeProviderFromSrc.h>
 #include <hermes/Public/GCConfig.h>
 #include <hermes/VM/Callable.h>
@@ -882,11 +882,11 @@ NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB
     NAPI_PREAMBLE(env)
     CHECK_ARG(result)
 
-    auto hermesExternalObject = new (::std::nothrow)::napi::HermesExternalObject(env, data, finalizeCB, finalizeHint);
+    auto hermesExternalObject = new (::std::nothrow)::napi::External(env, data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIMemoryError)
 
     auto callResult = hermes::vm::HostObject::createWithoutPrototype(
-        env->getRuntime().get(), ::std::unique_ptr<::napi::HermesExternalObject>(hermesExternalObject));
+        env->getRuntime().get(), ::std::unique_ptr<::napi::External>(hermesExternalObject));
     CHECK_HERMES(callResult)
     *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
 
@@ -904,7 +904,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
     RETURN_STATUS_IF_FALSE(hostObject, NAPIInvalidArg)
 
     // 转换失败返回空指针
-    auto external = (::napi::HermesExternalObject *)hostObject->getProxy();
+    auto external = (::napi::External *)hostObject->getProxy();
     *result = external ? external->getData() : nullptr;
 
     return NAPIOK;

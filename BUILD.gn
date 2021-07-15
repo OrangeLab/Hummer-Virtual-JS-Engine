@@ -519,7 +519,7 @@ source_set("napi_hermes_rtti") {
     include_dirs = ["third_party/hermes/public"]
     configs = [":hermes_include", ":llvm_include", ":hermes_build"]
     sources = [
-        "src/HermesExternalObject.cpp"
+        "src/external.cpp"
     ]
     cflags_cc = ["-std=c++11", "-fno-exceptions", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
@@ -535,8 +535,6 @@ source_set("napi_hermes_source_set") {
     ]
     cflags_cc = ["-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
-
-# -------- hermes end ---------
 
 source_set("quickjs_source_set") {
     public_configs = [":quickjs_include", ":quickjs_build"]
@@ -617,11 +615,11 @@ if (build_android) {
             sources = [
                 "test/test.cpp",
                 "test/general.cpp",
-                "test/typeof.cpp",
-                "test/conversion.cpp",
-                "test/object.cpp",
-                "test/callable.cpp",
-                "test/reference.cpp"
+            #                "test/typeof.cpp",
+            #                "test/conversion.cpp",
+            #                "test/object.cpp",
+            #                "test/callable.cpp",
+            #                "test/reference.cpp"
             ]
             deps = [
                 ":gtest",
