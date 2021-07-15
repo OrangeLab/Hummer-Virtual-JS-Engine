@@ -1001,8 +1001,15 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
         auto targetEnd = targetStart + length;
         ::llvh::ConversionResult conversionResult;
         conversionResult =
-            ::llvh::ConvertUTF8toUTF16(&sourceStart, sourceEnd, &targetStart, targetEnd, ::llvh::lenientConversion);
-        if (conversionResult != ::llvh::ConversionResult::conversionOK)
+            ::llvh::ConvertUTF8toUTF16(&sourceStart, sourceEnd, &targetStart, targetEnd - 1, ::llvh::lenientConversion);
+        if (conversionResult == ::llvh::ConversionResult::targetExhausted)
+        {
+            assert(false);
+            free(out);
+
+            return NAPIMemoryError;
+        }
+        else if (conversionResult != ::llvh::ConversionResult::conversionOK)
         {
             free(out);
 
@@ -1727,7 +1734,58 @@ NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **res
     CHECK_ARG(value)
     CHECK_ARG(result)
 
+    RETURN_STATUS_IF_FALSE(
+        ::hermes::vm::vmisa<::hermes::vm::StringPrimitive>(*(const ::hermes::vm::PinnedHermesValue *)value),
+        NAPIStringExpected)
 
+    auto stringPrimitive = ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
+        *(const ::hermes::vm::PinnedHermesValue *)value);
+    if (stringPrimitive->isASCII())
+    {
+        auto asciiStringRef = stringPrimitive->getStringRef<char>();
+        char *buffer = static_cast<char *>(malloc(sizeof(char) * (asciiStringRef.size() + 1)));
+        RETURN_STATUS_IF_FALSE(buffer, NAPIMemoryError)
+        ::std::memmove((void *)*result, asciiStringRef.data(), asciiStringRef.size());
+        buffer[asciiStringRef.size()] = '\0';
+        *result = buffer;
+    }
+    else
+    {
+        auto utf16StringRef = stringPrimitive->getStringRef<char16_t>();
+        auto length = utf16StringRef.size() * 3 + 1;
+        char *buffer = static_cast<char *>(malloc(sizeof(char) * length));
+        RETURN_STATUS_IF_FALSE(buffer, NAPIMemoryError) auto sourceStart = utf16StringRef.begin();
+        char *targetStart = buffer;
+        auto conversionResult = ::llvh::ConvertUTF16toUTF8(
+            reinterpret_cast<const llvh::UTF16 **>(&sourceStart),
+            reinterpret_cast<const llvh::UTF16 *>(utf16StringRef.end()), reinterpret_cast<llvh::UTF8 **>(&targetStart),
+            reinterpret_cast<llvh::UTF8 *>(buffer + length - 1), ::llvh::strictConversion);
+        if (conversionResult == ::llvh::ConversionResult::targetExhausted)
+        {
+            assert(false);
+            free(buffer);
+
+            return NAPIMemoryError;
+        }
+        else if (conversionResult != ::llvh::ConversionResult::conversionOK)
+        {
+            free(buffer);
+
+            return NAPIMemoryError;
+        }
+        *targetStart = '\0';
+        *result = buffer;
+    }
+
+    return NAPIOK;
+}
+
+NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(cString)
+
+    free((void *)cString);
 
     return NAPIOK;
 }
