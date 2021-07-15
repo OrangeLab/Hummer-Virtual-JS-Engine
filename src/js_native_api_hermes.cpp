@@ -1636,6 +1636,8 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     if (!*result)
     {
         delete gcScope;
+
+        return NAPIMemoryError;
     }
     (*result)->gcScope = gcScope;
 
