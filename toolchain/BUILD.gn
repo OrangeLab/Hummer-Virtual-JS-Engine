@@ -102,6 +102,9 @@ toolchain("clang") {
 
     tool("cxx") {
         command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
+        if (ubsan) {
+            command = string_join(" ", [command, "-fno-sanitize=vptr"])
+        }
         # 默认 C++98 + libc++
         outputs = compiler_outputs
     }

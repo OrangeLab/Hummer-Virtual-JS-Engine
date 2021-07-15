@@ -512,6 +512,18 @@ config("quickjs_build") {
     cflags_c = ["-funsigned-char", "-Wno-unused-parameter", "-Wno-pedantic"]
 }
 
+source_set("napi_hermes_rtti") {
+    public_configs = [
+        ":napi_include",
+    ]
+    include_dirs = ["third_party/hermes/public"]
+    configs = [":hermes_include", ":llvm_include", ":hermes_build"]
+    sources = [
+        "src/HermesExternalObject.cpp"
+    ]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+}
+
 source_set("napi_hermes_source_set") {
     public_configs = [
         ":napi_include",
@@ -643,6 +655,7 @@ if (build_android) {
             deps = [
                 ":test",
                 ":napi_hermes_source_set",
+                ":napi_hermes_rtti",
                 ":napi_common",
 
                 ":llvm_demangle",
@@ -662,7 +675,9 @@ if (build_android) {
                 ":hermes_platform",
                 ":hermes_platform_intl",
                 ":hermes_platform_unicode",
-                ":dtoa"
+                ":dtoa",
+                ":hermes_vm_runtime_rtti",
+                ":hermes_vm_runtime"
             ]
         }
 
