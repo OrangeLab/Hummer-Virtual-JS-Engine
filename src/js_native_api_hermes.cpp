@@ -94,7 +94,7 @@ struct OpaqueNAPIEnv final
 // (2 + unref) && isObject => weakRef => removeStrong + addWeak
 // (2 + unref) && !isObject => (undefined, 0) => nullptr => removeStrong
 // (3 + ref) && isValid => 强引用 => removeWeak + addStrong
-// (3 + ref) && !isValid => undefined 强引用 => removeWeak + addStrong
+// (3 + ref) && !isValid => undefined 强引用 => removeWeak + addStrong + isObject = false;
 
 struct OpaqueNAPIRef final
 {
@@ -169,30 +169,31 @@ struct OpaqueNAPIRef final
 
     ~OpaqueNAPIRef()
     {
-        LIST_REMOVE(this, node);
+        if (referenceCount || isObject)
+        {
+            LIST_REMOVE(this, node);
+        }
     }
     void ref()
     {
         if (!referenceCount && !isObject)
         {
-            if (!isObject)
+            LIST_INSERT_HEAD(&env->valueList, this, node);
+        }
+        else if (isObject && !referenceCount)
+        {
+            auto hermesValueOptional = hermesValueWeakRef.unsafeGetOptional(&env->getRuntime()->getHeap());
+            if (hermesValueOptional.hasValue())
             {
-                LIST_INSERT_HEAD(&env->valueList, this, node);
+                pinnedHermesValue = hermesValueOptional.getValue();
             }
             else
             {
-                auto hermesValueOptional = hermesValueWeakRef.unsafeGetOptional(&env->getRuntime()->getHeap());
-                if (hermesValueOptional.hasValue())
-                {
-                    pinnedHermesValue = hermesValueOptional.getValue();
-                }
-                else
-                {
-                    pinnedHermesValue = *::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
-                }
-                LIST_REMOVE(this, node);
-                LIST_INSERT_HEAD(&env->valueList, this, node);
+                pinnedHermesValue = *::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+                isObject = false;
             }
+            LIST_REMOVE(this, node);
+            LIST_INSERT_HEAD(&env->valueList, this, node);
         }
         ++referenceCount;
     }
@@ -239,6 +240,9 @@ OpaqueNAPIEnv::OpaqueNAPIEnv()
                              .withMaxNumRegisters(kMaxNumRegisters)
                              .build();
     runtime = ::hermes::vm::Runtime::create(runtimeConfig);
+    // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode -> clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
+    // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ = {} => undefined
+    runtime->clearThrownValue();
     LIST_INIT(&valueList);
     LIST_INIT(&weakRefList);
     runtime->addCustomRootsFunction([this](::hermes::vm::GC *, ::hermes::vm::SlotAcceptor &slotAcceptor) {
@@ -423,9 +427,8 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
         callResult = ::hermes::vm::StringPrimitive::createEfficient(
             env->getRuntime().get(), ::hermes::vm::createUTF16Ref(reinterpret_cast<const char16_t *>(out)));
         free(out);
-
-        CHECK_HERMES(callResult)
     }
+    CHECK_HERMES(callResult)
     *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
 
     return NAPIOK;
@@ -466,8 +469,6 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
                                ::hermes::vm::ExecutionStatus::EXCEPTION)
         if (!returnValue)
         {
-            assert(false);
-
             return ::hermes::vm::CallResult<::hermes::vm::HermesValue>(
                 ::hermes::vm::Runtime::getUndefinedValue().get());
         }
@@ -872,7 +873,14 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIV
     CHECK_ARG(callbackInfo)
     CHECK_ARG(result)
 
-    *result = (NAPIValue)callbackInfo->getNativeArgs().getNewTargetHandle().unsafeGetPinnedHermesValue();
+    if (callbackInfo->getNativeArgs().getNewTarget().isUndefined())
+    {
+        *result = nullptr;
+    }
+    else
+    {
+        *result = (NAPIValue)callbackInfo->getNativeArgs().getNewTargetHandle().unsafeGetPinnedHermesValue();
+    }
 
     return NAPIOK;
 }
@@ -981,6 +989,7 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     CHECK_ARG(result)
 
     *result = (NAPIHandleScope) new (::std::nothrow)::hermes::vm::GCScope(env->getRuntime().get());
+    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError)
 
     return NAPIOK;
 }
@@ -1065,9 +1074,12 @@ NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIV
     CHECK_ARG(escapee)
     CHECK_ARG(result)
 
+    RETURN_STATUS_IF_FALSE(!scope->isEscapeCalled(), NAPIEscapeCalledTwice)
+
     *result = (NAPIValue)::hermes::vm::Handle<::hermes::vm::HermesValue>(
                   scope->gcScope->getParentScope(), *(const ::hermes::vm::PinnedHermesValue *)escapee)
                   .unsafeGetPinnedHermesValue();
+    scope->setEscapeCalled(true);
 
     return NAPIOK;
 }
@@ -1096,6 +1108,7 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     {
         *result =
             (NAPIValue)env->getRuntime()->makeHandle(env->getRuntime()->getThrownValue()).unsafeGetPinnedHermesValue();
+        env->getRuntime()->clearThrownValue();
     }
 
     return NAPIOK;
@@ -1111,6 +1124,75 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
     {
         *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
     }
+
+    return NAPIOK;
+}
+
+NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result)
+{
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(constructor)
+    CHECK_ARG(result)
+
+    auto functionInfo = new (::std::nothrow) FunctionInfo(env, constructor, data);
+    RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError)
+    NAPIValue externalValue;
+    auto finalizeCallback = [](NAPIEnv /*env*/, void *finalizeData, void * /*finalizeHint*/) {
+        delete (FunctionInfo *)finalizeData;
+    };
+    CHECK_NAPI(napi_create_external(env, functionInfo, finalizeCallback, nullptr, &externalValue))
+
+    ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =
+        [](void *context, ::hermes::vm::Runtime *runtime,
+           ::hermes::vm::NativeArgs args) -> ::hermes::vm::CallResult<::hermes::vm::HermesValue> {
+        ::hermes::vm::GCScope gcScope(runtime);
+        auto innerFunctionInfo = (FunctionInfo *)context;
+        if (!innerFunctionInfo->getCallback() || !innerFunctionInfo->getEnv())
+        {
+            assert(false);
+
+            return args.getThisArg();
+        }
+        struct OpaqueNAPICallbackInfo callbackInfo(args, innerFunctionInfo->getData());
+        NAPIValue returnValue = innerFunctionInfo->getCallback()(innerFunctionInfo->getEnv(), &callbackInfo);
+        RETURN_STATUS_IF_FALSE(innerFunctionInfo->getEnv()->getRuntime()->getThrownValue().isEmpty(),
+                               ::hermes::vm::ExecutionStatus::EXCEPTION)
+        if (!returnValue)
+        {
+            return args.getThisArg();
+        }
+        if (!((const ::hermes::vm::PinnedHermesValue *)returnValue)->isObject())
+        {
+            return args.getThisArg();
+        }
+
+        return ::hermes::vm::CallResult<::hermes::vm::HermesValue>(
+            *(const ::hermes::vm::PinnedHermesValue *)returnValue);
+    };
+    auto nativeConstructor = ::hermes::vm::NativeConstructor::create(
+        env->getRuntime().get(),
+        ::hermes::vm::Handle<::hermes::vm::JSObject>::vmcast(&env->getRuntime()->functionPrototype), functionInfo,
+        nativeFunctionPtr, 0, ::hermes::vm::NativeConstructor::creatorFunction<::hermes::vm::JSObject>,
+        hermes::vm::CellKind::FunctionKind);
+
+    NAPIValue stringValue;
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue))
+    auto stringPrimitive = ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
+        *(const ::hermes::vm::PinnedHermesValue *)stringValue);
+    RETURN_STATUS_IF_FALSE(stringPrimitive, NAPIMemoryError)
+    auto callResult =
+        ::hermes::vm::stringToSymbolID(env->getRuntime().get(), ::hermes::vm::createPseudoHandle(stringPrimitive));
+    CHECK_HERMES(callResult)
+    auto symbolId = callResult.getValue().get();
+    auto rawObject = ::hermes::vm::JSObject::create(env->getRuntime().get());
+    auto defineCallResult = ::hermes::vm::Callable::defineNameLengthAndPrototype(
+        env->getRuntime()->makeHandle(nativeConstructor.get()), env->getRuntime().get(), symbolId, 0,
+        env->getRuntime()->makeHandle(rawObject.get()), ::hermes::vm::Callable::WritablePrototype::No, false);
+    CHECK_HERMES(defineCallResult)
+    *result = (NAPIValue)env->getRuntime()->makeHandle(nativeConstructor.getHermesValue()).unsafeGetPinnedHermesValue();
+    NAPIValue privateKeyString;
+    CHECK_NAPI(napi_create_string_utf8(env, "__constructor__", &privateKeyString))
+    CHECK_NAPI(napi_set_property(env, *result, privateKeyString, externalValue))
 
     return NAPIOK;
 }

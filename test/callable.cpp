@@ -142,8 +142,7 @@ TEST_F(Test, Callable)
 {
     NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue, runWithThisValue, throwValue,
         runWithCatchValue, newWithCatchValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCNullThis, nullptr, &runWithUndefinedThisValue),
-              NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCNullThis, nullptr, &runWithUndefinedThisValue), NAPIOK);
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, run, nullptr, &runValue), NAPIOK);
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithArgument, nullptr, &runWithArgumentValue), NAPIOK);
     ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithThis, nullptr, &runWithThisValue), NAPIOK);
