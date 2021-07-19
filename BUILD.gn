@@ -615,11 +615,11 @@ if (build_android) {
             sources = [
                 "test/test.cpp",
                 "test/general.cpp",
-            #                "test/typeof.cpp",
-            #                "test/conversion.cpp",
-            #                "test/object.cpp",
-            #                "test/callable.cpp",
-            #                "test/reference.cpp"
+                "test/typeof.cpp",
+                "test/conversion.cpp",
+                "test/object.cpp",
+                "test/callable.cpp",
+                "test/reference.cpp"
             ]
             deps = [
                 ":gtest",
