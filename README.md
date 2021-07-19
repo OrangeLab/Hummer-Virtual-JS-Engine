@@ -69,7 +69,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### Android 动态库
 
-1. `gn gen armv7 --args="build_android=true android_target=\"armv7-\""`
+1. `gn gen armv7 --args="build_android=true android_target=\"armv7\""`
 2. `gn gen arm64 --args="build_android=true android_target=\"arm64\""`
 3. `gn gen i386 --args="build_android=true android_target=\"i386\""`
 4. `gn gen x86_64 --args="build_android=true android_target=\"x86_64\""`
@@ -79,7 +79,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 #### 注意
 
-1. 使用非 LTS 版本 NDK 需要添加 -Wno-implicit-const-int-float-conversion 参数，建议使用 BUILDCONFIG.gn 中定义的 NDK 版本
+1. 建议使用 BUILDCONFIG.gn 中定义的 NDK 版本
 
 ## 注意事项
 

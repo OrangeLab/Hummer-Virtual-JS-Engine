@@ -2,7 +2,7 @@
 depfile = "{{output}}.d"
 # all tools except "action"
 # TODO(ChasonTang): 添加 -fvisibility=hidden
-compiler_command = "-c {{source}} -o {{output}} -Wall -Wextra -Werror -Wpedantic -g -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
+compiler_command = "-c {{source}} -o {{output}} -g -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
 stamp_command = "touch {{output}}"
 
 if (debug) {
@@ -20,7 +20,7 @@ linker_outputs = [
 ]
 
 toolchain("android") {
-    compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong", compiler_command])
+    compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong -fPIC", compiler_command])
     if (debug) {
         compiler_command = string_join(" ", ["-fdata-sections -ffunction-sections", compiler_command])
     }
@@ -37,7 +37,7 @@ toolchain("android") {
         command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", compiler_command, "{{cflags_c}}"])
         outputs = compiler_outputs
     }
-    tool("cc") {
+    tool("cxx") {
         command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++", compiler_command, "{{cflags_cc}}"])
         outputs = compiler_outputs
     }
@@ -51,7 +51,7 @@ toolchain("android") {
             optimize_level = "-O3"
         }
         default_output_extension = ".so"
-        command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -flto -fdata-sections -ffunction-sections -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--fatal-warnings -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}}"
+        command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -flto -fdata-sections -ffunction-sections -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--fatal-warnings -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}} {{ldflags}}"
         if (android_target == "armv7") {
             command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", command])
         } else if (android_target == "arm64") {
@@ -77,12 +77,6 @@ toolchain("clang") {
     if (code_coverage) {
         compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
     }
-    if (asan) {
-        compiler_command = string_join(" ", ["-fsanitize=address", compiler_command])
-    }
-    if (ubsan) {
-        compiler_command = string_join(" ", ["-fsanitize=undefined", compiler_command])
-    }
     if (build_ios) {
         target_option = "-target $ios_archtecture-apple-ios9.0"
         if (ios_simulator) {
@@ -102,9 +96,6 @@ toolchain("clang") {
 
     tool("cxx") {
         command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
-        if (ubsan) {
-            command = string_join(" ", [command, "-fno-sanitize=vptr"])
-        }
         # 默认 C++98 + libc++
         outputs = compiler_outputs
     }
@@ -114,18 +105,12 @@ toolchain("clang") {
     }
 
     tool("link") {
-        command = "clang++ -o {{output}} {{inputs}} {{frameworks}}"
+        command = "clang -o {{output}} {{inputs}} {{frameworks}} {{ldflags}}"
         # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
         # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
         # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
         if (code_coverage) {
             command = string_join(" ", [command, "-fprofile-instr-generate"])
-        }
-        if (asan) {
-            command = string_join(" ", [command, "-fsanitize=address"])
-        }
-        if (ubsan) {
-            command = string_join(" ", [command, "-fsanitize=undefined"])
         }
         default_output_dir = "{{root_out_dir}}"
         outputs = linker_outputs

@@ -1,19 +1,45 @@
-config("hermes_cpp_build") {
+config("standard_cpp_build") {
     cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+    if (asan) {
+        cflags_cc += ["-fsanitize=address"]
+    }
+    if (ubsan) {
+        cflags_cc += ["-fsanitize=undefined"]
+    }
 }
 
+config("sanitize_link") {
+    if (asan) {
+        ldflags += ["-fsanitize=address"]
+    }
+    if (ubsan) {
+        ldflags += ["-fsanitize=undefined"]
+    }
+}
+
+config("strict_build") {
+    cflags = ["-Wall", "-Wextra", "-Werror", "-Wpedantic"]
+}
+
+#config("asan") {
+#}
+
+#config("ubsan") {
+#}
+
 source_set("dtoa") {
-    configs = [":hermes_cpp_build"]
+    configs = [":standard_cpp_build"]
     sources = [
         "third_party/hermes/external/dtoa/dtoa.c",
         "third_party/hermes/external/dtoa/g_fmt.c",
         "third_party/hermes/external/dtoa/locks.cpp",
     ]
     defines = ["IEEE_8087", "Long=int", "NO_HEX_FP", "NO_INFNAN_CHECK", "MULTIPLE_THREADS"]
-    cflags_c = ["-Wno-parentheses", "-Wno-unused-label", "-Wno-sign-compare"]
 }
 
 config("llvm_include") {
+# third_party/include 为 llvh-config.h
+# third_party/hermes/external/llvh/gen/include 为 Attributes.inc
     include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
 }
 
@@ -23,19 +49,24 @@ source_set("llvm_demangle") {
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
     ]
-    configs = [":hermes_cpp_build", ":llvm_include"]
-    cflags_cc = ["-Wno-unused-parameter"]
+    configs = [":standard_cpp_build", ":llvm_include"]
 }
 
 
 source_set("llvm_support") {
-    configs = [":llvm_include", ":hermes_cpp_build"]
+    configs = [":llvm_include", ":standard_cpp_build"]
     # llvh/Config/config.h 是私有头文件
     if (build_ios) {
         if (ios_simulator) {
             include_dirs = ["third_party/iphonesimulator"]
         } else {
             include_dirs = ["third_party/iphoneos"]
+        }
+    } else if (build_android) {
+        if (android_target == "armv7" || android_target == "i386") {
+            include_dirs = ["third_party/android_32"]
+        } else {
+            include_dirs = ["third_party/android_64"]
         }
     } else {
         include_dirs = ["third_party/macos"]
@@ -96,27 +127,23 @@ source_set("llvm_support") {
         "third_party/hermes/external/llvh/lib/Support/regfree.c",
         "third_party/hermes/external/llvh/lib/Support/regstrlcpy.c",
     ]
-    cflags = ["-Wno-unused-parameter"]
+}
+
+config("hermes_build") {
+# hermes/Support/Config.h 公有/私有头文件？
+    include_dirs = ["third_party/hermes/include", "third_party/include", "third_party/hermes/public"]
+    defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
 }
 
 source_set("hermes_frontend_defs") {
-    configs = [":hermes_cpp_build"]
-    include_dirs = ["third_party/hermes/include"]
+    configs = [":standard_cpp_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/FrontEndDefs/Builtins.cpp"
     ]
 }
 
-config("hermes_include") {
-    include_dirs = ["third_party/hermes/include"]
-}
-
-config("hermes_build") {
-    defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
-}
-
 source_set("hermes_optimizer") {
-    configs = [":llvm_include", ":hermes_cpp_build", ":hermes_include", ":hermes_build"]
+    configs = [":llvm_include", ":standard_cpp_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Optimizer/PassManager/Pipeline.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/SimplifyCFG.cpp",
@@ -140,49 +167,54 @@ source_set("hermes_optimizer") {
         "third_party/hermes/lib/IR/Analysis.cpp",
         "third_party/hermes/lib/IR/IREval.cpp",
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_platform_unicode") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
-        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp",
-        #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeEmscripten.cpp",
-        #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeICU.cpp",
-        #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
+    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp",
+    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeEmscripten.cpp",
+    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeICU.cpp",
+    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
         "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
-    frameworks = [ "CoreFoundation.framework" ]
+    if (build_android) {
+        sources += [
+            "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
+        ]
+        defines = ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
+    } else {
+        sources += [
+            "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp"
+        ]
+        frameworks = [ "CoreFoundation.framework" ]
+    }
 }
 
 source_set("hermes_regex") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Regex/RegexParser.cpp",
         "third_party/hermes/lib/Regex/Executor.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_platform_intl") {
-    configs = [":hermes_cpp_build", ":hermes_include"]
+    configs = [":standard_cpp_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Platform/Intl/PlatformIntlDummy.cpp"
     ]
 }
 
 source_set("hermes_platform") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include"]
-    include_dirs = ["third_party/include"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
         "third_party/hermes/lib/Platform/Logging.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_ast") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
         "third_party/hermes/lib/AST/ASTBuilder.cpp",
         "third_party/hermes/lib/AST/ESTree.cpp",
@@ -191,11 +223,10 @@ source_set("hermes_ast") {
         "third_party/hermes/lib/AST/SemanticValidator.cpp",
         "third_party/hermes/lib/AST/CommonJS.cpp",
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-c99-extensions"]
 }
 
 source_set("hermes_frontend") {
-    configs = [":hermes_cpp_build", ":llvm_include", ":hermes_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/IRGen/IRGen.cpp",
         "third_party/hermes/lib/IR/CFG.cpp",
@@ -211,29 +242,26 @@ source_set("hermes_frontend") {
         "third_party/hermes/lib/IRGen/IRInstrument.cpp",
         "third_party/hermes/lib/Utils/Dumper.cpp",
     ]
-    include_dirs = ["third_party/hermes/public"]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-nested-anon-types", "-Wno-gnu-anonymous-struct"]
 }
 
 source_set("hermes_inst") {
-    configs = [":hermes_cpp_build", ":hermes_build", ":hermes_include", ":llvm_include"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
         "third_party/hermes/lib/Inst/InstDecode.cpp",
         "third_party/hermes/lib/Inst/InstDecode2.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_adt") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/ADT/CompactArray.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter"]
 }
 
 source_set("hermes_parser") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
+    # TODO(ChasonTang): 抽离头文件配置
     include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/Parser/JSLexer.cpp",
@@ -243,22 +271,21 @@ source_set("hermes_parser") {
         "third_party/hermes/lib/Parser/JSParserImpl-jsx.cpp",
         "third_party/hermes/lib/Parser/JSParserImpl.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-c99-extensions"]
 }
 
 source_set("hermes_source_map") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/SourceMap/SourceMap.cpp",
         "third_party/hermes/lib/SourceMap/SourceMapGenerator.cpp",
         "third_party/hermes/lib/SourceMap/SourceMapParser.cpp",
         "third_party/hermes/lib/SourceMap/SourceMapTranslator.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-c99-extensions"]
 }
 
 source_set("hermes_support") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":hermes_build", ":llvm_include"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    # TODO(ChasonTang): 抽离头文件配置
     include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/Support/Allocator.cpp",
@@ -284,23 +311,20 @@ source_set("hermes_support") {
         "third_party/hermes/lib/Support/UTF16Stream.cpp",
         "third_party/hermes/lib/Support/UTF8.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-range-loop-construct"]
 }
 
 source_set("hermes_backend") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":hermes_build", ":llvm_include"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
         "third_party/hermes/lib/BCGen/BCOpt.cpp",
         "third_party/hermes/lib/BCGen/Exceptions.cpp",
         "third_party/hermes/lib/BCGen/Lowering.cpp",
         "third_party/hermes/lib/BCGen/RegAlloc.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-range-loop-construct"]
 }
 
 source_set("hermes_hbc_backend") {
-    configs = [":hermes_cpp_build", ":hermes_include", ":hermes_build", ":llvm_include"]
-    include_dirs = ["third_party/hermes/public"]
+    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
         "third_party/hermes/lib/BCGen/HBC/BackendContext.cpp",
         "third_party/hermes/lib/BCGen/HBC/Bytecode.cpp",
@@ -326,19 +350,27 @@ source_set("hermes_hbc_backend") {
         "third_party/hermes/lib/BCGen/HBC/UniquingFilenameTable.cpp",
         "third_party/hermes/lib/BCGen/HBC/UniquingStringLiteralTable.cpp",
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions"]
+}
+
+config("rtti_cpp_build") {
+    cflags_cc = ["-std=c++11", "-fno-exceptions"]
+    if (asan) {
+        cflags_cc += ["-fsanitize=address"]
+    }
+    if (ubsan) {
+        cflags_cc += ["-fsanitize=undefined", "-fno-sanitize=vptr"]
+    }
 }
 
 source_set("hermes_vm_runtime_rtti") {
-    configs = [":hermes_include", ":hermes_build", ":llvm_include"]
-    include_dirs = ["third_party/hermes/public"]
+    configs = [":rtti_cpp_build", ":hermes_build", ":llvm_include"]
     sources = ["third_party/hermes/lib/VM/HostModel.cpp", "third_party/hermes/lib/VM/DecoratedObject.cpp"]
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-Wno-unused-parameter", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-extra-semi", "-Wno-nested-anon-types"]
 }
 
 source_set("hermes_vm_runtime") {
-    configs = [":hermes_include", ":hermes_build", ":hermes_cpp_build", ":llvm_include"]
-    include_dirs = ["third_party/hermes/public", "third_party/hermes/external"]
+    configs = [":hermes_build", ":standard_cpp_build", ":llvm_include"]
+    # TODO(ChasonTang): 抽离头文件配置
+    include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/VM/ArrayStorage.cpp",
         "third_party/hermes/lib/VM/BasicBlockExecutionInfo.cpp",
@@ -461,7 +493,6 @@ source_set("hermes_vm_runtime") {
         "third_party/hermes/lib/VM/gcs/OldGenSegmentRanges.cpp",
         "third_party/hermes/lib/VM/gcs/YoungGenNC.cpp",
     ]
-    cflags_cc = ["-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-c99-extensions", "-Wno-nested-anon-types", "-Wno-format-pedantic"]
 }
 
 config("napi_include") {
@@ -470,66 +501,51 @@ config("napi_include") {
     ]
 }
 
-config("quickjs_include") {
+config("quickjs_build") {
     include_dirs = [
         "third_party/quickjs"
     ]
+    cflags_c = ["-funsigned-char"]
 }
 
 source_set("cutils") {
-    public_configs = [":quickjs_include"]
-    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    configs = [":quickjs_build"]
     sources = [
         "third_party/quickjs/cutils.c",
     ]
 }
 
 source_set("unicode") {
-    public_configs = [":quickjs_include"]
-    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    configs = [":quickjs_build"]
     sources = [
         "third_party/quickjs/libunicode.c"
     ]
 }
 
 source_set("regexp") {
-    public_configs = [":quickjs_include"]
-    cflags_c = ["-Wno-sign-compare", "-Wno-zero-length-array"]
+    configs = [":quickjs_build"]
     sources = [
         "third_party/quickjs/libregexp.c"
     ]
 }
 
 source_set("bf") {
-    public_configs = [":quickjs_include"]
-    cflags_c = ["-Wno-sign-compare", "-Wno-unused-parameter"]
+    configs = [":quickjs_build"]
     sources = [
         "third_party/quickjs/libbf.c"
     ]
 }
 
-config("quickjs_build") {
-    cflags_c = ["-funsigned-char", "-Wno-unused-parameter", "-Wno-pedantic"]
-}
-
 source_set("napi_hermes_rtti") {
-    public_configs = [
-        ":napi_include",
-    ]
-    include_dirs = ["third_party/hermes/public"]
-    configs = [":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":hermes_build", ":llvm_include", ":rtti_cpp_build", ":napi_include", ":strict_build"]
     sources = [
         "src/external.cpp"
     ]
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    cflags_cc = ["-Wno-extra-semi", "-Wno-unused-parameter", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-nested-anon-types"]
 }
 
 source_set("napi_hermes_source_set") {
-    public_configs = [
-        ":napi_include",
-    ]
-    include_dirs = ["third_party/hermes/public"]
-    configs = [":hermes_cpp_build", ":hermes_include", ":llvm_include", ":hermes_build"]
+    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
     sources = [
         "src/js_native_api_hermes.cpp"
     ]
@@ -537,49 +553,65 @@ source_set("napi_hermes_source_set") {
 }
 
 source_set("quickjs_source_set") {
-    public_configs = [":quickjs_include", ":quickjs_build"]
+    configs = [":quickjs_build"]
     defines = ["CONFIG_VERSION=\"2021-03-27\""]
-    cflags_c = ["-Wno-sign-compare"]
-    if (build_android || build_ios) {
-        cflags_c += ["-Wno-unused-variable"]
-    }
-    if (ndk_path == "~/Library/Android/sdk/ndk/22.1.7171670") {
-        cflags_c += ["-Wno-implicit-const-int-float-conversion"]
-    }
     sources = [
         "third_party/quickjs/quickjs.c",
     ]
 }
 source_set("napi_common") {
-    public_configs = [":napi_include"]
+    configs = [":napi_include"]
     sources = ["src/js_native_api_common.c"]
 }
 source_set("napi_qjs_source_set") {
-    public_configs = [
-        ":napi_include",
-    ]
     configs = [
-        ":quickjs_include",
-        ":quickjs_build"
+        ":quickjs_build",
+        ":napi_include"
     ]
     sources = [
         "src/js_native_api_qjs.c",
     ]
 }
 if (build_android) {
-    shared_library("quickjs") {
-        public_configs = [":quickjs_include", ":quickjs_build"]
+    shared_library("qjs") {
+    # Android 已有 libquickjs.so，改名
         deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
+        ldflags = ["-lm"]
         if (big_number) {
             deps += [":bf"]
         }
     }
     shared_library("napi_qjs") {
-        deps = [":quickjs", ":napi_common", ":napi_qjs_source_set"]
+        deps = [":qjs", ":napi_common", ":napi_qjs_source_set"]
+    }
+    shared_library("hermes") {
+        ldflags = ["-lc++"]
+        deps = [
+            ":llvm_demangle",
+            ":llvm_support",
+            ":hermes_frontend",
+            ":hermes_optimizer",
+            ":hermes_inst",
+            ":hermes_frontend_defs",
+            ":hermes_ast",
+            ":hermes_adt",
+            ":hermes_parser",
+            ":hermes_source_map",
+            ":hermes_support",
+            ":hermes_backend",
+            ":hermes_hbc_backend",
+            ":hermes_regex",
+            ":hermes_platform",
+            ":hermes_platform_intl",
+            ":hermes_platform_unicode",
+            ":dtoa",
+            ":hermes_vm_runtime_rtti",
+            ":hermes_vm_runtime"
+        ]
     }
 } else {
     source_set("napi_jsc_source_set") {
-        public_configs = [
+        configs = [
             ":napi_include",
         ]
         frameworks = [ "JavaScriptCore.framework" ]
@@ -597,7 +629,6 @@ if (build_android) {
         }
         static_library("napi_qjs") {
             complete_static_lib = true
-            configs = [":quickjs_include", ":quickjs_build"]
             deps = [":napi_qjs_source_set", ":napi_common"]
         }
         static_library("napi_jsc") {
@@ -605,13 +636,18 @@ if (build_android) {
             deps = [":napi_jsc_source_set", ":napi_common"]
         }
     } else {
+        config("gtest_build") {
+            defines = ["GTEST_HAS_EXCEPTIONS=0", "GTEST_HAS_RTTI=0"]
+            include_dirs = [
+                "third_party/googletest/googletest/include"
+            ]
+        }
         source_set("test") {
             testonly = true
             include_dirs = [
                 "test/include"
             ]
-            cflags_cc = ["-std=c++11"]
-            configs = [":napi_include"]
+            configs = [":napi_include", ":standard_cpp_build", ":gtest_build"]
             sources = [
                 "test/test.cpp",
                 "test/general.cpp",
@@ -628,6 +664,8 @@ if (build_android) {
 
         executable("test_jsc") {
             testonly = true
+            ldflags = ["-lc++"]
+            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_jsc_source_set",
@@ -637,6 +675,8 @@ if (build_android) {
 
         executable("test_qjs") {
             testonly = true
+            ldflags = ["-lc++"]
+            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_qjs_source_set",
@@ -650,6 +690,8 @@ if (build_android) {
 
         executable("test_hermes") {
             testonly = true
+            ldflags = ["-lc++"]
+            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_hermes_source_set",
@@ -679,12 +721,6 @@ if (build_android) {
             ]
         }
 
-        config("gtest_config") {
-            include_dirs = [
-                "third_party/googletest/googletest/include"
-            ]
-        }
-
         source_set("gtest") {
             testonly = true
             sources = [
@@ -697,11 +733,9 @@ if (build_android) {
                 "third_party/googletest/googletest/src/gtest-typed-test.cc",
                 "third_party/googletest/googletest/src/gtest.cc",
             ]
-            cflags_cc = ["-std=c++11"]
+            configs = [":gtest_build", ":standard_cpp_build"]
             # Some files include "src/gtest-internal-inl.h".
             include_dirs = [ "third_party/googletest/googletest" ]
-
-            public_configs = [ ":gtest_config" ]
         }
     }
 }
