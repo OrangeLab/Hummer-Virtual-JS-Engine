@@ -33,6 +33,9 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 1. ubsan/asan 对于 QuickJS 开启，需要注释掉 CONFIG_STACK_CHECK，否则会报告 InternalError: stack overflow
 2. QuickJS 单元测试建议开启 DUMP_LEAKS
 
+### Hermes 单元测试修改源代码部分
+1. include/hermes/VM/HandleRootOwner.h 修改 HERMESVM_DEBUG_MAX_GCSCOPE_HANDLES 为 2^16-1 -> 65535
+
 ## 编辑器配置
 
 1. 推荐使用 CLion
