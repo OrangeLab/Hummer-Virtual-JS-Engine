@@ -1232,7 +1232,7 @@ NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **res
         auto asciiStringRef = stringPrimitive->getStringRef<char>();
         char *buffer = static_cast<char *>(malloc(sizeof(char) * (asciiStringRef.size() + 1)));
         RETURN_STATUS_IF_FALSE(buffer, NAPIMemoryError)
-        ::std::memmove((void *)*result, asciiStringRef.data(), asciiStringRef.size());
+        ::std::memmove(buffer, asciiStringRef.data(), asciiStringRef.size());
         buffer[asciiStringRef.size()] = '\0';
         *result = buffer;
     }
