@@ -133,6 +133,9 @@ config("hermes_build") {
 # hermes/Support/Config.h 公有/私有头文件？
     include_dirs = ["third_party/hermes/include", "third_party/include", "third_party/hermes/public"]
     defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
+    if (build_android) {
+        defines += ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
+    }
 }
 
 source_set("hermes_frontend_defs") {
@@ -169,6 +172,16 @@ source_set("hermes_optimizer") {
     ]
 }
 
+source_set("hermes_platform_unicode_java") {
+    configs = [":hermes_build", ":llvm_include"]
+    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
+    include_dirs = [
+        "third_party/hermes/first-party/fbjni/cxx"
+    ]
+    defines = ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
+    sources = ["third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp"]
+}
+
 source_set("hermes_platform_unicode") {
     configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
@@ -178,12 +191,7 @@ source_set("hermes_platform_unicode") {
     #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
         "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp"
     ]
-    if (build_android) {
-        sources += [
-            "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
-        ]
-        defines = ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
-    } else {
+    if (!build_android) {
         sources += [
             "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp"
         ]
@@ -573,6 +581,31 @@ source_set("napi_qjs_source_set") {
     ]
 }
 if (build_android) {
+    source_set("fbjni") {
+    # Android 工具链默认 -ffunction-sections
+    # 默认 Android 工具链使用 gnu++14
+        cflags_cc = ["-std=c++14", "-fno-omit-frame-pointer", "-fexceptions", "-frtti"]
+        defines = ["DISABLE_CPUCAP", "DISABLE_XPLAT"]
+        include_dirs = [
+            "third_party/hermes/first-party/fbjni/cxx"
+        ]
+        sources = [
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/ByteBuffer.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/OnLoad.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/ReadableByteChannel.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/fbjni.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/Environment.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/Exceptions.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/Hybrid.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/Meta.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/References.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/fbjni/detail/utf8.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/lyra/cxa_throw.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/lyra/lyra.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/lyra/lyra_breakpad.cpp",
+            "third_party/hermes/first-party/fbjni/cxx/lyra/lyra_exceptions.cpp"
+        ]
+    }
     shared_library("qjs") {
     # Android 已有 libquickjs.so，改名
         deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
@@ -585,7 +618,7 @@ if (build_android) {
         deps = [":qjs", ":napi_common", ":napi_qjs_source_set"]
     }
     shared_library("hermes") {
-        ldflags = ["-lc++"]
+        ldflags = ["-lc++", "-lm", "-llog"]
         deps = [
             ":llvm_demangle",
             ":llvm_support",
@@ -604,9 +637,20 @@ if (build_android) {
             ":hermes_platform",
             ":hermes_platform_intl",
             ":hermes_platform_unicode",
+            ":hermes_platform_unicode_java",
             ":dtoa",
             ":hermes_vm_runtime_rtti",
-            ":hermes_vm_runtime"
+            ":hermes_vm_runtime",
+            ":fbjni"
+        ]
+    }
+    shared_library("napi_hermes") {
+        ldflags = ["-lc++"]
+        deps = [
+            ":hermes",
+            ":napi_common",
+            ":napi_hermes_source_set",
+            ":napi_hermes_rtti"
         ]
     }
 } else {
