@@ -169,7 +169,8 @@ source_set("hermes_optimizer") {
 
 source_set("hermes_platform_unicode_java") {
     configs = [":hermes_build", ":llvm_include"]
-    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
+    # 按照 Hermes 文档描述应当开启 RTTI 实际上不开启也能编译通过
+    cflags_cc = ["-std=c++14", "-fno-rtti", "-fexceptions"]
     include_dirs = [
         "third_party/hermes/first-party/fbjni/cxx"
     ]
@@ -356,7 +357,8 @@ source_set("hermes_hbc_backend") {
 }
 
 config("rtti_cpp_build") {
-    cflags_cc = ["-std=c++11", "-fno-exceptions"]
+# HostModel 部分按照 Hermes 官方文档应当开启 RTTI，但是看起来不开启也没关系
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
     if (asan) {
         cflags_cc += ["-fsanitize=address"]
     }
