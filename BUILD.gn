@@ -56,20 +56,14 @@ source_set("llvm_demangle") {
 source_set("llvm_support") {
     configs = [":llvm_include", ":standard_cpp_build"]
     # llvh/Config/config.h 是私有头文件
-    if (build_ios) {
-        if (ios_simulator) {
-            include_dirs = ["third_party/iphonesimulator"]
-        } else {
-            include_dirs = ["third_party/iphoneos"]
-        }
-    } else if (build_android) {
+    if (build_android) {
         if (android_target == "armv7" || android_target == "i386") {
             include_dirs = ["third_party/android_32"]
         } else {
             include_dirs = ["third_party/android_64"]
         }
     } else {
-        include_dirs = ["third_party/macos"]
+        include_dirs = ["third_party/apple"]
     }
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",

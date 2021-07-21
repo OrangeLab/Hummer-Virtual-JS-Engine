@@ -34,6 +34,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 2. QuickJS 单元测试建议开启 DUMP_LEAKS
 
 ### Hermes 单元测试修改源代码部分
+
 1. include/hermes/VM/HandleRootOwner.h 修改 HERMESVM_DEBUG_MAX_GCSCOPE_HANDLES 为 2^16-1 -> 65535
 
 ## 编辑器配置
@@ -76,6 +77,10 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 5. `ninja -C armv7 napi_qjs && ninja -C arm64 napi_qjs && ninja -C i386 napi_qjs && ninja -C x86_64 napi_qjs`
 6. `mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64`
 7. `mv armv7/obj/*.so napi/libs/armeabi-v7a && mv arm64/obj/*.so napi/libs/arm64-v8a && mv i386/obj/*.so napi/libs/x86 && mv x86_64/obj/*.so napi/libs/x86_64`
+
+#### 交叉编译注意
+
+1. macOS shell 对文件描述符有限制，默认限制 256，可以通过 `ulimit -a` 查看，可以通过 `ulimit -S -n 4096` 临时修改
 
 #### 注意
 
