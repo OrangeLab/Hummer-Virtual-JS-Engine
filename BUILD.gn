@@ -229,6 +229,12 @@ source_set("hermes_ast") {
     ]
 }
 
+source_set("jsi") {
+    cflags_cc = ["-std=c++11", "-frtti", "-fexceptions", "-fvisibility=hidden"]
+    include_dirs = ["third_party/hermes/API/jsi"]
+    sources = ["third_party/hermes/API/jsi/jsi/jsi.cpp"]
+}
+
 source_set("hermes_frontend") {
     configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
     sources = [
@@ -357,8 +363,7 @@ source_set("hermes_hbc_backend") {
 }
 
 config("rtti_cpp_build") {
-# HostModel 部分按照 Hermes 官方文档应当开启 RTTI，但是看起来不开启也没关系
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+    cflags_cc = ["-std=c++11", "-fno-exceptions", "-frtti"]
     if (asan) {
         cflags_cc += ["-fsanitize=address"]
     }
@@ -500,6 +505,17 @@ source_set("hermes_vm_runtime") {
     ]
 }
 
+source_set("jsi_hermes") {
+    cflags_cc = ["-std=c++14", "-fexceptions", "-frtti", "-fvisibility=hidden"]
+    configs = [":hermes_build", ":llvm_include"]
+    sources = [
+        "third_party/hermes/API/hermes/DebuggerAPI.cpp",
+        "third_party/hermes/API/hermes/hermes.cpp",
+        "third_party/hermes/API/hermes/hermes_tracing_compat.cpp"
+    ]
+    include_dirs = ["third_party/hermes/API", "third_party/hermes/API/jsi"]
+}
+
 config("napi_include") {
     include_dirs = [
         "include"
@@ -542,7 +558,8 @@ source_set("bf") {
 }
 
 source_set("napi_hermes_rtti") {
-    configs = [":hermes_build", ":llvm_include", ":rtti_cpp_build", ":napi_include", ":strict_build"]
+    # 正常应当开启 RTTI，但是 JSI 使用了该特性，N-API 实际上没有使用
+    configs = [":hermes_build", ":llvm_include", ":standard_cpp_build", ":napi_include", ":strict_build"]
     sources = [
         "src/external.cpp"
     ]
@@ -638,7 +655,9 @@ if (build_android) {
             ":dtoa",
             ":hermes_vm_runtime_rtti",
             ":hermes_vm_runtime",
-            ":fbjni"
+            ":fbjni",
+            ":jsi",
+            ":jsi_hermes"
         ]
     }
     shared_library("napi_hermes") {
@@ -758,7 +777,9 @@ if (build_android) {
                 ":hermes_platform_unicode",
                 ":dtoa",
                 ":hermes_vm_runtime_rtti",
-                ":hermes_vm_runtime"
+                ":hermes_vm_runtime",
+                ":jsi",
+                ":jsi_hermes"
             ]
         }
 

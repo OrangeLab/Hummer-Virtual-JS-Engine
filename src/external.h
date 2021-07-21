@@ -5,11 +5,9 @@
 #include <hermes/VM/JSArray.h>
 #include <napi/js_native_api_types.h>
 
-#define NAPI_HIDDEN __attribute((visibility("hidden")))
-
 namespace napi
 {
-class NAPI_HIDDEN External final : public ::hermes::vm::HostObjectProxy
+class External final : public ::hermes::vm::HostObjectProxy
 {
   public:
     External(NAPIEnv env, void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
