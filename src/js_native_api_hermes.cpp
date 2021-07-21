@@ -254,7 +254,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv()
     });
     runtime->addCustomWeakRootsFunction([this](::hermes::vm::GC *, ::hermes::vm::WeakRefAcceptor &weakRefAcceptor) {
         NAPIRef ref;
-        LIST_FOREACH(ref, &this->valueList, node)
+        LIST_FOREACH(ref, &this->weakRefList, node)
         {
             weakRefAcceptor.accept(ref->hermesValueWeakRef);
         }
