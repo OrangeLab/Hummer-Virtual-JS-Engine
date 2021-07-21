@@ -84,7 +84,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 #### 注意
 
-1. 建议使用 BUILDCONFIG.gn 中定义的 NDK 版本
+1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
 
 ## 注意事项
 

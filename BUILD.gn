@@ -9,6 +9,7 @@ config("standard_cpp_build") {
 }
 
 config("sanitize_link") {
+    ldflags = []
     if (asan) {
         ldflags += ["-fsanitize=address"]
     }
