@@ -231,12 +231,12 @@ OpaqueNAPIEnv::OpaqueNAPIEnv()
     // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L33
     auto gcConfigBuilder = ::hermes::vm::GCConfig::Builder()
                                .withName("N-API")
-                               .withAllocInYoung(false)
-                               .withRevertToYGAtTTI(true)
+                               //                               .withAllocInYoung(false)
+                               //                               .withRevertToYGAtTTI(true)
                                .withMaxHeapSize(1024 << 20);
     auto runtimeConfig = ::hermes::vm::RuntimeConfig::Builder()
                              .withGCConfig(gcConfigBuilder.build())
-                             .withRegisterStack(nullptr)
+                             //                             .withRegisterStack(nullptr)
                              .withMaxNumRegisters(kMaxNumRegisters)
                              .build();
     runtime = ::hermes::vm::Runtime::create(runtimeConfig);
@@ -1118,7 +1118,10 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
 {
     NAPI_PREAMBLE(env)
 
-    auto callResult = env->getRuntime()->run(script, sourceUrl, ::hermes::hbc::CompileFlags());
+    ::hermes::hbc::CompileFlags compileFlags = {};
+    compileFlags.lazy = true;
+    compileFlags.debug = true;
+    auto callResult = env->getRuntime()->run(script, sourceUrl, compileFlags);
     CHECK_HERMES(callResult)
     if (result)
     {
