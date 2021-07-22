@@ -531,19 +531,12 @@ source_set("bf") {
     ]
 }
 
-source_set("napi_hermes_rtti") {
-# 正常应当开启 RTTI，但是 JSI 使用了该特性，N-API 实际上没有使用
-    configs = [":hermes_build", ":llvm_include", ":standard_cpp_build", ":napi_include", ":strict_build"]
-    sources = [
-        "src/external.cpp"
-    ]
-    cflags_cc = ["-fvisibility=hidden", "-Wno-extra-semi", "-Wno-unused-parameter", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-nested-anon-types"]
-}
-
 source_set("napi_hermes_source_set") {
     configs = [":standard_cpp_build", ":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
     sources = [
-        "src/js_native_api_hermes.cpp"
+        "src/js_native_api_hermes.cpp",
+        # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
+        "src/external.cpp"
     ]
     cflags_cc = ["-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
@@ -640,7 +633,6 @@ if (build_android) {
             ":hermes",
             ":napi_common",
             ":napi_hermes_source_set",
-            ":napi_hermes_rtti"
         ]
     }
 } else {
@@ -726,7 +718,6 @@ if (build_android) {
             deps = [
                 ":test",
                 ":napi_hermes_source_set",
-                ":napi_hermes_rtti",
                 ":napi_common",
 
                 ":llvm_demangle",
