@@ -22,12 +22,6 @@ config("strict_build") {
     cflags = ["-Wall", "-Wextra", "-Werror", "-Wpedantic"]
 }
 
-#config("asan") {
-#}
-
-#config("ubsan") {
-#}
-
 source_set("dtoa") {
     configs = [":standard_cpp_build"]
     sources = [
@@ -64,6 +58,7 @@ source_set("llvm_support") {
             include_dirs = ["third_party/android_64"]
         }
     } else {
+    # TODO(ChasonTang): Apple 平台区分模拟器、桌面、真机
         include_dirs = ["third_party/apple"]
     }
     sources = [
@@ -174,17 +169,12 @@ source_set("hermes_platform_unicode_java") {
     include_dirs = [
         "third_party/hermes/first-party/fbjni/cxx"
     ]
-    defines = ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
     sources = ["third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp"]
 }
 
 source_set("hermes_platform_unicode") {
     configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
     sources = [
-    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp",
-    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeEmscripten.cpp",
-    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeICU.cpp",
-    #        "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp",
         "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp"
     ]
     if (!build_android) {
@@ -271,7 +261,7 @@ source_set("hermes_adt") {
 
 source_set("hermes_parser") {
     configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
-    # TODO(ChasonTang): 抽离头文件配置
+    # <dtoa/dtoa.h>
     include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/Parser/JSLexer.cpp",
@@ -295,7 +285,7 @@ source_set("hermes_source_map") {
 
 source_set("hermes_support") {
     configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
-    # TODO(ChasonTang): 抽离头文件配置
+    # <dtoa/dtoa.h>
     include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/Support/Allocator.cpp",
@@ -374,12 +364,15 @@ config("rtti_cpp_build") {
 
 source_set("hermes_vm_runtime_rtti") {
     configs = [":rtti_cpp_build", ":hermes_build", ":llvm_include"]
-    sources = ["third_party/hermes/lib/VM/HostModel.cpp", "third_party/hermes/lib/VM/DecoratedObject.cpp"]
+    sources = [
+        "third_party/hermes/lib/VM/HostModel.cpp",
+        "third_party/hermes/lib/VM/DecoratedObject.cpp"
+    ]
 }
 
 source_set("hermes_vm_runtime") {
     configs = [":hermes_build", ":standard_cpp_build", ":llvm_include"]
-    # TODO(ChasonTang): 抽离头文件配置
+    # <dtoa/dtoa.h>
     include_dirs = ["third_party/hermes/external"]
     sources = [
         "third_party/hermes/lib/VM/ArrayStorage.cpp",
@@ -558,12 +551,12 @@ source_set("bf") {
 }
 
 source_set("napi_hermes_rtti") {
-    # 正常应当开启 RTTI，但是 JSI 使用了该特性，N-API 实际上没有使用
+# 正常应当开启 RTTI，但是 JSI 使用了该特性，N-API 实际上没有使用
     configs = [":hermes_build", ":llvm_include", ":standard_cpp_build", ":napi_include", ":strict_build"]
     sources = [
         "src/external.cpp"
     ]
-    cflags_cc = ["-Wno-extra-semi", "-Wno-unused-parameter", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-nested-anon-types"]
+    cflags_cc = ["-fvisibility=hidden", "-Wno-extra-semi", "-Wno-unused-parameter", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-nested-anon-types"]
 }
 
 source_set("napi_hermes_source_set") {
@@ -571,7 +564,7 @@ source_set("napi_hermes_source_set") {
     sources = [
         "src/js_native_api_hermes.cpp"
     ]
-    cflags_cc = ["-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    cflags_cc = ["-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
 source_set("quickjs_source_set") {
