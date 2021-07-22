@@ -1,21 +1,5 @@
 config("standard_cpp_build") {
     cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
-    if (asan) {
-        cflags_cc += ["-fsanitize=address"]
-    }
-    if (ubsan) {
-        cflags_cc += ["-fsanitize=undefined"]
-    }
-}
-
-config("sanitize_link") {
-    ldflags = []
-    if (asan) {
-        ldflags += ["-fsanitize=address"]
-    }
-    if (ubsan) {
-        ldflags += ["-fsanitize=undefined"]
-    }
 }
 
 config("strict_build") {
@@ -125,6 +109,9 @@ config("hermes_build") {
     defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
     if (build_android) {
         defines += ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
+    }
+    if (ubsan) {
+        defines += ["HERMES_UBSAN"]
     }
 }
 
@@ -354,12 +341,6 @@ source_set("hermes_hbc_backend") {
 
 config("rtti_cpp_build") {
     cflags_cc = ["-std=c++11", "-fno-exceptions", "-frtti"]
-    if (asan) {
-        cflags_cc += ["-fsanitize=address"]
-    }
-    if (ubsan) {
-        cflags_cc += ["-fsanitize=undefined", "-fno-sanitize=vptr"]
-    }
 }
 
 source_set("hermes_vm_runtime_rtti") {
@@ -718,7 +699,6 @@ if (build_android) {
         executable("test_jsc") {
             testonly = true
             ldflags = ["-lc++"]
-            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_jsc_source_set",
@@ -729,7 +709,6 @@ if (build_android) {
         executable("test_qjs") {
             testonly = true
             ldflags = ["-lc++"]
-            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_qjs_source_set",
@@ -744,7 +723,6 @@ if (build_android) {
         executable("test_hermes") {
             testonly = true
             ldflags = ["-lc++"]
-            configs = [":sanitize_link"]
             deps = [
                 ":test",
                 ":napi_hermes_source_set",
