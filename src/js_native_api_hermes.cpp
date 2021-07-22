@@ -1176,7 +1176,7 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
         env->getRuntime().get(),
         ::hermes::vm::Handle<::hermes::vm::JSObject>::vmcast(&env->getRuntime()->functionPrototype), functionInfo,
         nativeFunctionPtr, 0, ::hermes::vm::NativeConstructor::creatorFunction<::hermes::vm::JSObject>,
-        hermes::vm::CellKind::FunctionKind);
+        hermes::vm::CellKind::ObjectKind);
 
     NAPIValue stringValue;
     CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue))

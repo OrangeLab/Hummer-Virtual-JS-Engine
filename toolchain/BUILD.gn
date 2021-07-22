@@ -7,7 +7,7 @@ if (asan) {
 }
 if (ubsan) {
 # vptr sanitizer 依赖 RTTI，会强制开启所有 RTTI 编译，因此必须关闭
-    compiler_command = string_join(" ", ["-fsanitize=undefined", "-fno-sanitize=vptr", compiler_command])
+    compiler_command = string_join(" ", ["-fsanitize=undefined", "-fno-sanitize=vptr,function", compiler_command])
     linker_command = string_join(" ", [linker_command, "-fsanitize=undefined"])
 }
 stamp_command = "touch {{output}}"
