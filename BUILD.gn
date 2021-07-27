@@ -508,7 +508,7 @@ source_set("double_conversion") {
 #}
 
 source_set("folly_json") {
-    cflags_cc = ["-fexceptions", "-fno-rtti", "-std=c++14"]
+    cflags_cc = ["-fexceptions", "-frtti", "-std=c++14"]
     defines = ["FOLLY_NO_CONFIG"]
     include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = [
@@ -530,7 +530,36 @@ source_set("folly_json") {
         "third_party/folly/folly/container/detail/F14Table.cpp",
         "third_party/folly/folly/ScopeGuard.cpp",
         "third_party/folly/folly/portability/SysUio.cpp",
-        "third_party/folly/folly/lang/Assume.cpp",
+        "third_party/folly/folly/lang/Assume.cpp"
+    ]
+}
+
+source_set("folly_futures") {
+    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
+    defines = ["FOLLY_NO_CONFIG"]
+    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    sources = [
+        "third_party/folly/folly/ExceptionWrapper.cpp",
+        "third_party/folly/folly/Executor.cpp",
+        "third_party/folly/folly/SharedMutex.cpp",
+        "third_party/folly/folly/concurrency/CacheLocality.cpp",
+        "third_party/folly/folly/detail/AsyncTrace.cpp",
+        "third_party/folly/folly/detail/AtFork.cpp",
+        "third_party/folly/folly/detail/Futex.cpp",
+        "third_party/folly/folly/detail/MemoryIdler.cpp",
+        "third_party/folly/folly/detail/StaticSingletonManager.cpp",
+        "third_party/folly/folly/detail/ThreadLocalDetail.cpp",
+        "third_party/folly/folly/executors/ExecutorWithPriority.cpp",
+        "third_party/folly/folly/executors/InlineExecutor.cpp",
+        "third_party/folly/folly/executors/TimedDrivableExecutor.cpp",
+        "third_party/folly/folly/executors/QueuedImmediateExecutor.cpp",
+        "third_party/folly/folly/io/async/Request.cpp",
+        "third_party/folly/folly/memory/MallctlHelper.cpp",
+        "third_party/folly/folly/portability/SysMembarrier.cpp",
+        "third_party/folly/folly/synchronization/AsymmetricMemoryBarrier.cpp",
+        "third_party/folly/folly/synchronization/Hazptr.cpp",
+        "third_party/folly/folly/synchronization/ParkingLot.cpp",
+        "third_party/folly/folly/synchronization/WaitOptions.cpp"
     ]
 }
 
