@@ -74,7 +74,7 @@
 /* #undef HAVE_FFI_H */
 
 /* Define to 1 if you have the `futimens' function. */
-#define HAVE_FUTIMENS 1
+/* #undef HAVE_FUTIMENS */
 
 /* Define to 1 if you have the `futimes' function. */
 #define HAVE_FUTIMES 1
@@ -215,7 +215,7 @@
 /* #undef HAVE_TERMINFO */
 
 /* Define if the xar_open() function is supported this platform. */
-#define HAVE_LIBXAR 1
+/* #undef HAVE_LIBXAR */
 
 /* Define to 1 if you have the <termios.h> header file. */
 #define HAVE_TERMIOS_H 1
@@ -236,7 +236,7 @@
 /* #undef HAVE__CHSIZE_S */
 
 /* Define to 1 if you have the `_Unwind_Backtrace' function. */
-#define HAVE__UNWIND_BACKTRACE 1
+/* #undef HAVE__UNWIND_BACKTRACE */
 
 /* Have host's __alloca */
 /* #undef HAVE___ALLOCA */

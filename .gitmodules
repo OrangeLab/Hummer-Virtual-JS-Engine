@@ -10,3 +10,6 @@
 [submodule "third_party/uthash"]
 	path = third_party/uthash
         url = git@github.com:troydhanson/uthash.git
+[submodule "third_party/react-native"]
+	path = third_party/react-native
+	url = git@github.com:facebook/react-native.git

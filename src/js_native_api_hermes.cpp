@@ -1,4 +1,3 @@
-#include "external.h"
 #include <hermes/BCGen/HBC/BytecodeProviderFromSrc.h>
 #include <hermes/Public/GCConfig.h>
 #include <hermes/VM/Callable.h>
@@ -49,10 +48,88 @@
 
 namespace
 {
+class External final : public ::hermes::vm::HostObjectProxy
+{
+  public:
+    External(NAPIEnv env, void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
+
+    NAPIEnv getEnv() const;
+    void *getData() const;
+    NAPIFinalize getFinalizeCallback() const;
+    void *getFinalizeHint() const;
+
+    ~External() override;
+
+    ::hermes::vm::CallResult<::hermes::vm::HermesValue> get(::hermes::vm::SymbolID symbolId) override;
+
+    ::hermes::vm::CallResult<bool> set(::hermes::vm::SymbolID symbolId, ::hermes::vm::HermesValue value) override;
+
+    ::hermes::vm::CallResult<::hermes::vm::Handle<::hermes::vm::JSArray>> getHostPropertyNames() override;
+
+    // copy ctor
+    External(const External &) = delete;
+
+    // move ctor
+    External(External &&) = delete;
+
+    // copy assign
+    External &operator=(const External &) = delete;
+
+    // move assign
+    External &operator=(External &&) = delete;
+
+  private:
+    NAPIEnv env;
+    void *data;
+    NAPIFinalize finalizeCallback;
+    void *finalizeHint;
+};
+
 // hermes.cpp -> kMaxNumRegisters
 constexpr unsigned kMaxNumRegisters =
     (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) / sizeof(::hermes::vm::PinnedHermesValue);
 } // namespace
+
+::External::External(NAPIEnv env, void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
+    : env(env), data(data), finalizeCallback(finalizeCallback), finalizeHint(finalizeHint)
+{
+}
+
+NAPIEnv External::getEnv() const
+{
+    return env;
+}
+void *External::getData() const
+{
+    return data;
+}
+NAPIFinalize External::getFinalizeCallback() const
+{
+    return finalizeCallback;
+}
+void *External::getFinalizeHint() const
+{
+    return finalizeHint;
+}
+External::~External()
+{
+    if (finalizeCallback)
+    {
+        finalizeCallback(env, data, finalizeHint);
+    }
+}
+::hermes::vm::CallResult<::hermes::vm::HermesValue> External::get(::hermes::vm::SymbolID symbolId)
+{
+    return ::hermes::vm::Runtime::getUndefinedValue().get();
+}
+::hermes::vm::CallResult<bool> External::set(::hermes::vm::SymbolID symbolId, ::hermes::vm::HermesValue value)
+{
+    return false;
+}
+::hermes::vm::CallResult<::hermes::vm::Handle<::hermes::vm::JSArray>> External::getHostPropertyNames()
+{
+    return ::hermes::vm::Runtime::makeNullHandle<::hermes::vm::JSArray>();
+}
 
 EXTERN_C_START
 
@@ -890,11 +967,11 @@ NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB
     NAPI_PREAMBLE(env)
     CHECK_ARG(result)
 
-    auto hermesExternalObject = new (::std::nothrow)::napi::External(env, data, finalizeCB, finalizeHint);
+    auto hermesExternalObject = new (::std::nothrow)::External(env, data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIMemoryError)
 
     auto callResult = hermes::vm::HostObject::createWithoutPrototype(
-        env->getRuntime().get(), ::std::unique_ptr<::napi::External>(hermesExternalObject));
+        env->getRuntime().get(), ::std::unique_ptr<::External>(hermesExternalObject));
     CHECK_HERMES(callResult)
     *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
 
@@ -912,7 +989,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
     RETURN_STATUS_IF_FALSE(hostObject, NAPIInvalidArg)
 
     // 转换失败返回空指针
-    auto external = (::napi::External *)hostObject->getProxy();
+    auto external = (::External *)hostObject->getProxy();
     *result = external ? external->getData() : nullptr;
 
     return NAPIOK;

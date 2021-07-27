@@ -39,11 +39,11 @@ toolchain("android") {
         compiler_command = string_join(" ", ["-target aarch64-none-linux-android21", compiler_command])
         linker_command = string_join(" ", ["-target aarch64-none-linux-android21", linker_command])
     } else if (android_target == "i386") {
-        linker_command = string_join(" ", ["-target i686-none-linux-android18", linker_command])
         compiler_command = string_join(" ", ["-target i686-none-linux-android18 -mstackrealign", compiler_command])
+        linker_command = string_join(" ", ["-target i686-none-linux-android18", linker_command])
     } else {
-        linker_command = string_join(" ", ["-target x86_64-none-linux-android21", linker_command])
         compiler_command = string_join(" ", ["-target x86_64-none-linux-android21", compiler_command])
+        linker_command = string_join(" ", ["-target x86_64-none-linux-android21", linker_command])
     }
     tool("cc") {
         command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", compiler_command, "{{cflags_c}}"])

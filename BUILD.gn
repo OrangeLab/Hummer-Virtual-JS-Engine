@@ -36,13 +36,8 @@ source_set("llvm_support") {
     configs = [":llvm_include", ":standard_cpp_build"]
     # llvh/Config/config.h 是私有头文件
     if (build_android) {
-        if (android_target == "armv7" || android_target == "i386") {
-            include_dirs = ["third_party/android_32"]
-        } else {
-            include_dirs = ["third_party/android_64"]
-        }
+        include_dirs = ["third_party/android"]
     } else {
-    # TODO(ChasonTang): Apple 平台区分模拟器、桌面、真机
         include_dirs = ["third_party/apple"]
     }
     sources = [
@@ -532,13 +527,12 @@ source_set("bf") {
 }
 
 source_set("napi_hermes_source_set") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
+    configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
     sources = [
-        "src/js_native_api_hermes.cpp",
-        # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
-        "src/external.cpp"
+    # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
+        "src/js_native_api_hermes.cpp"
     ]
-    cflags_cc = ["-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    cflags_cc = ["-std=c++17", "-fno-rtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
 source_set("quickjs_source_set") {
@@ -624,13 +618,8 @@ if (build_android) {
             ":hermes_vm_runtime",
             ":fbjni",
             ":jsi",
-            ":jsi_hermes"
-        ]
-    }
-    shared_library("napi_hermes") {
-        ldflags = ["-lc++"]
-        deps = [
-            ":hermes",
+            ":jsi_hermes",
+
             ":napi_common",
             ":napi_hermes_source_set",
         ]
