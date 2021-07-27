@@ -563,6 +563,42 @@ source_set("folly_futures") {
     ]
 }
 
+source_set("jsinspector") {
+    cflags_cc = ["-std=c++14", "-fno-rtti", "-fno-exceptions"]
+    sources = [
+        "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp"
+    ]
+}
+
+source_set("jsi_dynamic") {
+    cflags_cc = ["-std=c++14", "-fno-rtti", "-fexceptions", "-fvisibility=hidden"]
+    defines = ["FOLLY_NO_CONFIG"]
+    include_dirs = ["third_party/hermes/API/jsi", "third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    sources = ["third_party/hermes/API/jsi/jsi/JSIDynamic.cpp"]
+}
+
+source_set("hermes_inspector") {
+    configs = [":hermes_build"]
+    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
+    defines = ["FOLLY_NO_CONFIG"]
+    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include", "third_party/hermes/API", "third_party/hermes/API/jsi", "third_party/react-native/ReactCommon"]
+    sources = [
+        "third_party/react-native/ReactCommon/hermes/inspector/Inspector.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/InspectorState.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/RuntimeAdapter.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/AutoAttachUtils.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/Connection.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/ConnectionDemux.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/MessageConverters.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/MessageTypes.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/Registration.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/chrome/RemoteObjectsTable.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/detail/CallbackOStream.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/detail/SerialExecutor.cpp",
+        "third_party/react-native/ReactCommon/hermes/inspector/detail/Thread.cpp"
+    ]
+}
+
 source_set("napi_hermes_source_set") {
     configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
     sources = [
