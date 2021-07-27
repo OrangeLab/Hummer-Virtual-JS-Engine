@@ -13,3 +13,12 @@
 [submodule "third_party/react-native"]
 	path = third_party/react-native
 	url = git@github.com:facebook/react-native.git
+[submodule "third_party/folly"]
+	path = third_party/folly
+	url = git@github.com:facebook/folly.git
+[submodule "third_party/double-conversion"]
+	path = third_party/double-conversion
+	url = git@github.com:google/double-conversion.git
+[submodule "third_party/glog"]
+	path = third_party/glog
+	url = git@github.com:google/glog.git
