@@ -22,3 +22,6 @@
 [submodule "third_party/glog"]
 	path = third_party/glog
 	url = git@github.com:google/glog.git
+[submodule "third_party/boost-for-react-native"]
+	path = third_party/boost-for-react-native
+	url = git@github.com:react-native-community/boost-for-react-native.git

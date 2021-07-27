@@ -17,7 +17,7 @@
 #define LLVM_ENABLE_CRASH_DUMPS 0
 
 /* Define to 1 if you have the `backtrace' function. */
-#define HAVE_BACKTRACE TRUE
+/* #undef HAVE_BACKTRACE */
 
 #define BACKTRACE_HEADER <execinfo.h>
 
@@ -25,7 +25,7 @@
 /* #undef HAVE_CRASHREPORTERCLIENT_H */
 
 /* can use __crashreporter_info__ */
-#define HAVE_CRASHREPORTER_INFO 1
+#define HAVE_CRASHREPORTER_INFO 0
 
 /* Define to 1 if you have the declaration of `arc4random', and to 0 if you
    don't. */
@@ -77,7 +77,7 @@
 /* #undef HAVE_FUTIMENS */
 
 /* Define to 1 if you have the `futimes' function. */
-#define HAVE_FUTIMES 1
+/* #undef HAVE_FUTIMES */
 
 /* Define to 1 if you have the `getpagesize' function. */
 #define HAVE_GETPAGESIZE 1
@@ -101,10 +101,10 @@
 /* #undef HAVE_LIBPSAPI */
 
 /* Define to 1 if you have the `pthread' library (-lpthread). */
-#define HAVE_LIBPTHREAD 1
+/* #undef HAVE_LIBPTHREAD */
 
 /* Define to 1 if you have the `pthread_getname_np' function. */
-#define HAVE_PTHREAD_GETNAME_NP 1
+/* #undef HAVE_PTHREAD_GETNAME_NP */
 
 /* Define to 1 if you have the `pthread_setname_np' function. */
 #define HAVE_PTHREAD_SETNAME_NP 1
@@ -119,7 +119,7 @@
 /* #undef HAVE_LSEEK64 */
 
 /* Define to 1 if you have the <mach/mach.h> header file. */
-#define HAVE_MACH_MACH_H 1
+/* #undef HAVE_MACH_MACH_H */
 
 /* Define to 1 if you have the `mallctl' function. */
 /* #undef HAVE_MALLCTL */
@@ -131,16 +131,16 @@
 /* #undef HAVE_MALLOC_H */
 
 /* Define to 1 if you have the <malloc/malloc.h> header file. */
-#define HAVE_MALLOC_MALLOC_H 1
+/* #undef HAVE_MALLOC_MALLOC_H */
 
 /* Define to 1 if you have the `malloc_zone_statistics' function. */
-#define HAVE_MALLOC_ZONE_STATISTICS 1
+/* #undef HAVE_MALLOC_ZONE_STATISTICS */
 
 /* Define to 1 if you have the `posix_fallocate' function. */
 /* #undef HAVE_POSIX_FALLOCATE */
 
 /* Define to 1 if you have the `posix_spawn' function. */
-#define HAVE_POSIX_SPAWN 1
+/* #undef HAVE_POSIX_SPAWN */
 
 /* Define to 1 if you have the `pread' function. */
 #define HAVE_PREAD 1

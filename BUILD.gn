@@ -34,12 +34,6 @@ source_set("llvm_demangle") {
 
 source_set("llvm_support") {
     configs = [":llvm_include", ":standard_cpp_build"]
-    # llvh/Config/config.h 是私有头文件
-    if (build_android) {
-        include_dirs = ["third_party/android"]
-    } else {
-        include_dirs = ["third_party/apple"]
-    }
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
         "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
@@ -485,6 +479,70 @@ source_set("jsi_hermes") {
     include_dirs = ["third_party/hermes/API", "third_party/hermes/API/jsi"]
 }
 
+source_set("double_conversion") {
+    cflags_cc = ["-fno-exceptions", "-fno-rtti"]
+    sources = [
+        "third_party/double-conversion/src/bignum-dtoa.cc",
+        "third_party/double-conversion/src/bignum.cc",
+        "third_party/double-conversion/src/strtod.cc",
+        "third_party/double-conversion/src/cached-powers.cc",
+        "third_party/double-conversion/src/diy-fp.cc",
+        "third_party/double-conversion/src/fast-dtoa.cc",
+        "third_party/double-conversion/src/fixed-dtoa.cc",
+        "third_party/double-conversion/src/double-conversion.cc"
+    ]
+}
+
+#source_set("glog") {
+#    cflags_cc = ["-fno-exceptions", "-fno-rtti"]
+#    include_dirs = ["third_party/include/glog", "third_party/include", "third_party/glog/src"]
+#    sources = [
+#        "third_party/glog/src/demangle.cc",
+#        "third_party/glog/src/logging.cc",
+#        "third_party/glog/src/raw_logging.cc",
+#        "third_party/glog/src/signalhandler.cc",
+#        "third_party/glog/src/symbolize.cc",
+#        "third_party/glog/src/utilities.cc",
+#        "third_party/glog/src/vlog_is_on.cc"
+#    ]
+#}
+
+source_set("folly_json") {
+    cflags_cc = ["-fexceptions", "-fno-rtti", "-std=c++14"]
+    defines = ["FOLLY_NO_CONFIG"]
+    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    sources = [
+        "third_party/folly/folly/json.cpp",
+        "third_party/folly/folly/Unicode.cpp",
+        "third_party/folly/folly/Conv.cpp",
+        "third_party/folly/folly/Demangle.cpp",
+        "third_party/folly/folly/memory/detail/MallocImpl.cpp",
+        "third_party/folly/folly/String.cpp",
+        "third_party/folly/folly/dynamic.cpp",
+        "third_party/folly/folly/FileUtil.cpp",
+        "third_party/folly/folly/Format.cpp",
+        "third_party/folly/folly/net/NetOps.cpp",
+        "third_party/folly/folly/json_pointer.cpp",
+        "third_party/folly/folly/lang/CString.cpp",
+        "third_party/folly/folly/detail/Demangle.cpp",
+        "third_party/folly/folly/detail/UniqueInstance.cpp",
+        "third_party/folly/folly/hash/SpookyHashV2.cpp",
+        "third_party/folly/folly/container/detail/F14Table.cpp",
+        "third_party/folly/folly/ScopeGuard.cpp",
+        "third_party/folly/folly/portability/SysUio.cpp",
+        "third_party/folly/folly/lang/Assume.cpp",
+    ]
+}
+
+source_set("napi_hermes_source_set") {
+    configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
+    sources = [
+    # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
+        "src/js_native_api_hermes.cpp"
+    ]
+    cflags_cc = ["-std=c++17", "-fno-rtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+}
+
 config("napi_include") {
     include_dirs = [
         "include"
@@ -524,15 +582,6 @@ source_set("bf") {
     sources = [
         "third_party/quickjs/libbf.c"
     ]
-}
-
-source_set("napi_hermes_source_set") {
-    configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
-    sources = [
-    # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
-        "src/js_native_api_hermes.cpp"
-    ]
-    cflags_cc = ["-std=c++17", "-fno-rtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
 source_set("quickjs_source_set") {
@@ -619,10 +668,14 @@ if (build_android) {
             ":fbjni",
             ":jsi",
             ":jsi_hermes",
-
+        ]
+    }
+    shared_library("napi_hermes") {
+        deps = [
             ":napi_common",
             ":napi_hermes_source_set",
         ]
+        ldflags = ["-lc++"]
     }
 } else {
     source_set("napi_jsc_source_set") {
