@@ -1521,7 +1521,7 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
 }
 
 // NAPIGenericFailure/NAPIMemoryError
-NAPIStatus NAPICreateEnv(NAPIEnv *env)
+NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
 {
     CHECK_ARG(env);
     if ((runtime && !contextCount) || (!runtime && contextCount))

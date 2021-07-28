@@ -1343,7 +1343,7 @@ static JSContextGroupRef virtualMachine = NULL;
 
 static uint8_t contextCount = 0;
 
-NAPIStatus NAPICreateEnv(NAPIEnv *env)
+NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
 {
     // *env 才是 NAPIEnv
     if (!env)

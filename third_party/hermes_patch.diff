@@ -1,0 +1,39 @@
+diff --git a/API/hermes/hermes.cpp b/API/hermes/hermes.cpp
+index fb046fa4..bbe0970c 100644
+--- a/API/hermes/hermes.cpp
++++ b/API/hermes/hermes.cpp
+@@ -1053,6 +1053,14 @@ inline const HermesRuntimeImpl *impl(const HermesRuntime *rt) {
+ 
+ } // namespace
+ 
++::hermes::vm::Runtime *HermesRuntime::getHermesRuntimeFromJSI(const ::facebook::hermes::HermesRuntime *runtime) {
++  if (!runtime) {
++    return nullptr;
++  }
++
++  return &(impl(runtime)->runtime_);
++}
++
+ bool HermesRuntime::isHermesBytecode(const uint8_t *data, size_t len) {
+   return hbc::BCProviderFromBuffer::isBytecodeStream(
+       llvh::ArrayRef<uint8_t>(data, len));
+diff --git a/API/hermes/hermes.h b/API/hermes/hermes.h
+index 686b4938..10c0d73f 100644
+--- a/API/hermes/hermes.h
++++ b/API/hermes/hermes.h
+@@ -36,6 +36,7 @@ class raw_ostream;
+ 
+ namespace hermes {
+ namespace vm {
++class Runtime;
+ class GCExecTrace;
+ struct MockedEnvironment;
+ } // namespace vm
+@@ -61,6 +62,7 @@ class HermesRuntimeImpl;
+ /// Represents a Hermes JS runtime.
+ class HERMES_EXPORT HermesRuntime : public jsi::Runtime {
+  public:
++  static ::hermes::vm::Runtime *getHermesRuntimeFromJSI(const ::facebook::hermes::HermesRuntime *runtime);
+   static bool isHermesBytecode(const uint8_t *data, size_t len);
+   // Returns the supported bytecode version.
+   static uint32_t getBytecodeVersion();

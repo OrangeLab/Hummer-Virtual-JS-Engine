@@ -107,7 +107,8 @@ NAPI_EXPORT NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char
 // data 可空
 NAPI_EXPORT NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result);
 
-NAPI_EXPORT NAPIStatus NAPICreateEnv(NAPIEnv *env);
+// debuggerTitle 只对 Hermes 引擎生效，应当支持空指针
+NAPI_EXPORT NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle);
 
 NAPI_EXPORT NAPIStatus NAPIFreeEnv(NAPIEnv env);
 

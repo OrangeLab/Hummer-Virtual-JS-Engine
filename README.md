@@ -20,7 +20,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### Hermes
 
-1. `clang++ --analyze src/js_native_api_hermes.cpp --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/hermes/include -I./third_party/hermes/public -DHERMESVM_GC_NONCONTIG_GENERATIONAL -DHERMESVM_ALLOW_COMPRESSED_POINTERS -DHERMES_ENABLE_DEBUGGER -std=c++17 -I./third_party/include -I./third_party/hermes/external/llvh/include -I./third_party/hermes/external/llvh/gen/include`
+1. `clang++ --analyze src/js_native_api_hermes.cpp --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/hermes/include -I./third_party/hermes/public -DHERMESVM_GC_NONCONTIG_GENERATIONAL -DHERMESVM_ALLOW_COMPRESSED_POINTERS -DHERMES_ENABLE_DEBUGGER -std=c++17 -I./third_party/include -I./third_party/hermes/external/llvh/include -I./third_party/hermes/external/llvh/gen/include -I./third_party/hermes/API -I./third_party/hermes/API/jsi -I./third_party/react-native/ReactCommon`
 
 ## 单元测试
 

@@ -493,22 +493,8 @@ source_set("double_conversion") {
     ]
 }
 
-#source_set("glog") {
-#    cflags_cc = ["-fno-exceptions", "-fno-rtti"]
-#    include_dirs = ["third_party/include/glog", "third_party/include", "third_party/glog/src"]
-#    sources = [
-#        "third_party/glog/src/demangle.cc",
-#        "third_party/glog/src/logging.cc",
-#        "third_party/glog/src/raw_logging.cc",
-#        "third_party/glog/src/signalhandler.cc",
-#        "third_party/glog/src/symbolize.cc",
-#        "third_party/glog/src/utilities.cc",
-#        "third_party/glog/src/vlog_is_on.cc"
-#    ]
-#}
-
 source_set("folly_json") {
-    cflags_cc = ["-fexceptions", "-frtti", "-std=c++14"]
+    cflags_cc = ["-fexceptions", "-frtti", "-std=c++14", "-fvisibility=hidden"]
     defines = ["FOLLY_NO_CONFIG"]
     include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = [
@@ -524,6 +510,7 @@ source_set("folly_json") {
         "third_party/folly/folly/net/NetOps.cpp",
         "third_party/folly/folly/json_pointer.cpp",
         "third_party/folly/folly/lang/CString.cpp",
+        "third_party/folly/folly/lang/SafeAssert.cpp",
         "third_party/folly/folly/detail/Demangle.cpp",
         "third_party/folly/folly/detail/UniqueInstance.cpp",
         "third_party/folly/folly/hash/SpookyHashV2.cpp",
@@ -535,7 +522,7 @@ source_set("folly_json") {
 }
 
 source_set("folly_futures") {
-    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
+    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions", "-fvisibility=hidden"]
     defines = ["FOLLY_NO_CONFIG"]
     include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = [
@@ -564,7 +551,7 @@ source_set("folly_futures") {
 }
 
 source_set("jsinspector") {
-    cflags_cc = ["-std=c++14", "-fno-rtti", "-fno-exceptions"]
+    cflags_cc = ["-std=c++14", "-fno-rtti", "-fno-exceptions", "-fvisibility=hidden"]
     sources = [
         "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp"
     ]
@@ -601,11 +588,13 @@ source_set("hermes_inspector") {
 
 source_set("napi_hermes_source_set") {
     configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
+    include_dirs = ["third_party/react-native/ReactCommon", "third_party/hermes/API/jsi", "third_party/hermes/API"]
     sources = [
-    # 正常应当开启 RTTI，是因为 JSI 使用了该特性，N-API 实际上没有使用
+    # 正常应当开启 RTTI，是因为 HostModel，JSI 使用了该特性，N-API 实际上没有使用
         "src/js_native_api_hermes.cpp"
     ]
-    cflags_cc = ["-std=c++17", "-fno-rtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    # WithRuntimeDecorator 需要 RTTI
+    cflags_cc = ["-std=c++17", "-frtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
 config("napi_include") {
@@ -733,6 +722,13 @@ if (build_android) {
             ":fbjni",
             ":jsi",
             ":jsi_hermes",
+
+            ":hermes_inspector",
+            ":folly_json",
+            ":folly_futures",
+            ":double_conversion",
+            ":jsi_dynamic",
+            ":jsinspector",
         ]
     }
     shared_library("napi_hermes") {
@@ -848,7 +844,14 @@ if (build_android) {
                 ":hermes_vm_runtime_rtti",
                 ":hermes_vm_runtime",
                 ":jsi",
-                ":jsi_hermes"
+                ":jsi_hermes",
+
+                ":hermes_inspector",
+                ":folly_json",
+                ":folly_futures",
+                ":double_conversion",
+                ":jsi_dynamic",
+                ":jsinspector",
             ]
         }
 
