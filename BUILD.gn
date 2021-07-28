@@ -495,7 +495,10 @@ source_set("double_conversion") {
 
 source_set("folly_json") {
     cflags_cc = ["-fexceptions", "-frtti", "-std=c++14", "-fvisibility=hidden"]
-    defines = ["FOLLY_NO_CONFIG"]
+    defines = ["FOLLY_NO_CONFIG", "FOLLY_MOBILE=1"]
+    if (build_android) {
+        defines += ["FOLLY_HAVE_MEMRCHR=1"]
+    }
     include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = [
         "third_party/folly/folly/json.cpp",
@@ -523,7 +526,10 @@ source_set("folly_json") {
 
 source_set("folly_futures") {
     cflags_cc = ["-std=c++14", "-frtti", "-fexceptions", "-fvisibility=hidden"]
-    defines = ["FOLLY_NO_CONFIG"]
+    defines = ["FOLLY_NO_CONFIG", "FOLLY_MOBILE=1"]
+    if (build_android) {
+        defines += ["FOLLY_HAVE_MEMRCHR=1"]
+    }
     include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = [
         "third_party/folly/folly/ExceptionWrapper.cpp",
@@ -559,7 +565,10 @@ source_set("jsinspector") {
 
 source_set("jsi_dynamic") {
     cflags_cc = ["-std=c++14", "-fno-rtti", "-fexceptions", "-fvisibility=hidden"]
-    defines = ["FOLLY_NO_CONFIG"]
+    defines = ["FOLLY_NO_CONFIG", "FOLLY_MOBILE=1"]
+    if (build_android) {
+        defines += ["FOLLY_HAVE_MEMRCHR=1"]
+    }
     include_dirs = ["third_party/hermes/API/jsi", "third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
     sources = ["third_party/hermes/API/jsi/jsi/JSIDynamic.cpp"]
 }
@@ -567,8 +576,19 @@ source_set("jsi_dynamic") {
 source_set("hermes_inspector") {
     configs = [":hermes_build"]
     cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
-    defines = ["FOLLY_NO_CONFIG"]
-    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include", "third_party/hermes/API", "third_party/hermes/API/jsi", "third_party/react-native/ReactCommon"]
+    defines = ["FOLLY_NO_CONFIG", "FOLLY_MOBILE=1"]
+    if (build_android) {
+        defines += ["FOLLY_HAVE_MEMRCHR=1"]
+    }
+    include_dirs = [
+        "third_party/folly",
+        "third_party/boost-for-react-native",
+        "third_party/include",
+        "third_party/hermes/API",
+        "third_party/hermes/API/jsi",
+        "third_party/react-native/ReactCommon",
+        "third_party/hermes/first-party/fbjni/cxx"
+    ]
     sources = [
         "third_party/react-native/ReactCommon/hermes/inspector/Inspector.cpp",
         "third_party/react-native/ReactCommon/hermes/inspector/InspectorState.cpp",
@@ -733,6 +753,7 @@ if (build_android) {
     }
     shared_library("napi_hermes") {
         deps = [
+            ":hermes",
             ":napi_common",
             ":napi_hermes_source_set",
         ]
