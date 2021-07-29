@@ -6,7 +6,9 @@ declare_args() {
     build_android = false
     # NDK 路径
     ndk_path = "~/Library/Android/sdk/ndk/21.4.7075529"
-    android_target = "armv7"
+
+    # 交叉编译 iOS Android 生效
+    cross_compile_target = "x86_64"
 
     # 暂时只对 clang 工具链有效
     code_coverage = false
@@ -15,10 +17,7 @@ declare_args() {
 
     # iOS 交叉编译，否则编译 macOS 版本
     build_ios = false
-    # 是否使用模拟器 SDK
-    ios_simulator = true
     # 和 -apple-ios9.0 拼接，作为 -target 参数
-    ios_archtecture = "x86_64"
 
     # QuickJS 专属
     big_number = false

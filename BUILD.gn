@@ -1,13 +1,40 @@
-config("standard_cpp_build") {
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-fno-rtti"]
+config("minimal_size_build") {
+    cflags_cc = ["-fno-exceptions", "-fno-rtti"]
+}
+
+config("standard_build") {
+    configs = [":minimal_size_build"]
+    cflags_cc = ["-std=c++11"]
 }
 
 config("strict_build") {
     cflags = ["-Wall", "-Wextra", "-Werror", "-Wpedantic"]
 }
 
+config("exception_build") {
+    cflags_cc = ["-fexceptions", "-fno-rtti"]
+}
+
+config("rtti_build") {
+    cflags_cc = ["-fno-exceptions", "-frtti"]
+}
+
+config("exception_rtti_build") {
+    cflags_cc = ["-fexceptions", "-frtti"]
+}
+
+config("new_exception_build") {
+    configs = [":exception_build"]
+    cflags_cc = ["-std=c++14"]
+}
+
+config("new_exception_rtti_build") {
+    configs = [":exception_rtti_build"]
+    cflags_cc = ["-std=c++14"]
+}
+
 source_set("dtoa") {
-    configs = [":standard_cpp_build"]
+    configs = [":minimal_size_build"]
     sources = [
         "third_party/hermes/external/dtoa/dtoa.c",
         "third_party/hermes/external/dtoa/g_fmt.c",
@@ -16,10 +43,16 @@ source_set("dtoa") {
     defines = ["IEEE_8087", "Long=int", "NO_HEX_FP", "NO_INFNAN_CHECK", "MULTIPLE_THREADS"]
 }
 
-config("llvm_include") {
-# third_party/include 为 llvh-config.h
-# third_party/hermes/external/llvh/gen/include 为 Attributes.inc
-    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/include", "third_party/hermes/external/llvh/gen/include"]
+config("common_build") {
+    include_dirs = ["third_party/include"]
+}
+
+config("llvm_build") {
+    configs = [":common_build"]
+    # third_party/include 为 llvh-config.h 和 config.h
+    # TBD(ChasonTang): config.h 是私有头文件，llvh-config.h 是公开头文件？
+    # third_party/hermes/external/llvh/gen/include 为 Attributes.inc
+    include_dirs = ["third_party/hermes/external/llvh/include", "third_party/hermes/external/llvh/gen/include"]
 }
 
 source_set("llvm_demangle") {
@@ -28,12 +61,11 @@ source_set("llvm_demangle") {
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
         "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp"
     ]
-    configs = [":standard_cpp_build", ":llvm_include"]
+    configs = [":standard_build", ":llvm_build"]
 }
 
-
 source_set("llvm_support") {
-    configs = [":llvm_include", ":standard_cpp_build"]
+    configs = [":llvm_build", ":standard_build"]
     sources = [
         "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
         "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
@@ -93,8 +125,8 @@ source_set("llvm_support") {
 }
 
 config("hermes_build") {
-# hermes/Support/Config.h 公有/私有头文件？
-    include_dirs = ["third_party/hermes/include", "third_party/include", "third_party/hermes/public"]
+# TBD(ChasonTang): hermes/Support/Config.h 公有/私有头文件？
+    include_dirs = ["third_party/hermes/include", "third_party/hermes/public"]
     defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
     if (build_android) {
         defines += ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
@@ -105,14 +137,14 @@ config("hermes_build") {
 }
 
 source_set("hermes_frontend_defs") {
-    configs = [":standard_cpp_build", ":hermes_build"]
+    configs = [":standard_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/FrontEndDefs/Builtins.cpp"
     ]
 }
 
 source_set("hermes_optimizer") {
-    configs = [":llvm_include", ":standard_cpp_build", ":hermes_build"]
+    configs = [":llvm_build", ":standard_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Optimizer/PassManager/Pipeline.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/SimplifyCFG.cpp",
@@ -138,18 +170,20 @@ source_set("hermes_optimizer") {
     ]
 }
 
-source_set("hermes_platform_unicode_java") {
-    configs = [":hermes_build", ":llvm_include"]
-    # 按照 Hermes 文档描述应当开启 RTTI 实际上不开启也能编译通过
-    cflags_cc = ["-std=c++14", "-fno-rtti", "-fexceptions"]
+config("fbjni_build") {
     include_dirs = [
         "third_party/hermes/first-party/fbjni/cxx"
     ]
+}
+
+source_set("hermes_platform_unicode_java") {
+    configs = [":hermes_build", ":llvm_build", ":fbjni_build", ":new_exception_build"]
+    # 按照 Hermes 文档描述应当开启 RTTI 实际上不开启也能编译通过
     sources = ["third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp"]
 }
 
 source_set("hermes_platform_unicode") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp"
     ]
@@ -157,34 +191,28 @@ source_set("hermes_platform_unicode") {
         sources += [
             "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp"
         ]
+        # TBD(ChasonTang): 也许可以去掉，会自动链接？
         frameworks = [ "CoreFoundation.framework" ]
     }
 }
 
 source_set("hermes_regex") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
+    configs = [":standard_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Regex/RegexParser.cpp",
         "third_party/hermes/lib/Regex/Executor.cpp"
     ]
 }
 
-source_set("hermes_platform_intl") {
-    configs = [":standard_cpp_build", ":hermes_build"]
-    sources = [
-        "third_party/hermes/lib/Platform/Intl/PlatformIntlDummy.cpp"
-    ]
-}
-
 source_set("hermes_platform") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/Platform/Logging.cpp"
     ]
 }
 
 source_set("hermes_ast") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/AST/ASTBuilder.cpp",
         "third_party/hermes/lib/AST/ESTree.cpp",
@@ -195,14 +223,19 @@ source_set("hermes_ast") {
     ]
 }
 
-source_set("jsi") {
-    cflags_cc = ["-std=c++11", "-frtti", "-fexceptions", "-fvisibility=hidden"]
+config("jsi_build") {
     include_dirs = ["third_party/hermes/API/jsi"]
+}
+
+source_set("jsi") {
+    cflags_cc = ["-std=c++11", "-fvisibility=hidden"]
+    # 正常可以不开启 RTTI，但是 napi_hermes_source_set jsi_hermes 开启了 RTTI
+    configs = [":jsi_build", ":exception_rtti_build"]
     sources = ["third_party/hermes/API/jsi/jsi/jsi.cpp"]
 }
 
 source_set("hermes_frontend") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
+    configs = [":standard_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/IRGen/IRGen.cpp",
         "third_party/hermes/lib/IR/CFG.cpp",
@@ -221,7 +254,7 @@ source_set("hermes_frontend") {
 }
 
 source_set("hermes_inst") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/Inst/InstDecode.cpp",
         "third_party/hermes/lib/Inst/InstDecode2.cpp"
@@ -229,16 +262,18 @@ source_set("hermes_inst") {
 }
 
 source_set("hermes_adt") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
+    configs = [":standard_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/ADT/CompactArray.cpp"
     ]
 }
 
-source_set("hermes_parser") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
-    # <dtoa/dtoa.h>
+config("dtoa_build") {
     include_dirs = ["third_party/hermes/external"]
+}
+
+source_set("hermes_parser") {
+    configs = [":standard_build", ":llvm_build", ":hermes_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/Parser/JSLexer.cpp",
         "third_party/hermes/lib/Parser/JSONParser.cpp",
@@ -250,7 +285,7 @@ source_set("hermes_parser") {
 }
 
 source_set("hermes_source_map") {
-    configs = [":standard_cpp_build", ":llvm_include", ":hermes_build"]
+    configs = [":standard_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/SourceMap/SourceMap.cpp",
         "third_party/hermes/lib/SourceMap/SourceMapGenerator.cpp",
@@ -260,9 +295,7 @@ source_set("hermes_source_map") {
 }
 
 source_set("hermes_support") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
-    # <dtoa/dtoa.h>
-    include_dirs = ["third_party/hermes/external"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/Support/Allocator.cpp",
         "third_party/hermes/lib/Support/Base64vlq.cpp",
@@ -290,7 +323,7 @@ source_set("hermes_support") {
 }
 
 source_set("hermes_backend") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/BCGen/BCOpt.cpp",
         "third_party/hermes/lib/BCGen/Exceptions.cpp",
@@ -300,7 +333,7 @@ source_set("hermes_backend") {
 }
 
 source_set("hermes_hbc_backend") {
-    configs = [":standard_cpp_build", ":hermes_build", ":llvm_include"]
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/BCGen/HBC/BackendContext.cpp",
         "third_party/hermes/lib/BCGen/HBC/Bytecode.cpp",
@@ -328,12 +361,9 @@ source_set("hermes_hbc_backend") {
     ]
 }
 
-config("rtti_cpp_build") {
-    cflags_cc = ["-std=c++11", "-fno-exceptions", "-frtti"]
-}
-
 source_set("hermes_vm_runtime_rtti") {
-    configs = [":rtti_cpp_build", ":hermes_build", ":llvm_include"]
+    cflags_cc = ["-std=c++11"]
+    configs = [":hermes_build", ":llvm_build", ":rtti_build"]
     sources = [
         "third_party/hermes/lib/VM/HostModel.cpp",
         "third_party/hermes/lib/VM/DecoratedObject.cpp"
@@ -341,9 +371,7 @@ source_set("hermes_vm_runtime_rtti") {
 }
 
 source_set("hermes_vm_runtime") {
-    configs = [":hermes_build", ":standard_cpp_build", ":llvm_include"]
-    # <dtoa/dtoa.h>
-    include_dirs = ["third_party/hermes/external"]
+    configs = [":hermes_build", ":standard_build", ":llvm_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/VM/ArrayStorage.cpp",
         "third_party/hermes/lib/VM/BasicBlockExecutionInfo.cpp",
@@ -468,19 +496,23 @@ source_set("hermes_vm_runtime") {
     ]
 }
 
+config("jsi_hermes_build") {
+    configs = [":jsi_build"]
+    include_dirs = ["third_party/hermes/API"]
+}
+
 source_set("jsi_hermes") {
-    cflags_cc = ["-std=c++14", "-fexceptions", "-frtti", "-fvisibility=hidden"]
-    configs = [":hermes_build", ":llvm_include"]
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":hermes_build", ":llvm_build", ":jsi_hermes_build", ":new_exception_rtti_build"]
     sources = [
         "third_party/hermes/API/hermes/DebuggerAPI.cpp",
         "third_party/hermes/API/hermes/hermes.cpp",
         "third_party/hermes/API/hermes/hermes_tracing_compat.cpp"
     ]
-    include_dirs = ["third_party/hermes/API", "third_party/hermes/API/jsi"]
 }
 
 source_set("double_conversion") {
-    cflags_cc = ["-fno-exceptions", "-fno-rtti"]
+    configs = [":minimal_size_build"]
     sources = [
         "third_party/double-conversion/src/bignum-dtoa.cc",
         "third_party/double-conversion/src/bignum.cc",
@@ -494,16 +526,18 @@ source_set("double_conversion") {
 }
 
 config("folly_build") {
+    configs = [":common_build"]
     defines = ["FOLLY_NO_CONFIG", "FOLLY_MOBILE=1", "FOLLY_USE_LIBCPP=1"]
     if (build_android) {
         defines += ["FOLLY_HAVE_MEMRCHR=1"]
     }
+    # 依赖 DoubleConversion glog
+    include_dirs = ["third_party/folly", "third_party/boost-for-react-native"]
 }
 
 source_set("folly_json") {
-    cflags_cc = ["-fexceptions", "-frtti", "-std=c++14", "-fvisibility=hidden"]
-    configs = [":folly_build"]
-    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":folly_build", ":new_exception_rtti_build"]
     sources = [
         "third_party/folly/folly/json.cpp",
         "third_party/folly/folly/Unicode.cpp",
@@ -529,9 +563,8 @@ source_set("folly_json") {
 }
 
 source_set("folly_futures") {
-    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions", "-fvisibility=hidden"]
-    configs = [":folly_build"]
-    include_dirs = ["third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":folly_build", ":new_exception_rtti_build"]
     sources = [
         "third_party/folly/folly/ExceptionWrapper.cpp",
         "third_party/folly/folly/Executor.cpp",
@@ -558,31 +591,30 @@ source_set("folly_futures") {
 }
 
 source_set("jsinspector") {
-    cflags_cc = ["-std=c++14", "-fno-rtti", "-fno-exceptions", "-fvisibility=hidden"]
+    configs = [":minimal_size_build"]
+    cflags_cc = ["-std=c++14", "-fvisibility=hidden"]
     sources = [
         "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp"
     ]
 }
 
 source_set("jsi_dynamic") {
-    cflags_cc = ["-std=c++14", "-fno-rtti", "-fexceptions", "-fvisibility=hidden"]
-    configs = [":folly_build"]
-    include_dirs = ["third_party/hermes/API/jsi", "third_party/folly", "third_party/boost-for-react-native", "third_party/include"]
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":folly_build", ":jsi_build", ":new_exception_build"]
     sources = ["third_party/hermes/API/jsi/jsi/JSIDynamic.cpp"]
 }
 
+config("react_native_common_build") {
+    include_dirs = ["third_party/react-native/ReactCommon"]
+}
+
 source_set("hermes_inspector") {
-    configs = [":hermes_build", ":folly_build"]
-    cflags_cc = ["-std=c++14", "-frtti", "-fexceptions"]
-    include_dirs = [
-        "third_party/folly",
-        "third_party/boost-for-react-native",
-        "third_party/include",
-        "third_party/hermes/API",
-        "third_party/hermes/API/jsi",
-        "third_party/react-native/ReactCommon",
-        "third_party/hermes/first-party/fbjni/cxx"
-    ]
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":hermes_build", ":folly_build", ":jsi_hermes_build", ":react_native_common_build", ":new_exception_rtti_build"]
+    if (build_android) {
+    # Thread.cpp 需要
+        configs += [":fbjni_build"]
+    }
     sources = [
         "third_party/react-native/ReactCommon/hermes/inspector/Inspector.cpp",
         "third_party/react-native/ReactCommon/hermes/inspector/InspectorState.cpp",
@@ -601,17 +633,16 @@ source_set("hermes_inspector") {
 }
 
 source_set("napi_hermes_source_set") {
-    configs = [":llvm_include", ":hermes_build", ":strict_build", ":napi_include"]
-    include_dirs = ["third_party/react-native/ReactCommon", "third_party/hermes/API/jsi", "third_party/hermes/API"]
+    cflags_cc = ["-std=c++17",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    configs = [":llvm_build", ":hermes_build", ":strict_build", ":napi_build", ":react_native_common_build", ":jsi_hermes_build", ":rtti_build"]
     sources = [
+    # WithRuntimeDecorator 需要 RTTI
     # 正常应当开启 RTTI，是因为 HostModel，JSI 使用了该特性，N-API 实际上没有使用
         "src/js_native_api_hermes.cpp"
     ]
-    # WithRuntimeDecorator 需要 RTTI
-    cflags_cc = ["-std=c++17", "-frtti", "-fno-exceptions",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
 }
 
-config("napi_include") {
+config("napi_build") {
     include_dirs = [
         "include"
     ]
@@ -621,6 +652,7 @@ config("quickjs_build") {
     include_dirs = [
         "third_party/quickjs"
     ]
+    # TBD(ChasonTang): 是否可以干掉？
     cflags_c = ["-funsigned-char"]
 }
 
@@ -660,14 +692,17 @@ source_set("quickjs_source_set") {
     ]
 }
 source_set("napi_common") {
-    configs = [":napi_include"]
+    configs = [":napi_build"]
+    cflags_c = ["-fvisibility=hidden"]
     sources = ["src/js_native_api_common.c"]
 }
 source_set("napi_qjs_source_set") {
     configs = [
         ":quickjs_build",
-        ":napi_include"
+        ":napi_build",
+        ":strict_build"
     ]
+    cflags_c = ["-fvisibility=hidden"]
     sources = [
         "src/js_native_api_qjs.c",
     ]
@@ -676,11 +711,9 @@ if (build_android) {
     source_set("fbjni") {
     # Android 工具链默认 -ffunction-sections
     # 默认 Android 工具链使用 gnu++14
-        cflags_cc = ["-std=c++14", "-fno-omit-frame-pointer", "-fexceptions", "-frtti"]
+        cflags_cc = ["-fno-omit-frame-pointer"]
+        configs = [":fbjni_build", ":new_exception_rtti_build"]
         defines = ["DISABLE_CPUCAP", "DISABLE_XPLAT"]
-        include_dirs = [
-            "third_party/hermes/first-party/fbjni/cxx"
-        ]
         sources = [
             "third_party/hermes/first-party/fbjni/cxx/fbjni/ByteBuffer.cpp",
             "third_party/hermes/first-party/fbjni/cxx/fbjni/OnLoad.cpp",
@@ -700,14 +733,11 @@ if (build_android) {
     }
     shared_library("qjs") {
     # Android 已有 libquickjs.so，改名
-        deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
+        deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp", ":napi_common", ":napi_qjs_source_set"]
         ldflags = ["-lm"]
         if (big_number) {
             deps += [":bf"]
         }
-    }
-    shared_library("napi_qjs") {
-        deps = [":qjs", ":napi_common", ":napi_qjs_source_set"]
     }
     shared_library("hermes") {
         ldflags = ["-lc++", "-lm", "-llog"]
@@ -727,7 +757,6 @@ if (build_android) {
             ":hermes_hbc_backend",
             ":hermes_regex",
             ":hermes_platform",
-            ":hermes_platform_intl",
             ":hermes_platform_unicode",
             ":hermes_platform_unicode_java",
             ":dtoa",
@@ -743,21 +772,18 @@ if (build_android) {
             ":double_conversion",
             ":jsi_dynamic",
             ":jsinspector",
-        ]
-    }
-    shared_library("napi_hermes") {
-        deps = [
-            ":hermes",
+
             ":napi_common",
             ":napi_hermes_source_set",
         ]
-        ldflags = ["-lc++"]
     }
 } else {
     source_set("napi_jsc_source_set") {
         configs = [
-            ":napi_include",
+            ":napi_build",
+            ":strict_build"
         ]
+        cflags_c = ["-fvisibility=hidden"]
         frameworks = [ "JavaScriptCore.framework" ]
         sources = [
             "src/js_native_api_jsc.c",
@@ -766,18 +792,50 @@ if (build_android) {
     if (build_ios) {
         static_library("quickjs") {
             complete_static_lib = true
-            deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
+            deps = [":napi_qjs_source_set", ":napi_common", ":quickjs_source_set", ":cutils", ":unicode", ":regexp"]
             if (big_number) {
                 deps += [":bf"]
             }
         }
-        static_library("napi_qjs") {
-            complete_static_lib = true
-            deps = [":napi_qjs_source_set", ":napi_common"]
-        }
         static_library("napi_jsc") {
             complete_static_lib = true
             deps = [":napi_jsc_source_set", ":napi_common"]
+        }
+        static_library("hermes") {
+            complete_static_lib = true
+            deps = [
+                ":llvm_demangle",
+                ":llvm_support",
+                ":hermes_frontend",
+                ":hermes_optimizer",
+                ":hermes_inst",
+                ":hermes_frontend_defs",
+                ":hermes_ast",
+                ":hermes_adt",
+                ":hermes_parser",
+                ":hermes_source_map",
+                ":hermes_support",
+                ":hermes_backend",
+                ":hermes_hbc_backend",
+                ":hermes_regex",
+                ":hermes_platform",
+                ":hermes_platform_unicode",
+                ":dtoa",
+                ":hermes_vm_runtime_rtti",
+                ":hermes_vm_runtime",
+                ":jsi",
+                ":jsi_hermes",
+
+                ":hermes_inspector",
+                ":folly_json",
+                ":folly_futures",
+                ":double_conversion",
+                ":jsi_dynamic",
+                ":jsinspector",
+
+                ":napi_hermes_source_set",
+                ":napi_common"
+            ]
         }
     } else {
         config("gtest_build") {
@@ -791,7 +849,8 @@ if (build_android) {
             include_dirs = [
                 "test/include"
             ]
-            configs = [":napi_include", ":standard_cpp_build", ":gtest_build"]
+            cflags_cc = ["-fvisibility=hidden"]
+            configs = [":napi_build", ":standard_build", ":gtest_build"]
             sources = [
                 "test/test.cpp",
                 "test/general.cpp",
@@ -853,7 +912,6 @@ if (build_android) {
                 ":hermes_hbc_backend",
                 ":hermes_regex",
                 ":hermes_platform",
-                ":hermes_platform_intl",
                 ":hermes_platform_unicode",
                 ":dtoa",
                 ":hermes_vm_runtime_rtti",
@@ -872,6 +930,7 @@ if (build_android) {
 
         source_set("gtest") {
             testonly = true
+            cflags_cc = ["-fvisibility=hidden"]
             sources = [
                 "third_party/googletest/googletest/src/gtest-death-test.cc",
                 "third_party/googletest/googletest/src/gtest-filepath.cc",
@@ -882,7 +941,7 @@ if (build_android) {
                 "third_party/googletest/googletest/src/gtest-typed-test.cc",
                 "third_party/googletest/googletest/src/gtest.cc",
             ]
-            configs = [":gtest_build", ":standard_cpp_build"]
+            configs = [":gtest_build", ":standard_build"]
             # Some files include "src/gtest-internal-inl.h".
             include_dirs = [ "third_party/googletest/googletest" ]
         }

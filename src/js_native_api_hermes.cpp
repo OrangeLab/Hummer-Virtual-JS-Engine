@@ -1431,7 +1431,6 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
 NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
 {
     CHECK_ARG(env)
-    CHECK_ARG(debuggerTitle)
 
     *env = new (::std::nothrow) OpaqueNAPIEnv(debuggerTitle);
 

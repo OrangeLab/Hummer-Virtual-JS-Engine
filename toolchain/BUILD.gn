@@ -31,14 +31,14 @@ toolchain("android") {
     if (debug) {
         compiler_command = string_join(" ", ["-fdata-sections -ffunction-sections", compiler_command])
     }
-    if (android_target == "armv7") {
+    if (cross_compile_target == "armv7") {
         compiler_command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", compiler_command])
         # 涉及链接库搜索路径
         linker_command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", linker_command])
-    } else if (android_target == "arm64") {
+    } else if (cross_compile_target == "arm64") {
         compiler_command = string_join(" ", ["-target aarch64-none-linux-android21", compiler_command])
         linker_command = string_join(" ", ["-target aarch64-none-linux-android21", linker_command])
-    } else if (android_target == "i386") {
+    } else if (cross_compile_target == "i386") {
         compiler_command = string_join(" ", ["-target i686-none-linux-android18 -mstackrealign", compiler_command])
         linker_command = string_join(" ", ["-target i686-none-linux-android18", linker_command])
     } else {
@@ -80,8 +80,8 @@ toolchain("clang") {
         compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
     }
     if (build_ios) {
-        target_option = "-target $ios_archtecture-apple-ios9.0"
-        if (ios_simulator) {
+        target_option = "-target $cross_compile_target-apple-ios9.0"
+        if (cross_compile_target == "i386" || cross_compile_target == "x86_64") {
             target_option = string_join("-", [target_option, "simulator"])
             compiler_command = string_join(" ", ["-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk", compiler_command])
         } else {

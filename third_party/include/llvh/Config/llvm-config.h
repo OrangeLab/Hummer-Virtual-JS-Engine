@@ -30,7 +30,7 @@
 #define LLVM_HAS_ATOMICS 1
 
 /* Host triple LLVM will be executed on */
-#define LLVM_HOST_TRIPLE "x86_64-apple-darwin20.3.0"
+#define LLVM_HOST_TRIPLE "x86_64-apple-darwin20.6.0"
 
 /* LLVM architecture name for the native architecture, if available */
 /* #undef LLVM_NATIVE_ARCH */
