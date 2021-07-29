@@ -63,7 +63,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 2. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\""`
 3. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\""`
 4. `ninja -C x86_64 {quickjs|hermes|napi_jsc} && ninja -C armv7 {quickjs|hermes|napi_jsc} && ninja -C arm64 {quickjs|hermes|napi_jsc}`
-5. `lipo -create x86_64/obj/lib{quickjs|hermes|napi_jsc}.a armv7/obj/lib{quickjs|hermes|napi_jsc}.a arm64/obj/lib{quickjs|hermes|napi_jsc}.a -output napi/lib{quickjs|hermes|napi_jsc}.a`
+5. `libtool -static x86_64/obj/lib{quickjs|hermes|napi_jsc}.a armv7/obj/lib{quickjs|hermes|napi_jsc}.a arm64/obj/lib{quickjs|hermes|napi_jsc}.a -o napi/lib{quickjs|hermes|napi_jsc}.a`
 6. `napi/lib{quickjs|hermes|napi_jsc}.a` 即为最终产物
 
 ### Android 动态库
