@@ -191,7 +191,6 @@ source_set("hermes_platform_unicode") {
         sources += [
             "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp"
         ]
-        # TBD(ChasonTang): 也许可以去掉，会自动链接？
         frameworks = [ "CoreFoundation.framework" ]
     }
 }

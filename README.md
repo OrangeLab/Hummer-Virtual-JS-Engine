@@ -84,6 +84,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
 2. Hermes 引擎需要先应用 third_party/hermes_patch.diff 补丁
+3. Android 版本 libhermes.so 包括 fbjni 库，内含 OnLoad.cpp，需要使用 System.load("hermes") 显式加载，不能依赖 Linux 内核的动态库隐式加载
 
 ## 注意事项
 
