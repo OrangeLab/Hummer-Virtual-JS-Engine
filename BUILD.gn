@@ -701,7 +701,7 @@ source_set("napi_qjs_source_set") {
         ":napi_build",
         ":strict_build"
     ]
-    cflags_c = ["-fvisibility=hidden"]
+    cflags_c = ["-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-pedantic"]
     sources = [
         "src/js_native_api_qjs.c",
     ]

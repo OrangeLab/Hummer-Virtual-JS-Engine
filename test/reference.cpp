@@ -55,7 +55,7 @@ TEST_F(Test, EscapableHandleScope)
     NAPIValue otherNullValue;
     ASSERT_EQ(napi_escape_handle(globalEnv, escapableHandleScope, nullValue, &otherNullValue), NAPIEscapeCalledTwice);
 
-    ASSERT_EQ(napi_close_escapable_handle_scope(globalEnv, escapableHandleScope), NAPIOK);
+    napi_close_escapable_handle_scope(globalEnv, escapableHandleScope);
 
     const char *string;
     ASSERT_EQ(NAPIGetValueStringUTF8(globalEnv, otherValue, &string), NAPIOK);

@@ -817,7 +817,8 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIV
 
 typedef struct
 {
-    BaseInfo baseInfo;
+//    BaseInfo baseInfo;
+    void *data;  // size_t
     void *finalizeHint;            // size_t
     NAPIFinalize finalizeCallback; // size_t
 } ExternalInfo;
@@ -830,8 +831,7 @@ NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB
 
     ExternalInfo *externalInfo = malloc(sizeof(ExternalInfo));
     RETURN_STATUS_IF_FALSE(externalInfo, NAPIMemoryError);
-    externalInfo->baseInfo.env = env;
-    externalInfo->baseInfo.data = data;
+    externalInfo->data = data;
     externalInfo->finalizeHint = finalizeHint;
     externalInfo->finalizeCallback = NULL;
     JSValue object = JS_NewObjectClass(env->context, (int)externalClassId);
@@ -864,7 +864,7 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
     CHECK_ARG(result);
 
     ExternalInfo *externalInfo = JS_GetOpaque(*((JSValue *)value), externalClassId);
-    *result = externalInfo ? externalInfo->baseInfo.data : NULL;
+    *result = externalInfo ? externalInfo->data : NULL;
 
     return NAPIOK;
 }
@@ -881,7 +881,7 @@ typedef struct
     LIST_HEAD(, OpaqueNAPIRef) referenceList;
 } ReferenceInfo;
 
-static void referenceFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint)
+static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
     if (!finalizeData)
     {
@@ -1335,8 +1335,7 @@ static void externalFinalizer(JSRuntime *rt, JSValue val)
     ExternalInfo *externalInfo = JS_GetOpaque(val, externalClassId);
     if (externalInfo && externalInfo->finalizeCallback)
     {
-        externalInfo->finalizeCallback(externalInfo->baseInfo.env, externalInfo->baseInfo.data,
-                                       externalInfo->finalizeHint);
+        externalInfo->finalizeCallback(externalInfo->data, externalInfo->finalizeHint);
     }
     free(externalInfo);
 }

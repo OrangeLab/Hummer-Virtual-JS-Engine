@@ -757,7 +757,7 @@ static void externalFinalize(JSObjectRef object)
     ExternalInfo *info = JSObjectGetPrivate(object);
     if (info && info->finalizeCallback)
     {
-        info->finalizeCallback(info->baseInfo.env, info->baseInfo.data, info->finalizeHint);
+        info->finalizeCallback(info->baseInfo.data, info->finalizeHint);
     }
     free(info);
 }
@@ -997,9 +997,9 @@ typedef struct
     LIST_HEAD(, OpaqueNAPIRef) referenceList;
 } ReferenceInfo;
 
-static void referenceFinalize(NAPIEnv env, void *finalizeData, __attribute((unused)) void *finalizeHint)
+static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
-    if (!finalizeData || !env || !env->context)
+    if (!finalizeData || !finalizeHint || !((NAPIEnv)finalizeHint)->context)
     {
         assert(false);
 
@@ -1010,7 +1010,7 @@ static void referenceFinalize(NAPIEnv env, void *finalizeData, __attribute((unus
     LIST_FOREACH(reference, &referenceInfo->referenceList, node)
     {
         assert(!reference->count);
-        reference->value = JSValueMakeUndefined(env->context);
+        reference->value = JSValueMakeUndefined(((NAPIEnv)finalizeHint)->context);
     }
     free(referenceInfo);
 }
@@ -1035,7 +1035,7 @@ static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIMemoryError);
         LIST_INIT(&referenceInfo->referenceList);
         {
-            NAPIStatus status = napi_create_external(env, referenceInfo, referenceFinalize, NULL, &referenceValue);
+            NAPIStatus status = napi_create_external(env, referenceInfo, referenceFinalize, env, &referenceValue);
             if (status != NAPIOK)
             {
                 free(referenceInfo);
@@ -1237,7 +1237,7 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     return NAPIOK;
 }
 
-void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+void napi_close_handle_scope(__attribute__((unused)) NAPIEnv env, __attribute__((unused)) NAPIHandleScope scope)
 {
     //    CHECK_ARG(env);
     //    CHECK_ARG(scope);
@@ -1260,7 +1260,7 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     return NAPIOK;
 }
 
-void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+void napi_close_escapable_handle_scope(__attribute__((unused)) NAPIEnv env, NAPIEscapableHandleScope scope)
 {
     //    CHECK_ARG(env);
     CHECK_ARG(scope);
@@ -1336,7 +1336,7 @@ static JSContextGroupRef virtualMachine = NULL;
 
 static uint8_t contextCount = 0;
 
-NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
+NAPIStatus NAPICreateEnv(NAPIEnv *env, __attribute__((unused)) const char *debuggerTitle)
 {
     // *env 才是 NAPIEnv
     if (!env)

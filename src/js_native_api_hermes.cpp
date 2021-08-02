@@ -58,9 +58,8 @@ namespace
 class External final : public ::hermes::vm::HostObjectProxy
 {
   public:
-    External(NAPIEnv env, void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
+    External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
 
-    [[nodiscard]] NAPIEnv getEnv() const;
     [[nodiscard]] void *getData() const;
 
     ~External() override;
@@ -84,7 +83,6 @@ class External final : public ::hermes::vm::HostObjectProxy
     External &operator=(External &&) = delete;
 
   private:
-    NAPIEnv env;
     void *data;
     NAPIFinalize finalizeCallback;
     void *finalizeHint;
@@ -243,15 +241,11 @@ class DecoratedRuntime : public ::facebook::jsi::WithRuntimeDecorator<Reentrancy
 };
 } // namespace
 
-::External::External(NAPIEnv env, void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
-    : env(env), data(data), finalizeCallback(finalizeCallback), finalizeHint(finalizeHint)
+::External::External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
+    : data(data), finalizeCallback(finalizeCallback), finalizeHint(finalizeHint)
 {
 }
 
-NAPIEnv External::getEnv() const
-{
-    return env;
-}
 void *External::getData() const
 {
     return data;
@@ -260,7 +254,7 @@ External::~External()
 {
     if (finalizeCallback)
     {
-        finalizeCallback(env, data, finalizeHint);
+        finalizeCallback(data, finalizeHint);
     }
 }
 ::hermes::vm::CallResult<::hermes::vm::HermesValue> External::get(::hermes::vm::SymbolID symbolId)
@@ -1117,7 +1111,7 @@ NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB
     NAPI_PREAMBLE(env)
     CHECK_ARG(result)
 
-    auto hermesExternalObject = new (::std::nothrow)::External(env, data, finalizeCB, finalizeHint);
+    auto hermesExternalObject = new (::std::nothrow)::External(data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIMemoryError)
 
     auto callResult = hermes::vm::HostObject::createWithoutPrototype(
@@ -1363,9 +1357,7 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     auto functionInfo = new (::std::nothrow) FunctionInfo(env, constructor, data);
     RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError)
     NAPIValue externalValue;
-    auto finalizeCallback = [](NAPIEnv /*env*/, void *finalizeData, void * /*finalizeHint*/) {
-        delete (FunctionInfo *)finalizeData;
-    };
+    auto finalizeCallback = [](void *finalizeData, void * /*finalizeHint*/) { delete (FunctionInfo *)finalizeData; };
     CHECK_NAPI(napi_create_external(env, functionInfo, finalizeCallback, nullptr, &externalValue))
 
     ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =

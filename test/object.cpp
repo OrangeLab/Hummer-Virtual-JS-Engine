@@ -160,11 +160,10 @@ static NAPIValue isArray(NAPIEnv env, NAPICallbackInfo callbackInfo)
     return output;
 }
 
-static void externalFinalize(NAPIEnv env, void *finalizeData, void *finalizeHint)
+static void externalFinalize(void *finalizeData, void *finalizeHint)
 {
     finalizeIsCalled = true;
-    assert(env == finalizeData);
-    assert(finalizeHint == (void *)1);
+    assert(finalizeHint == finalizeData);
 }
 
 EXTERN_C_END
@@ -172,7 +171,7 @@ EXTERN_C_END
 TEST_F(Test, Object)
 {
     NAPIValue externalValue;
-    ASSERT_EQ(napi_create_external(globalEnv, globalEnv, externalFinalize, (void *)1, &externalValue), NAPIOK);
+    ASSERT_EQ(napi_create_external(globalEnv, globalEnv, externalFinalize, globalEnv, &externalValue), NAPIOK);
     void *data;
     ASSERT_EQ(napi_get_value_external(globalEnv, externalValue, &data), NAPIOK);
     ASSERT_EQ(data, globalEnv);
