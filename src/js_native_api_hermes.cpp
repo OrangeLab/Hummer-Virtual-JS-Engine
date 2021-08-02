@@ -278,6 +278,8 @@ struct OpaqueNAPIEnv final
 {
     explicit OpaqueNAPIEnv(const char *debuggerTitle);
 
+    ~OpaqueNAPIEnv();
+
     [[nodiscard]] ::hermes::vm::Runtime *getRuntime() const
     {
         return runtime;
@@ -296,6 +298,8 @@ struct OpaqueNAPIEnv final
     LIST_HEAD(, OpaqueNAPIRef) valueList;
 
     LIST_HEAD(, OpaqueNAPIRef) weakRefList;
+
+    LIST_HEAD(, OpaqueNAPIRef) strongRefList;
 
   private:
     std::shared_ptr<DecoratedRuntime> decoratedRuntime;
@@ -357,13 +361,14 @@ struct OpaqueNAPIRef final
         // 标量 && 弱引用
         if (!referenceCount && !isObject)
         {
+            LIST_INSERT_HEAD(&env->valueList, this, node);
             this->pinnedHermesValue = *::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
         }
         else if (referenceCount)
         {
             // 强引用
             this->pinnedHermesValue = pinnedHermesValue;
-            LIST_INSERT_HEAD(&env->valueList, this, node);
+            LIST_INSERT_HEAD(&env->strongRefList, this, node);
         }
         else
         {
@@ -385,16 +390,17 @@ struct OpaqueNAPIRef final
 
     ~OpaqueNAPIRef()
     {
-        if (referenceCount || isObject)
-        {
-            LIST_REMOVE(this, node);
-        }
+        //        if (referenceCount || isObject)
+        //        {
+        LIST_REMOVE(this, node);
+        //        }
     }
     void ref()
     {
+        LIST_REMOVE(this, node);
         if (!referenceCount && !isObject)
         {
-            LIST_INSERT_HEAD(&env->valueList, this, node);
+            LIST_INSERT_HEAD(&env->strongRefList, this, node);
         }
         else if (isObject && !referenceCount)
         {
@@ -408,8 +414,8 @@ struct OpaqueNAPIRef final
                 pinnedHermesValue = *::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
                 isObject = false;
             }
-            LIST_REMOVE(this, node);
-            LIST_INSERT_HEAD(&env->valueList, this, node);
+            //            LIST_REMOVE(this, node);
+            LIST_INSERT_HEAD(&env->strongRefList, this, node);
         }
         ++referenceCount;
     }
@@ -428,6 +434,7 @@ struct OpaqueNAPIRef final
             else
             {
                 pinnedHermesValue = *::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+                LIST_INSERT_HEAD(&env->valueList, this, node);
             }
         }
         --referenceCount;
@@ -439,6 +446,26 @@ struct OpaqueNAPIRef final
 };
 
 EXTERN_C_END
+
+OpaqueNAPIEnv::~OpaqueNAPIEnv()
+{
+    NAPIRef ref, temp;
+    LIST_FOREACH_SAFE(ref, &valueList, node, temp)
+    {
+        LIST_REMOVE(ref, node);
+        delete ref;
+    }
+    LIST_FOREACH_SAFE(ref, &strongRefList, node, temp)
+    {
+        LIST_REMOVE(ref, node);
+        delete ref;
+    }
+    LIST_FOREACH_SAFE(ref, &weakRefList, node, temp)
+    {
+        LIST_REMOVE(ref, node);
+        delete ref;
+    }
+}
 
 OpaqueNAPIEnv::OpaqueNAPIEnv(const char *debuggerTitle)
 {
@@ -466,6 +493,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const char *debuggerTitle)
     //    runtime->clearThrownValue();
     LIST_INIT(&valueList);
     LIST_INIT(&weakRefList);
+    LIST_INIT(&strongRefList);
     runtime->addCustomRootsFunction([this](::hermes::vm::GC *, ::hermes::vm::SlotAcceptor &slotAcceptor) {
         NAPIRef ref;
         LIST_FOREACH(ref, &this->valueList, node)
