@@ -22,14 +22,16 @@
 #include <utility>
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
+    if (!(condition))                                                                                                  \
     {                                                                                                                  \
-        if (!(condition))                                                                                              \
-        {                                                                                                              \
-            return status;                                                                                             \
-        }                                                                                                              \
+        return status;                                                                                                 \
     }
 
-#define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
+#define CHECK_ARG(arg)                                                                                                 \
+    if (!arg)                                                                                                          \
+    {                                                                                                                  \
+        assert(false);                                                                                                 \
+    }
 
 #define CHECK_NAPI(expr)                                                                                               \
     {                                                                                                                  \
@@ -41,19 +43,15 @@
     }
 
 #define CHECK_HERMES(expr)                                                                                             \
+    if ((expr) == ::hermes::vm::ExecutionStatus::EXCEPTION)                                                            \
     {                                                                                                                  \
-        if ((expr) == ::hermes::vm::ExecutionStatus::EXCEPTION)                                                        \
-        {                                                                                                              \
-            return NAPIPendingException;                                                                               \
-        }                                                                                                              \
+        return NAPIPendingException;                                                                                   \
     }
 
 #define NAPI_PREAMBLE(env)                                                                                             \
-    {                                                                                                                  \
-        CHECK_ARG(env)                                                                                                 \
-        CHECK_ARG(env->getRuntime())                                                                                   \
-        RETURN_STATUS_IF_FALSE(env->getRuntime()->getThrownValue().isEmpty(), NAPIPendingException)                    \
-    }
+    CHECK_ARG(env)                                                                                                     \
+    CHECK_ARG(env->getRuntime())                                                                                       \
+    RETURN_STATUS_IF_FALSE(env->getRuntime()->getThrownValue().isEmpty(), NAPIPendingException)
 
 namespace
 {
@@ -1223,14 +1221,12 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     return NAPIOK;
 }
 
-NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
     CHECK_ARG(env)
     CHECK_ARG(scope)
 
     delete (::hermes::vm::GCScope *)scope;
-
-    return NAPIOK;
 }
 
 EXTERN_C_START
@@ -1285,15 +1281,13 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     return NAPIOK;
 }
 
-NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
 {
     CHECK_ARG(env)
     CHECK_ARG(scope)
 
     delete scope->gcScope;
     delete scope;
-
-    return NAPIOK;
 }
 
 NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)
@@ -1437,13 +1431,11 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
     return NAPIOK;
 }
 
-NAPIStatus NAPIFreeEnv(NAPIEnv env)
+void NAPIFreeEnv(NAPIEnv env)
 {
     CHECK_ARG(env)
 
     delete env;
-
-    return NAPIOK;
 }
 
 NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)

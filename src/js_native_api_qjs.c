@@ -6,6 +6,7 @@
 #include <math.h>
 #include <napi/js_native_api.h>
 #include <quickjs.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
@@ -21,25 +22,25 @@
 #endif
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
-    do                                                                                                                 \
+    if (!(condition))                                                                                                  \
     {                                                                                                                  \
-        if (!(condition))                                                                                              \
-        {                                                                                                              \
-            return status;                                                                                             \
-        }                                                                                                              \
-    } while (0)
+        return status;                                                                                                 \
+    }
 
 #define CHECK_NAPI(expr)                                                                                               \
-    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    } while (0)
+    }
 
-#define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
+#define CHECK_ARG(arg)                                                                                                 \
+    if (!arg)                                                                                                          \
+    {                                                                                                                  \
+        assert(false);                                                                                                 \
+    }
 
 // JS_GetException 会转移所有权
 // JS_Throw 会获取所有权
@@ -48,7 +49,6 @@
 // !JS_IsUndefined(exceptionValue) && !JS_IsNull(exceptionValue)
 // NAPI_PREAMBLE 同时会检查 env->context
 #define NAPI_PREAMBLE(env)                                                                                             \
-    do                                                                                                                 \
     {                                                                                                                  \
         CHECK_ARG(env);                                                                                                \
         CHECK_ARG((env)->context);                                                                                     \
@@ -59,7 +59,7 @@
                                                                                                                        \
             return NAPIPendingException;                                                                               \
         }                                                                                                              \
-    } while (0)
+    }
 
 struct Handle
 {
@@ -302,28 +302,7 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     JSValue exceptionValue = JS_GetException(ctx);
     if (handleScope)
     {
-        NAPIStatus status = napi_close_handle_scope(functionInfo->baseInfo.env, handleScope);
-        if (status != NAPIOK)
-        {
-            // 释放返回值
-            JS_FreeValue(ctx, returnValue);
-            // 特殊处理 throw null 情况
-            if (functionInfo->baseInfo.env->isThrowNull)
-            {
-                functionInfo->baseInfo.env->isThrowNull = false;
-
-                return JS_EXCEPTION;
-            }
-            else if (!JS_IsNull(exceptionValue))
-            {
-                // 重新塞回 QuickJS context
-                return JS_Throw(ctx, exceptionValue);
-            }
-            else
-            {
-                return undefinedValue;
-            }
-        }
+        napi_close_handle_scope(functionInfo->baseInfo.env, handleScope);
     }
     if (functionInfo->baseInfo.env->isThrowNull)
     {
@@ -1164,7 +1143,7 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     return NAPIOK;
 }
 
-NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
     CHECK_ARG(env);
     CHECK_ARG(scope);
@@ -1182,8 +1161,6 @@ NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
     }
     LIST_REMOVE(scope, node);
     free(scope);
-
-    return NAPIOK;
 }
 
 struct OpaqueNAPIEscapableHandleScope
@@ -1210,7 +1187,7 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     return NAPIOK;
 }
 
-NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
 {
     CHECK_ARG(env);
     CHECK_ARG(scope);
@@ -1227,8 +1204,6 @@ NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleSco
     }
     LIST_REMOVE(&scope->handleScope, node);
     free(scope);
-
-    return NAPIOK;
 }
 
 // NAPIMemoryError/NAPIEscapeCalledTwice/NAPIHandleScopeEmpty
@@ -1422,26 +1397,6 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
         thisValue = returnValue;
     }
     JSValue exceptionValue = JS_GetException(ctx);
-    status = napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
-    if (status != NAPIOK)
-    {
-        assert(false);
-        JS_FreeValue(ctx, thisValue);
-        if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
-        {
-            constructorInfo->functionInfo.baseInfo.env->isThrowNull = false;
-
-            return JS_EXCEPTION;
-        }
-        else if (!JS_IsNull(exceptionValue))
-        {
-            return JS_Throw(ctx, exceptionValue);
-        }
-        else
-        {
-            return undefinedValue;
-        }
-    }
     if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
     {
         JS_FreeValue(ctx, thisValue);
@@ -1654,19 +1609,14 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
     return NAPIOK;
 }
 
-NAPIStatus NAPIFreeEnv(NAPIEnv env)
+void NAPIFreeEnv(NAPIEnv env)
 {
     CHECK_ARG(env);
 
     assert(LIST_EMPTY(&(*env).handleScopeList));
     NAPIHandleScope handleScope, tempHandleScope;
     LIST_FOREACH_SAFE(handleScope, &(*env).handleScopeList, node, tempHandleScope)
-    {
-        if (napi_close_handle_scope(env, handleScope) != NAPIOK)
-        {
-            assert(false);
-        }
-    }
+    napi_close_handle_scope(env, handleScope);
     JS_FreeValue(env->context, env->referenceSymbolValue);
     JS_FreeContext(env->context);
     if (--contextCount == 0 && runtime)
@@ -1679,8 +1629,6 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env)
         externalClassId = 0;
     }
     free(env);
-
-    return NAPIOK;
 }
 
 NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)

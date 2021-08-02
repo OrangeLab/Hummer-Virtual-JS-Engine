@@ -42,13 +42,13 @@ class NAPIEnvironment : public ::testing::Environment
         NAPIValue stringValue;
         ASSERT_EQ(napi_create_string_utf8(globalEnv, "assert", &stringValue), NAPIOK);
         ASSERT_EQ(napi_set_property(globalEnv, globalValue, stringValue, assertValue), NAPIOK);
-        ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
+        napi_close_handle_scope(globalEnv, handleScope);
     }
 
     // Override this to define how to tear down the environment.
     void TearDown() override
     {
-        ASSERT_EQ(NAPIFreeEnv(globalEnv), NAPIOK);
+        NAPIFreeEnv(globalEnv);
         ASSERT_TRUE(finalizeIsCalled);
     }
 };
@@ -79,5 +79,5 @@ void ::Test::SetUp()
 void ::Test::TearDown()
 {
     ::testing::Test::TearDown();
-    ASSERT_EQ(napi_close_handle_scope(globalEnv, handleScope), NAPIOK);
+    napi_close_handle_scope(globalEnv, handleScope);
 }

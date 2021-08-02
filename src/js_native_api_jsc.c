@@ -1,37 +1,34 @@
-#include <sys/queue.h>
-
 #include <napi/js_native_api.h>
+#include <stdbool.h>
+#include <sys/queue.h>
 
 // setLastErrorCode 会处理 env == NULL 问题
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
-    do                                                                                                                 \
+    if (!(condition))                                                                                                  \
     {                                                                                                                  \
-        if (!(condition))                                                                                              \
-        {                                                                                                              \
-            return status;                                                                                             \
-        }                                                                                                              \
-    } while (0)
+        return status;                                                                                                 \
+    }
 
-#define CHECK_ARG(arg) RETURN_STATUS_IF_FALSE(arg, NAPIInvalidArg)
+#define CHECK_ARG(arg)                                                                                                 \
+    if (!arg)                                                                                                          \
+    {                                                                                                                  \
+        assert(false);                                                                                                 \
+    }
 
 // This does not call napi_set_last_error because the expression
 // is assumed to be a NAPI function call that already did.
 #define CHECK_NAPI(expr)                                                                                               \
-    do                                                                                                                 \
     {                                                                                                                  \
         NAPIStatus status = expr;                                                                                      \
         if (status != NAPIOK)                                                                                          \
         {                                                                                                              \
             return status;                                                                                             \
         }                                                                                                              \
-    } while (0)
+    }
 
 #define CHECK_JSC(env)                                                                                                 \
-    do                                                                                                                 \
-    {                                                                                                                  \
-        CHECK_ARG(env);                                                                                                \
-        RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException);                                         \
-    } while (0)
+    CHECK_ARG(env);                                                                                                    \
+    RETURN_STATUS_IF_FALSE(!((env)->lastException), NAPIPendingException);
 
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <assert.h>
@@ -50,8 +47,8 @@ struct OpaqueNAPIRef
 // 抛出，所以异常检查只需要检查是否为 C NULL
 struct OpaqueNAPIEnv
 {
-    JSGlobalContextRef context;                     // size_t
-    JSValueRef lastException;                       // size_t
+    JSGlobalContextRef context; // size_t
+    JSValueRef lastException;   // size_t
 };
 
 // NAPIMemoryError
@@ -1240,12 +1237,10 @@ NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     return NAPIOK;
 }
 
-NAPIStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(scope);
-
-    return NAPIOK;
+    //    CHECK_ARG(env);
+    //    CHECK_ARG(scope);
 }
 
 struct OpaqueNAPIEscapableHandleScope
@@ -1265,14 +1260,12 @@ NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScop
     return NAPIOK;
 }
 
-NAPIStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
 {
-    CHECK_ARG(env);
+    //    CHECK_ARG(env);
     CHECK_ARG(scope);
 
     free(scope);
-
-    return NAPIOK;
 }
 
 NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)
@@ -1390,7 +1383,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
     return NAPIOK;
 }
 
-NAPIStatus NAPIFreeEnv(NAPIEnv env)
+void NAPIFreeEnv(NAPIEnv env)
 {
     CHECK_ARG(env);
 
@@ -1403,8 +1396,6 @@ NAPIStatus NAPIFreeEnv(NAPIEnv env)
     }
 
     free(env);
-
-    return NAPIOK;
 }
 
 NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)
