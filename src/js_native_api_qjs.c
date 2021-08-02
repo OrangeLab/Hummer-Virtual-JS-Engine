@@ -73,6 +73,19 @@ struct OpaqueNAPIHandleScope
     SLIST_HEAD(, Handle) handleList;        // size_t
 };
 
+struct OpaqueNAPIRef
+{
+    JSValue value;                  // 64/128
+    LIST_ENTRY(OpaqueNAPIRef) node; // size_t
+    uint8_t referenceCount;         // 8
+};
+
+struct ReferenceInfo
+{
+    LIST_ENTRY(ReferenceInfo) node;
+    LIST_HEAD(, OpaqueNAPIRef) referenceList;
+};
+
 // 1. external -> 不透明指针 + finalizer + 调用一个回调
 // 2. Function -> JSValue data 数组 + finalizer
 // 3. Constructor -> .[[prototype]] = new External()
@@ -89,6 +102,9 @@ struct OpaqueNAPIEnv
     JSContext *context;                                 // size_t
     LIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList; // size_t
     bool isThrowNull;
+    LIST_HEAD(, ReferenceInfo) referenceList;
+    LIST_HEAD(, OpaqueNAPIRef) strongRefList;
+    LIST_HEAD(, OpaqueNAPIRef) valueList;
 };
 
 // 这个函数不会修改引用计数和所有权
@@ -817,8 +833,8 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIV
 
 typedef struct
 {
-//    BaseInfo baseInfo;
-    void *data;  // size_t
+    //    BaseInfo baseInfo;
+    void *data;                    // size_t
     void *finalizeHint;            // size_t
     NAPIFinalize finalizeCallback; // size_t
 } ExternalInfo;
@@ -869,18 +885,6 @@ NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
     return NAPIOK;
 }
 
-struct OpaqueNAPIRef
-{
-    JSValue value;                  // 64/128
-    LIST_ENTRY(OpaqueNAPIRef) node; // size_t
-    uint8_t referenceCount;         // 8
-};
-
-typedef struct
-{
-    LIST_HEAD(, OpaqueNAPIRef) referenceList;
-} ReferenceInfo;
-
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
     if (!finalizeData)
@@ -889,7 +893,7 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
 
         return;
     }
-    ReferenceInfo *referenceInfo = finalizeData;
+    struct ReferenceInfo *referenceInfo = finalizeData;
     NAPIRef reference;
     LIST_FOREACH(reference, &referenceInfo->referenceList, node)
     {
@@ -915,10 +919,10 @@ static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     NAPIValueType valueType;
     CHECK_NAPI(napi_typeof(env, referenceValue, &valueType));
     RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIGenericFailure);
-    ReferenceInfo *referenceInfo;
+    struct ReferenceInfo *referenceInfo;
     if (valueType == NAPIUndefined)
     {
-        referenceInfo = malloc(sizeof(ReferenceInfo));
+        referenceInfo = malloc(sizeof(struct ReferenceInfo));
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIMemoryError);
         LIST_INIT(&referenceInfo->referenceList);
         {
@@ -931,6 +935,7 @@ static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
             }
         }
         CHECK_NAPI(napi_set_property(env, value, (NAPIValue)&env->referenceSymbolValue, referenceValue));
+        LIST_INSERT_HEAD(&env->referenceList, referenceInfo, node);
     }
     else
     {
@@ -963,6 +968,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     {
         (*result)->referenceCount = 0;
         (*result)->value = undefinedValue;
+        LIST_INSERT_HEAD(&env->valueList, *result, node);
 
         return NAPIOK;
     }
@@ -973,6 +979,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
     if (initialRefCount)
     {
         (*result)->value = JS_DupValue(env->context, (*result)->value);
+        LIST_INSERT_HEAD(&env->strongRefList, *result, node);
 
         return NAPIOK;
     }
@@ -1000,7 +1007,7 @@ static NAPIStatus clearWeak(NAPIEnv env, NAPIRef ref)
 
     NAPIValue externalValue;
     CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &externalValue));
-    ReferenceInfo *referenceInfo;
+    struct ReferenceInfo *referenceInfo;
     CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo));
     if (!referenceInfo)
     {
@@ -1015,6 +1022,7 @@ static NAPIStatus clearWeak(NAPIEnv env, NAPIRef ref)
         CHECK_NAPI(
             napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &deleteResult));
         RETURN_STATUS_IF_FALSE(deleteResult, NAPIGenericFailure);
+        LIST_REMOVE(referenceInfo, node);
     }
     LIST_REMOVE(ref, node);
 
@@ -1032,6 +1040,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
     // 标量 && 弱引用（被 GC 也会这样）
     if (!JS_IsObject(ref->value) && !ref->referenceCount)
     {
+        LIST_REMOVE(ref, node);
         free(ref);
 
         return NAPIOK;
@@ -1039,6 +1048,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
     // 对象 || 强引用
     if (ref->referenceCount)
     {
+        LIST_REMOVE(ref, node);
         JS_FreeValue(env->context, ref->value);
         free(ref);
 
@@ -1068,6 +1078,11 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
         {
             CHECK_NAPI(clearWeak(env, ref));
         }
+        else
+        {
+            LIST_REMOVE(ref, node);
+        }
+        LIST_INSERT_HEAD(&env->strongRefList, ref, node);
         ref->value = JS_DupValue(env->context, ref->value);
     }
     uint8_t count = ++ref->referenceCount;
@@ -1091,6 +1106,7 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 
     if (ref->referenceCount == 1)
     {
+        LIST_REMOVE(ref, node);
         if (JS_IsObject(ref->value))
         {
             CHECK_NAPI(setWeak(env, (NAPIValue)&ref->value, ref));
@@ -1098,6 +1114,7 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
         }
         else
         {
+            LIST_INSERT_HEAD(&env->valueList, ref, node);
             JS_FreeValue(env->context, ref->value);
             ref->value = undefinedValue;
         }
@@ -1396,6 +1413,7 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
         thisValue = returnValue;
     }
     JSValue exceptionValue = JS_GetException(ctx);
+    napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
     if (constructorInfo->functionInfo.baseInfo.env->isThrowNull)
     {
         JS_FreeValue(ctx, thisValue);
@@ -1604,6 +1622,9 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
     (*env)->context = context;
     (*env)->isThrowNull = false;
     LIST_INIT(&(*env)->handleScopeList);
+    LIST_INIT(&(*env)->referenceList);
+    LIST_INIT(&(*env)->valueList);
+    LIST_INIT(&(*env)->strongRefList);
 
     return NAPIOK;
 }
@@ -1613,9 +1634,35 @@ void NAPIFreeEnv(NAPIEnv env)
     CHECK_ARG(env);
 
     assert(LIST_EMPTY(&(*env).handleScopeList));
-    NAPIHandleScope handleScope, tempHandleScope;
-    LIST_FOREACH_SAFE(handleScope, &(*env).handleScopeList, node, tempHandleScope)
-    napi_close_handle_scope(env, handleScope);
+    //    NAPIHandleScope handleScope, tempHandleScope;
+    //    LIST_FOREACH_SAFE(handleScope, &(*env).handleScopeList, node, tempHandleScope)
+    //    napi_close_handle_scope(env, handleScope);
+    NAPIRef ref, temp;
+    LIST_FOREACH_SAFE(ref, &env->valueList, node, temp)
+    {
+        if (napi_delete_reference(env, ref) != NAPIOK)
+        {
+            assert(false);
+        }
+    }
+    LIST_FOREACH_SAFE(ref, &env->strongRefList, node, temp)
+    {
+        if (napi_delete_reference(env, ref) != NAPIOK)
+        {
+            assert(false);
+        }
+    }
+    struct ReferenceInfo *referenceInfo;
+    LIST_FOREACH(referenceInfo, &env->referenceList, node)
+    {
+        LIST_FOREACH_SAFE(ref, &referenceInfo->referenceList, node, temp)
+        {
+            if (napi_delete_reference(env, ref) != NAPIOK)
+            {
+                assert(false);
+            }
+        }
+    }
     JS_FreeValue(env->context, env->referenceSymbolValue);
     JS_FreeContext(env->context);
     if (--contextCount == 0 && runtime)
