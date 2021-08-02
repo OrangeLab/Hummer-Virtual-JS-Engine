@@ -591,7 +591,11 @@ source_set("folly_futures") {
 
 source_set("jsinspector") {
     configs = [":minimal_size_build"]
-    cflags_cc = ["-std=c++14", "-fvisibility=hidden"]
+    cflags_cc = ["-std=c++14"]
+    # Android 需要 getInspectorInstance 方法，而该方法没有被标记为 JSINSPECTOR_EXPORT，因此需要去除 -fvisibility=hidden
+    if (!build_android) {
+        cflags_cc += ["-fvisibility=hidden"]
+    }
     sources = [
         "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp"
     ]
