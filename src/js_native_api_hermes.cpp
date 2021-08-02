@@ -19,6 +19,11 @@
 #include <hermes/inspector/chrome/Registration.h>
 #endif
 
+#ifndef LIST_FOREACH_SAFE
+#define LIST_FOREACH_SAFE(var, head, field, tvar)                                                                      \
+    for ((var) = LIST_FIRST((head)); (var) && ((tvar) = LIST_NEXT((var), field), 1); (var) = (tvar))
+#endif
+
 #include <utility>
 
 #define RETURN_STATUS_IF_FALSE(condition, status)                                                                      \
@@ -452,17 +457,17 @@ OpaqueNAPIEnv::~OpaqueNAPIEnv()
     NAPIRef ref, temp;
     LIST_FOREACH_SAFE(ref, &valueList, node, temp)
     {
-        LIST_REMOVE(ref, node);
+        //        LIST_REMOVE(ref, node);
         delete ref;
     }
     LIST_FOREACH_SAFE(ref, &strongRefList, node, temp)
     {
-        LIST_REMOVE(ref, node);
+        //        LIST_REMOVE(ref, node);
         delete ref;
     }
     LIST_FOREACH_SAFE(ref, &weakRefList, node, temp)
     {
-        LIST_REMOVE(ref, node);
+        //        LIST_REMOVE(ref, node);
         delete ref;
     }
 }
