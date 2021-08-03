@@ -1353,7 +1353,15 @@ static JSContextGroupRef virtualMachine = NULL;
 
 static uint8_t contextCount = 0;
 
-NAPIStatus NAPICreateEnv(NAPIEnv *env, __attribute__((unused)) const char *debuggerTitle)
+void NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env, __attribute__((unused)) const char *debuggerTitle)
+{
+}
+
+void NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
+{
+}
+
+NAPIStatus NAPICreateEnv(NAPIEnv *env)
 {
     // *env 才是 NAPIEnv
     if (!env)

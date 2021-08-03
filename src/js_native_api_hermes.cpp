@@ -210,22 +210,36 @@ class DecoratedRuntime : public ::facebook::jsi::WithRuntimeDecorator<Reentrancy
     // decorates the real HermesRuntime, depending on the build config.
     // The second argument is the real HermesRuntime as well to
     // manage the debugger registration.
-    DecoratedRuntime(std::unique_ptr<Runtime> runtime, ::facebook::hermes::HermesRuntime &hermesRuntime,
-                     const char *debuggerTitle)
+    DecoratedRuntime(std::unique_ptr<Runtime> runtime, ::facebook::hermes::HermesRuntime &hermesRuntime)
         : ::facebook::jsi::WithRuntimeDecorator<ReentrancyCheck>(*runtime, reentrancyCheck_),
           runtime_(std::move(runtime)), hermesRuntime_(hermesRuntime)
+    {
+        //#ifdef HERMES_ENABLE_DEBUGGER
+        //        auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(runtime_, hermesRuntime_);
+        //        ::std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
+        //        debuggerTitleString.append(" - React");
+        //        facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
+        //#else
+        //        (void)hermesRuntime_;
+        //#endif
+    }
+
+    ~DecoratedRuntime() override
+    {
+        disableDebugger();
+    }
+
+    void enableDebugger(const char *debuggerTitle)
     {
 #ifdef HERMES_ENABLE_DEBUGGER
         auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(runtime_, hermesRuntime_);
         ::std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
         debuggerTitleString.append(" - React");
         facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
-#else
-        (void)hermesRuntime_;
 #endif
     }
 
-    ~DecoratedRuntime() override
+    void disableDebugger()
     {
 #ifdef HERMES_ENABLE_DEBUGGER
         facebook::hermes::inspector::chrome::disableDebugging(hermesRuntime_);
@@ -281,7 +295,7 @@ struct OpaqueNAPIRef;
 
 struct OpaqueNAPIEnv final
 {
-    explicit OpaqueNAPIEnv(const char *debuggerTitle);
+    explicit OpaqueNAPIEnv();
 
     ~OpaqueNAPIEnv();
 
@@ -306,10 +320,24 @@ struct OpaqueNAPIEnv final
 
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
 
+    void enableDebugger(const char *debuggerTitle);
+
+    void disableDebugger();
+
   private:
     std::shared_ptr<DecoratedRuntime> decoratedRuntime;
     ::hermes::vm::Runtime *runtime;
 };
+
+void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle)
+{
+    decoratedRuntime->enableDebugger(debuggerTitle);
+}
+
+void OpaqueNAPIEnv::disableDebugger()
+{
+    decoratedRuntime->disableDebugger();
+}
 
 // !referenceCount && !isObject => (undefined, 0) => nullptr
 // referenceCount > 0 => 强引用 => addStrong
@@ -472,7 +500,7 @@ OpaqueNAPIEnv::~OpaqueNAPIEnv()
     }
 }
 
-OpaqueNAPIEnv::OpaqueNAPIEnv(const char *debuggerTitle)
+OpaqueNAPIEnv::OpaqueNAPIEnv()
 {
     // HermesExecutorFactory -> heapSizeMB 1024 -> HermesExecutor -> initHybrid
     // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L85
@@ -490,7 +518,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const char *debuggerTitle)
     std::unique_ptr<::facebook::hermes::HermesRuntime> hermesRuntime =
         ::facebook::hermes::makeHermesRuntime(runtimeConfig);
     ::facebook::hermes::HermesRuntime &hermesRuntimeRef = *hermesRuntime;
-    decoratedRuntime = std::make_shared<DecoratedRuntime>(std::move(hermesRuntime), hermesRuntimeRef, debuggerTitle);
+    decoratedRuntime = std::make_shared<DecoratedRuntime>(std::move(hermesRuntime), hermesRuntimeRef);
     runtime = facebook::hermes::HermesRuntime::getHermesRuntimeFromJSI(&hermesRuntimeRef);
     // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode -> clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
     // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ = {} => undefined
@@ -1447,13 +1475,27 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     return NAPIOK;
 }
 
-NAPIStatus NAPICreateEnv(NAPIEnv *env, const char *debuggerTitle)
+NAPIStatus NAPICreateEnv(NAPIEnv *env)
 {
     CHECK_ARG(env)
 
-    *env = new (::std::nothrow) OpaqueNAPIEnv(debuggerTitle);
+    *env = new (::std::nothrow) OpaqueNAPIEnv();
 
     return NAPIOK;
+}
+
+void NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle)
+{
+    CHECK_ARG(env)
+
+    env->enableDebugger(debuggerTitle);
+}
+
+void NAPIDisableDebugger(NAPIEnv env)
+{
+    CHECK_ARG(env)
+
+    env->disableDebugger();
 }
 
 void NAPIFreeEnv(NAPIEnv env)

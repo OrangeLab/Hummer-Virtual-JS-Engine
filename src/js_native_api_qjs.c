@@ -1701,3 +1701,11 @@ NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
 
     return NAPIOK;
 }
+
+void NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env, __attribute__((unused)) const char *debuggerTitle)
+{
+}
+
+void NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
+{
+}

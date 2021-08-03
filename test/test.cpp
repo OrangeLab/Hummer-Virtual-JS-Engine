@@ -32,7 +32,7 @@ class NAPIEnvironment : public ::testing::Environment
     // Override this to define how to set up the environment.
     void SetUp() override
     {
-        ASSERT_EQ(NAPICreateEnv(&globalEnv, nullptr), NAPIOK);
+        ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIOK);
         NAPIHandleScope handleScope;
         ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
         NAPIValue assertValue;
