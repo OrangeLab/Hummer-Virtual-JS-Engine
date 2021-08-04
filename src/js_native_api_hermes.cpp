@@ -775,7 +775,7 @@ NAPIStatus napi_typeof(NAPIEnv /*env*/, NAPIValue value, NAPIValueType *result)
     CHECK_ARG(value)
     CHECK_ARG(result)
 
-    ::hermes::vm::HermesValue hermesValue = *(::hermes::vm::PinnedHermesValue *)value;
+    ::hermes::vm::HermesValue hermesValue = *(const ::hermes::vm::PinnedHermesValue *)value;
     if (hermesValue.isUndefined())
     {
         *result = NAPIUndefined;
