@@ -800,7 +800,7 @@ if (build_android) {
                 deps += [":bf"]
             }
         }
-        static_library("napi_jsc") {
+        static_library("jsc") {
             complete_static_lib = true
             deps = [":napi_jsc_source_set", ":napi_common"]
         }
