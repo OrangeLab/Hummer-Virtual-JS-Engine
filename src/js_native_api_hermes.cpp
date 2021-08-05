@@ -522,8 +522,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv()
     runtime = facebook::hermes::HermesRuntime::getHermesRuntimeFromJSI(&hermesRuntimeRef);
     // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode -> clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
     // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ = {} => undefined
-    //    assert(!runtime->getThrownValue().isUndefined());
-    //    runtime->clearThrownValue();
+    runtime->clearThrownValue();
     LIST_INIT(&valueList);
     LIST_INIT(&weakRefList);
     LIST_INIT(&strongRefList);
