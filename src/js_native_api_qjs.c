@@ -1311,6 +1311,15 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     return NAPIOK;
 }
 
+void NAPIClearException(NAPIEnv env)
+{
+    CHECK_ARG(env)
+    CHECK_ARG(env->context)
+
+    JSValue exceptionValue = JS_GetException(env->context);
+    JS_FreeValue(env->context, exceptionValue);
+}
+
 // NAPIPendingException + addValueToHandleScope
 NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
 {

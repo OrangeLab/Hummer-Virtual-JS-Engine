@@ -99,6 +99,8 @@ NAPI_EXPORT NAPIStatus napi_throw(NAPIEnv env, NAPIValue error);
 
 NAPI_EXPORT NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result);
 
+NAPI_EXPORT void NAPIClearLastException(NAPIEnv env);
+
 // 自定义函数
 // utf8Script/utf8SourceUrl/result 可空
 NAPI_EXPORT NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result);

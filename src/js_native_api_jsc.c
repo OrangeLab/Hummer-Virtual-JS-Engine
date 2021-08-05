@@ -1343,6 +1343,13 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     return NAPIOK;
 }
 
+void NAPIClearLastException(NAPIEnv env)
+{
+    CHECK_ARG(env)
+
+    env->lastException = NULL;
+}
+
 NAPIStatus NAPIRunScript(NAPIEnv env, const char *utf8Script, const char *utf8SourceUrl, NAPIValue *result)
 {
     CHECK_JSC(env);

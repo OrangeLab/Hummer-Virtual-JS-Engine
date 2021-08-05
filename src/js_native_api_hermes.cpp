@@ -1392,6 +1392,13 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     return NAPIOK;
 }
 
+void NAPIClearLastException(NAPIEnv env)
+{
+    CHECK_ARG(env)
+
+    env->getRuntime()->clearThrownValue();
+}
+
 NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
 {
     NAPI_PREAMBLE(env)
