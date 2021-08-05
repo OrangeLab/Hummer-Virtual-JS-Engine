@@ -6,10 +6,10 @@ static NAPIValue toBool(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue args[1];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     NAPIValue output;
-    assert(napi_coerce_to_bool(env, args[0], &output) == NAPIOK);
+    assert(napi_coerce_to_bool(env, args[0], &output) == NAPIExceptionOK);
 
     return output;
 }
@@ -18,10 +18,10 @@ static NAPIValue toNumber(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue args[1];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     NAPIValue output;
-    assert(napi_coerce_to_number(env, args[0], &output) == NAPIOK);
+    assert(napi_coerce_to_number(env, args[0], &output) == NAPIExceptionOK);
 
     return output;
 }
@@ -30,10 +30,10 @@ static NAPIValue toString(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue args[1];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     NAPIValue output;
-    assert(napi_coerce_to_string(env, args[0], &output) == NAPIOK);
+    assert(napi_coerce_to_string(env, args[0], &output) == NAPIExceptionOK);
 
     return output;
 }
@@ -43,16 +43,16 @@ EXTERN_C_END
 TEST_F(Test, Conversion)
 {
     NAPIValue toBoolValue, toNumberValue, toStringValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toBool, nullptr, &toBoolValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toNumber, nullptr, &toNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toString, nullptr, &toStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toBool, nullptr, &toBoolValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toNumber, nullptr, &toNumberValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, toString, nullptr, &toStringValue), NAPIExceptionOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toBool", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toBoolValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toNumber", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toString", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toStringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toBool", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toBoolValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toNumber", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toNumberValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "toString", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, toStringValue), NAPIExceptionOK);
     ASSERT_EQ(
         NAPIRunScript(
             globalEnv,
@@ -87,5 +87,5 @@ TEST_F(Test, Conversion)
             "addon\"}}),\"globalThis.addon\")),globalThis.assert(Object.is(globalThis.addon.toString([]),\"\")),"
             "globalThis.assert(Object.is(globalThis.addon.toString([1,2,3]),\"1,2,3\"))})();",
             "https://www.napi.com/conversion.js", nullptr),
-        NAPIOK);
+        NAPIExceptionOK);
 }

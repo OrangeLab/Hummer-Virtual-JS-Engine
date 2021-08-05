@@ -11,12 +11,12 @@ static NAPIValue jsAssert(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIBoolean);
     bool assertValue;
-    assert(napi_get_value_bool(env, argv[0], &assertValue) == NAPIOK);
+    assert(napi_get_value_bool(env, argv[0], &assertValue) == NAPIErrorOK);
     assert(assertValue);
 
     return nullptr;
@@ -32,16 +32,16 @@ class NAPIEnvironment : public ::testing::Environment
     // Override this to define how to set up the environment.
     void SetUp() override
     {
-        ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIOK);
+        ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIErrorOK);
         NAPIHandleScope handleScope;
-        ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+        ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIErrorOK);
         NAPIValue assertValue;
-        ASSERT_EQ(napi_create_function(globalEnv, "assert", jsAssert, nullptr, &assertValue), NAPIOK);
+        ASSERT_EQ(napi_create_function(globalEnv, "assert", jsAssert, nullptr, &assertValue), NAPIExceptionOK);
         NAPIValue globalValue;
-        ASSERT_EQ(napi_get_global(globalEnv, &globalValue), NAPIOK);
+        ASSERT_EQ(napi_get_global(globalEnv, &globalValue), NAPIErrorOK);
         NAPIValue stringValue;
-        ASSERT_EQ(napi_create_string_utf8(globalEnv, "assert", &stringValue), NAPIOK);
-        ASSERT_EQ(napi_set_property(globalEnv, globalValue, stringValue, assertValue), NAPIOK);
+        ASSERT_EQ(napi_create_string_utf8(globalEnv, "assert", &stringValue), NAPIExceptionOK);
+        ASSERT_EQ(napi_set_property(globalEnv, globalValue, stringValue, assertValue), NAPIExceptionOK);
         napi_close_handle_scope(globalEnv, handleScope);
     }
 
@@ -65,15 +65,15 @@ int main(int argc, char **argv)
 void ::Test::SetUp()
 {
     ::testing::Test::SetUp();
-    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIOK);
+    ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIErrorOK);
     NAPIValue global;
-    ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIOK);
+    ASSERT_EQ(napi_get_global(globalEnv, &global), NAPIErrorOK);
     NAPIValue objectCtor;
-    ASSERT_EQ(napi_get_named_property(globalEnv, global, "Object", &objectCtor), NAPIOK);
-    ASSERT_EQ(napi_new_instance(globalEnv, objectCtor, 0, nullptr, &addonValue), NAPIOK);
+    ASSERT_EQ(napi_get_named_property(globalEnv, global, "Object", &objectCtor), NAPIExceptionOK);
+    ASSERT_EQ(napi_new_instance(globalEnv, objectCtor, 0, nullptr, &addonValue), NAPIExceptionOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "addon", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, global, stringValue, addonValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "addon", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, global, stringValue, addonValue), NAPIExceptionOK);
 }
 
 void ::Test::TearDown()

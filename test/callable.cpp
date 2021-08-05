@@ -6,12 +6,12 @@ static NAPIValue runWithCNullThis(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 1);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
-    assert(napi_call_function(env, nullptr, argv[0], 0, nullptr, nullptr) == NAPIOK);
+    assert(napi_call_function(env, nullptr, argv[0], 0, nullptr, nullptr) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -20,14 +20,14 @@ static NAPIValue run(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 1);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
     NAPIValue global;
-    assert(napi_get_global(env, &global) == NAPIOK);
-    assert(napi_call_function(env, global, argv[0], 0, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_global(env, &global) == NAPIErrorOK);
+    assert(napi_call_function(env, global, argv[0], 0, nullptr, nullptr) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -36,17 +36,17 @@ static NAPIValue runWithArgument(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 3;
     NAPIValue argv[3];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 3);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
-    assert(napi_typeof(env, argv[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[1], &valueType) == NAPICommonOK);
     assert(valueType == NAPIString);
-    assert(napi_typeof(env, argv[2], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[2], &valueType) == NAPICommonOK);
     assert(valueType == NAPIString);
     NAPIValue args[] = {argv[1], argv[2]};
-    assert(napi_call_function(env, nullptr, argv[0], 2, args, nullptr) == NAPIOK);
+    assert(napi_call_function(env, nullptr, argv[0], 2, args, nullptr) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -55,14 +55,14 @@ static NAPIValue runWithThis(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 2;
     NAPIValue argv[2];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 2);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
-    assert(napi_typeof(env, argv[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[1], &valueType) == NAPICommonOK);
     assert(valueType == NAPIObject);
-    assert(napi_call_function(env, argv[1], argv[0], 0, nullptr, nullptr) == NAPIOK);
+    assert(napi_call_function(env, argv[1], argv[0], 0, nullptr, nullptr) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -72,10 +72,10 @@ static NAPIValue throwWithArgument(NAPIEnv env, NAPICallbackInfo info)
     size_t argc = 1;
     NAPIValue argv[1];
     void *data;
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, &data) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, &data) == NAPICommonOK);
     assert(data == env);
     assert(argc == 1);
-    assert(napi_throw(env, argv[0]) == NAPIOK);
+    assert(napi_throw(env, argv[0]) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -84,14 +84,14 @@ static NAPIValue runWithCatch(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 1);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
-    assert(napi_call_function(env, nullptr, argv[0], 0, nullptr, nullptr) == NAPIPendingException);
+    assert(napi_call_function(env, nullptr, argv[0], 0, nullptr, nullptr) == NAPIExceptionPendingException);
     NAPIValue output;
-    assert(napi_get_and_clear_last_exception(env, &output) == NAPIOK);
+    assert(napi_get_and_clear_last_exception(env, &output) == NAPIErrorOK);
 
     return output;
 }
@@ -100,15 +100,15 @@ static NAPIValue newWithCatch(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 2;
     NAPIValue argv[2];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 2);
     NAPIValueType valueType;
-    assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
     assert(valueType == NAPIFunction);
     NAPIValue thisValue;
-    assert(napi_new_instance(env, argv[0], 1, &argv[1], &thisValue) == NAPIPendingException);
+    assert(napi_new_instance(env, argv[0], 1, &argv[1], &thisValue) == NAPIExceptionPendingException);
     NAPIValue output;
-    assert(napi_get_and_clear_last_exception(env, &output) == NAPIOK);
+    assert(napi_get_and_clear_last_exception(env, &output) == NAPIErrorOK);
 
     return output;
 }
@@ -117,7 +117,7 @@ static NAPIValue returnWithArgument(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 1);
 
     return argv[0];
@@ -126,7 +126,7 @@ static NAPIValue returnWithArgument(NAPIEnv env, NAPICallbackInfo info)
 static NAPIValue returnWithThis(NAPIEnv env, NAPICallbackInfo info)
 {
     NAPIValue output;
-    assert(napi_get_cb_info(env, info, nullptr, nullptr, &output, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, nullptr, nullptr, &output, nullptr) == NAPICommonOK);
 
     return output;
 }
@@ -142,41 +142,44 @@ TEST_F(Test, Callable)
 {
     NAPIValue runWithUndefinedThisValue, runValue, runWithArgumentValue, runWithThisValue, throwValue,
         runWithCatchValue, newWithCatchValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCNullThis, nullptr, &runWithUndefinedThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, run, nullptr, &runValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithArgument, nullptr, &runWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithThis, nullptr, &runWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, throwWithArgument, globalEnv, &throwValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCatch, nullptr, &runWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newWithCatch, nullptr, &newWithCatchValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCNullThis, nullptr, &runWithUndefinedThisValue),
+              NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, run, nullptr, &runValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithArgument, nullptr, &runWithArgumentValue),
+              NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithThis, nullptr, &runWithThisValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, throwWithArgument, globalEnv, &throwValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, runWithCatch, nullptr, &runWithCatchValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newWithCatch, nullptr, &newWithCatchValue), NAPIExceptionOK);
     NAPIValue ctorValue, returnWithArgumentValue, returnWithThisValue, returnWithCNullValue;
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, throwWithArgument, globalEnv, &ctorValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithArgument, globalEnv, &returnWithArgumentValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithThis, globalEnv, &returnWithThisValue), NAPIOK);
-    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithCNull, globalEnv, &returnWithCNullValue), NAPIOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, throwWithArgument, globalEnv, &ctorValue), NAPIExceptionOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithArgument, globalEnv, &returnWithArgumentValue),
+              NAPIExceptionOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithThis, globalEnv, &returnWithThisValue), NAPIExceptionOK);
+    ASSERT_EQ(NAPIDefineClass(globalEnv, nullptr, returnWithCNull, globalEnv, &returnWithCNullValue), NAPIExceptionOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithUndefinedThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "run", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithArgument", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithThis", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "throwWithArgument", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, throwValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCatch", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "ctor", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, ctorValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "newWithCatch", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newWithCatchValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithArgument", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithArgumentValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithThis", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithThisValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithCNull", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithCNullValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCNullThis", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithUndefinedThisValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "run", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithArgument", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithArgumentValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithThis", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithThisValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "throwWithArgument", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, throwValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "runWithCatch", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, runWithCatchValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "ctor", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, ctorValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "newWithCatch", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newWithCatchValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithArgument", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithArgumentValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithThis", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithThisValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "returnWithCNull", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, returnWithCNullValue), NAPIExceptionOK);
     ASSERT_EQ(
         NAPIRunScript(
             globalEnv,
@@ -217,10 +220,10 @@ TEST_F(Test, Callable)
             "globalThis.addon.returnWithThis),globalThis.assert(new globalThis.addon.returnWithCNull instanceof "
             "globalThis.addon.returnWithCNull),null})();",
             "https://www.napi.com/callable.js", nullptr),
-        NAPIPendingException);
+        NAPIExceptionPendingException);
     NAPIValue exceptionValue;
-    ASSERT_EQ(napi_get_and_clear_last_exception(globalEnv, &exceptionValue), NAPIOK);
+    ASSERT_EQ(napi_get_and_clear_last_exception(globalEnv, &exceptionValue), NAPIErrorOK);
     NAPIValueType valueType;
-    ASSERT_EQ(napi_typeof(globalEnv, exceptionValue, &valueType), NAPIOK);
+    ASSERT_EQ(napi_typeof(globalEnv, exceptionValue, &valueType), NAPICommonOK);
     ASSERT_EQ(valueType, NAPINull);
 }

@@ -6,13 +6,13 @@ static NAPIValue doInstanceOf(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 2;
     NAPIValue args[2];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     bool instanceof ;
-    assert(napi_instanceof(env, args[0], args[1], & instanceof) == NAPIOK);
+    assert(napi_instanceof(env, args[0], args[1], & instanceof) == NAPIExceptionOK);
 
     NAPIValue result;
-    assert(napi_get_boolean(env, instanceof, &result) == NAPIOK);
+    assert(napi_get_boolean(env, instanceof, &result) == NAPIErrorOK);
 
     return result;
 }
@@ -20,9 +20,9 @@ static NAPIValue doInstanceOf(NAPIEnv env, NAPICallbackInfo info)
 static NAPIValue getUndefined(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     NAPIValue result;
-    assert(napi_get_undefined(env, &result) == NAPIOK);
+    assert(napi_get_undefined(env, &result) == NAPICommonOK);
     void *data;
-    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, nullptr, &data) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, nullptr, &data) == NAPICommonOK);
     assert(data == env);
 
     return result;
@@ -31,9 +31,9 @@ static NAPIValue getUndefined(NAPIEnv env, NAPICallbackInfo callbackInfo)
 static NAPIValue getNull(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     NAPIValue result;
-    assert(napi_get_null(env, &result) == NAPIOK);
+    assert(napi_get_null(env, &result) == NAPICommonOK);
     void *data;
-    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, nullptr, &data) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, nullptr, &data) == NAPICommonOK);
     assert(!data);
 
     return result;
@@ -42,7 +42,7 @@ static NAPIValue getNull(NAPIEnv env, NAPICallbackInfo callbackInfo)
 static NAPIValue getGlobal(NAPIEnv env, NAPICallbackInfo /*callbackInfo*/)
 {
     NAPIValue result;
-    assert(napi_get_global(env, &result) == NAPIOK);
+    assert(napi_get_global(env, &result) == NAPIErrorOK);
 
     return result;
 }
@@ -51,20 +51,20 @@ static NAPIValue testNumber(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 1;
     NAPIValue args[1];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     assert(argc >= 1);
 
     NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[0], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPINumber);
 
     double input;
-    assert(napi_get_value_double(env, args[0], &input) == NAPIOK);
+    assert(napi_get_value_double(env, args[0], &input) == NAPIErrorOK);
 
     NAPIValue output;
-    assert(napi_create_double(env, input, &output) == NAPIOK);
+    assert(napi_create_double(env, input, &output) == NAPIErrorOK);
 
     return output;
 }
@@ -74,45 +74,45 @@ EXTERN_C_END
 TEST_F(Test, General)
 {
     NAPIValue getUndefinedValue, getNullValue, getGlobalValue, testNumberValue, doInstanceOfValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getUndefined, globalEnv, &getUndefinedValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "", getNull, nullptr, &getNullValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "getGlobal", getGlobal, nullptr, &getGlobalValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, "测试数字", testNumber, nullptr, &testNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, doInstanceOf, nullptr, &doInstanceOfValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getUndefined, globalEnv, &getUndefinedValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "", getNull, nullptr, &getNullValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "getGlobal", getGlobal, nullptr, &getGlobalValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, "测试数字", testNumber, nullptr, &testNumberValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, doInstanceOf, nullptr, &doInstanceOfValue), NAPIExceptionOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getUndefined", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getUndefinedValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getNull", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getNullValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getGlobal", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getGlobalValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "testNumber", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, testNumberValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "doInstanceOf", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, doInstanceOfValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getUndefined", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getUndefinedValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getNull", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getNullValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getGlobal", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getGlobalValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "testNumber", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, testNumberValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "doInstanceOf", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, doInstanceOfValue), NAPIExceptionOK);
 
     NAPIValue trueValue, falseValue;
-    ASSERT_EQ(napi_get_boolean(globalEnv, true, &trueValue), NAPIOK);
-    ASSERT_EQ(napi_get_boolean(globalEnv, false, &falseValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "true", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, trueValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "false", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, falseValue), NAPIOK);
+    ASSERT_EQ(napi_get_boolean(globalEnv, true, &trueValue), NAPIErrorOK);
+    ASSERT_EQ(napi_get_boolean(globalEnv, false, &falseValue), NAPIErrorOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "true", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, trueValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "false", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, falseValue), NAPIExceptionOK);
 
     NAPIValue nullCStringValue, emptyStringValue, asciiStringValue, utf8StringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, &nullCStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "", &emptyStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "Hello, world!", &asciiStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "测试", &utf8StringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, nullptr, &nullCStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "", &emptyStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "Hello, world!", &asciiStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "测试", &utf8StringValue), NAPIExceptionOK);
 
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "nullCString", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, nullCStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "emptyString", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, emptyStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "asciiString", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, asciiStringValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "utf8String", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, utf8StringValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "nullCString", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, nullCStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "emptyString", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, emptyStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "asciiString", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, asciiStringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "utf8String", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, utf8StringValue), NAPIExceptionOK);
 
     ASSERT_EQ(
         NAPIRunScript(
@@ -134,5 +134,5 @@ TEST_F(Test, General)
             "Object)),globalThis.assert(globalThis.addon.doInstanceOf([],Object)),globalThis.assert(!globalThis.addon."
             "doInstanceOf({},Array)),globalThis.assert(globalThis.addon.doInstanceOf([],Array))})();",
             "https://www.napi.com/general.js", nullptr),
-        NAPIOK);
+        NAPIExceptionOK);
 }

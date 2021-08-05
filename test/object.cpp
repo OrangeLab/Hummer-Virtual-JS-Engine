@@ -5,9 +5,9 @@ EXTERN_C_START
 static NAPIValue getThis(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     NAPIValue thisValue;
-    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, &thisValue, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, nullptr, nullptr, &thisValue, nullptr) == NAPICommonOK);
     NAPIValue newTarget;
-    assert(napi_get_new_target(env, callbackInfo, &newTarget) == NAPIOK);
+    assert(napi_get_new_target(env, callbackInfo, &newTarget) == NAPICommonOK);
     assert(!newTarget);
 
     return thisValue;
@@ -17,34 +17,34 @@ static NAPIValue newFunction(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     size_t argc = 3;
     NAPIValue argv[3];
-    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     assert(argc == 1 || argc == 3);
     if (argc == 1)
     {
         NAPIValueType valueType;
-        assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
         assert(valueType == NAPIFunction);
-        assert(napi_typeof(env, argv[1], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[1], &valueType) == NAPICommonOK);
         assert(valueType == NAPIUndefined);
-        assert(napi_typeof(env, argv[2], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[2], &valueType) == NAPICommonOK);
         assert(valueType == NAPIUndefined);
         NAPIValue output;
-        assert(napi_new_instance(env, argv[0], 0, nullptr, &output) == NAPIOK);
+        assert(napi_new_instance(env, argv[0], 0, nullptr, &output) == NAPIExceptionOK);
 
         return output;
     }
     else
     {
         NAPIValueType valueType;
-        assert(napi_typeof(env, argv[0], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[0], &valueType) == NAPICommonOK);
         assert(valueType == NAPIFunction);
-        assert(napi_typeof(env, argv[1], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[1], &valueType) == NAPICommonOK);
         assert(valueType == NAPINumber);
-        assert(napi_typeof(env, argv[2], &valueType) == NAPIOK);
+        assert(napi_typeof(env, argv[2], &valueType) == NAPICommonOK);
         assert(valueType == NAPIString);
         NAPIValue args[] = {argv[1], argv[2]};
         NAPIValue output;
-        assert(napi_new_instance(env, argv[0], 2, args, &output) == NAPIOK);
+        assert(napi_new_instance(env, argv[0], 2, args, &output) == NAPIExceptionOK);
 
         return output;
     }
@@ -54,22 +54,22 @@ static NAPIValue get(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 2;
     NAPIValue args[2];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     assert(argc >= 2);
 
     NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[0], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIObject);
 
-    assert(napi_typeof(env, args[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[1], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIString || valueType == NAPINumber);
 
     NAPIValue object = args[0];
     NAPIValue output;
-    assert(napi_get_property(env, object, args[1], &output) == NAPIOK);
+    assert(napi_get_property(env, object, args[1], &output) == NAPIExceptionOK);
 
     return output;
 }
@@ -78,20 +78,20 @@ static NAPIValue set(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 3;
     NAPIValue args[3];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     assert(argc >= 3);
 
     NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[0], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIObject);
 
-    assert(napi_typeof(env, args[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[1], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIString || valueType == NAPINumber);
 
-    assert(napi_set_property(env, args[0], args[1], args[2]) == NAPIOK);
+    assert(napi_set_property(env, args[0], args[1], args[2]) == NAPIExceptionOK);
 
     return nullptr;
 }
@@ -100,24 +100,24 @@ static NAPIValue has(NAPIEnv env, NAPICallbackInfo info)
 {
     size_t argc = 2;
     NAPIValue args[2];
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
 
     assert(argc >= 2);
 
     NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[0], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIObject);
 
-    assert(napi_typeof(env, args[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[1], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIString || valueType == NAPINumber);
 
     bool hasProperty;
-    assert(napi_has_property(env, args[0], args[1], &hasProperty) == NAPIOK);
+    assert(napi_has_property(env, args[0], args[1], &hasProperty) == NAPIExceptionOK);
 
     NAPIValue ret;
-    assert(napi_get_boolean(env, hasProperty, &ret) == NAPIOK);
+    assert(napi_get_boolean(env, hasProperty, &ret) == NAPIErrorOK);
 
     return ret;
 }
@@ -127,22 +127,22 @@ static NAPIValue deleteFunction(NAPIEnv env, NAPICallbackInfo info)
     size_t argc = 2;
     NAPIValue args[2];
 
-    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) == NAPICommonOK);
     assert(argc >= 2);
 
     NAPIValueType valueType;
-    assert(napi_typeof(env, args[0], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[0], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIObject);
 
-    assert(napi_typeof(env, args[1], &valueType) == NAPIOK);
+    assert(napi_typeof(env, args[1], &valueType) == NAPICommonOK);
 
     assert(valueType == NAPIString || valueType == NAPINumber);
 
     bool result;
     NAPIValue ret;
-    assert(napi_delete_property(env, args[0], args[1], &result) == NAPIOK);
-    assert(napi_get_boolean(env, result, &ret) == NAPIOK);
+    assert(napi_delete_property(env, args[0], args[1], &result) == NAPIExceptionOK);
+    assert(napi_get_boolean(env, result, &ret) == NAPIErrorOK);
 
     return ret;
 }
@@ -151,11 +151,11 @@ static NAPIValue isArray(NAPIEnv env, NAPICallbackInfo callbackInfo)
 {
     size_t argc = 1;
     NAPIValue argv[1];
-    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPIOK);
+    assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     bool result;
-    assert(napi_is_array(env, argv[0], &result) == NAPIOK);
+    assert(napi_is_array(env, argv[0], &result) == NAPICommonOK);
     NAPIValue output;
-    assert(napi_get_boolean(env, result, &output) == NAPIOK);
+    assert(napi_get_boolean(env, result, &output) == NAPIErrorOK);
 
     return output;
 }
@@ -171,37 +171,37 @@ EXTERN_C_END
 TEST_F(Test, Object)
 {
     NAPIValue externalValue;
-    ASSERT_EQ(napi_create_external(globalEnv, globalEnv, externalFinalize, globalEnv, &externalValue), NAPIOK);
+    ASSERT_EQ(napi_create_external(globalEnv, globalEnv, externalFinalize, globalEnv, &externalValue), NAPIExceptionOK);
     void *data;
-    ASSERT_EQ(napi_get_value_external(globalEnv, externalValue, &data), NAPIOK);
+    ASSERT_EQ(napi_get_value_external(globalEnv, externalValue, &data), NAPICommonOK);
     ASSERT_EQ(data, globalEnv);
     NAPIValueType valueType;
-    ASSERT_EQ(napi_typeof(globalEnv, externalValue, &valueType), NAPIOK);
+    ASSERT_EQ(napi_typeof(globalEnv, externalValue, &valueType), NAPICommonOK);
     ASSERT_EQ(valueType, NAPIExternal);
 
     NAPIValue getValue, setValue, hasValue, deleteValue, isArrayValue, newValue, getThisValue;
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, get, nullptr, &getValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, set, nullptr, &setValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, has, nullptr, &hasValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, deleteFunction, nullptr, &deleteValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, isArray, nullptr, &isArrayValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newFunction, nullptr, &newValue), NAPIOK);
-    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getThis, nullptr, &getThisValue), NAPIOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, get, nullptr, &getValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, set, nullptr, &setValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, has, nullptr, &hasValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, deleteFunction, nullptr, &deleteValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, isArray, nullptr, &isArrayValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, newFunction, nullptr, &newValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_function(globalEnv, nullptr, getThis, nullptr, &getThisValue), NAPIExceptionOK);
     NAPIValue stringValue;
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "get", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "set", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, setValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "has", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, hasValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "delete", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, deleteValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "isArray", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, isArrayValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "new", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newValue), NAPIOK);
-    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getThis", &stringValue), NAPIOK);
-    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getThisValue), NAPIOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "get", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "set", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, setValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "has", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, hasValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "delete", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, deleteValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "isArray", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, isArrayValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "new", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, newValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_create_string_utf8(globalEnv, "getThis", &stringValue), NAPIExceptionOK);
+    ASSERT_EQ(napi_set_property(globalEnv, addonValue, stringValue, getThisValue), NAPIExceptionOK);
     ASSERT_EQ(
         NAPIRunScript(
             globalEnv,
@@ -233,5 +233,5 @@ TEST_F(Test, Object)
             "addon.set(b,\"world\",!0),globalThis.addon.set(b,0,!0),h(Object.getOwnPropertyDescriptor(b,\"world\")),h("
             "Object.getOwnPropertyDescriptor(b,0))})();",
             "https://www.napi.com/object.js", nullptr),
-        NAPIOK);
+        NAPIExceptionOK);
 }

@@ -27,19 +27,19 @@
         return status;                                                                                                 \
     }
 
-#define CHECK_NAPI(expr)                                                                                               \
+#define CHECK_NAPI(expr, exprStatus, returnStatus)                                                                     \
     {                                                                                                                  \
-        NAPIStatus status = expr;                                                                                      \
-        if (status != NAPIOK)                                                                                          \
+        NAPI##exprStatus##Status status = expr;                                                                        \
+        if (status != NAPI##exprStatus##OK)                                                                            \
         {                                                                                                              \
-            return status;                                                                                             \
+            return (NAPI##returnStatus##Status)status;                                                                 \
         }                                                                                                              \
     }
 
-#define CHECK_ARG(arg)                                                                                                 \
+#define CHECK_ARG(arg, status)                                                                                         \
     if (!arg)                                                                                                          \
     {                                                                                                                  \
-        assert(false);                                                                                                 \
+        return NAPI##status##InvalidArg;                                                                               \
     }
 
 // JS_GetException 会转移所有权
@@ -50,14 +50,13 @@
 // NAPI_PREAMBLE 同时会检查 env->context
 #define NAPI_PREAMBLE(env)                                                                                             \
     {                                                                                                                  \
-        CHECK_ARG(env);                                                                                                \
-        CHECK_ARG((env)->context);                                                                                     \
+        CHECK_ARG(env, Exception)                                                                                      \
         JSValue exceptionValue = JS_GetException((env)->context);                                                      \
         if (!JS_IsNull(exceptionValue))                                                                                \
         {                                                                                                              \
             JS_Throw((env)->context, exceptionValue);                                                                  \
                                                                                                                        \
-            return NAPIPendingException;                                                                               \
+            return NAPIExceptionPendingException;                                                                      \
         }                                                                                                              \
     }
 
@@ -110,52 +109,49 @@ struct OpaqueNAPIEnv
 
 // 这个函数不会修改引用计数和所有权
 // NAPIHandleScopeEmpty/NAPIMemoryError
-static NAPIStatus addValueToHandleScope(NAPIEnv env, JSValue value, struct Handle **result)
+static NAPIErrorStatus addValueToHandleScope(NAPIEnv env, JSValue value, struct Handle **result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
-    RETURN_STATUS_IF_FALSE(!LIST_EMPTY(&(*env).handleScopeList), NAPIHandleScopeEmpty);
+    RETURN_STATUS_IF_FALSE(!LIST_EMPTY(&(*env).handleScopeList), NAPIErrorHandleScopeEmpty)
     *result = malloc(sizeof(struct Handle));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
     (*result)->value = value;
     SLIST_INSERT_HEAD(&(LIST_FIRST(&(env)->handleScopeList))->handleList, *result, node);
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 static JSValueConst undefinedValue = JS_UNDEFINED;
 
-NAPIStatus napi_get_undefined(NAPIEnv env, NAPIValue *result)
+NAPICommonStatus napi_get_undefined(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(result, Common)
 
     *result = (NAPIValue)&undefinedValue;
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 static JSValueConst nullValue = JS_NULL;
 
-NAPIStatus napi_get_null(NAPIEnv env, NAPIValue *result)
+NAPICommonStatus napi_get_null(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(result, Common)
 
     *result = (NAPIValue)&nullValue;
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 // NAPIGenericFailure + addValueToHandleScope
-NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
+NAPIErrorStatus napi_get_global(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
-
-    // QuickJS 要求传入 context 不能为 NULL
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     // JS_GetGlobalObject 返回已经引用计数 +1
     // 实际上 globalValue 可能为 JS_EXCEPTION，但是由于不是 JS_GetGlobalObject 中发生的异常，因此返回 generic failure
@@ -164,11 +160,11 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
     {
         assert(false);
 
-        return NAPIGenericFailure;
+        return NAPIErrorGenericFailure;
     }
     struct Handle *globalHandle;
-    NAPIStatus status = addValueToHandleScope(env, globalValue, &globalHandle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, globalValue, &globalHandle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, globalValue);
 
@@ -176,43 +172,43 @@ NAPIStatus napi_get_global(NAPIEnv env, NAPIValue *result)
     }
     *result = (NAPIValue)&globalHandle->value;
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 // + addValueToHandleScope
-NAPIStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
+NAPIErrorStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     // JS_NewBool 忽略 JSContext
     JSValue jsValue = JS_NewBool(env->context, value);
     struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle));
+    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle), Error, Error)
     *result = (NAPIValue)&handle->value;
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 // + addValueToHandleScope
-NAPIStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
+NAPIErrorStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     JSValue jsValue = JS_NewFloat64(env->context, value);
     struct Handle *handle;
-    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle));
+    CHECK_NAPI(addValueToHandleScope(env, jsValue, &handle), Error, Error)
     *result = (NAPIValue)&handle->value;
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 // NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
+NAPIExceptionStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(result, Exception)
 
     size_t length;
     if (str)
@@ -226,18 +222,18 @@ NAPIStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *resu
     }
     // length == 0 的情况下会返回 ""
     JSValue stringValue = JS_NewStringLen(env->context, str, length);
-    RETURN_STATUS_IF_FALSE(!JS_IsException(stringValue), NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(!JS_IsException(stringValue), NAPIExceptionPendingException)
     struct Handle *stringHandle;
-    NAPIStatus status = addValueToHandleScope(env, stringValue, &stringHandle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, stringValue, &stringHandle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, stringValue);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&stringHandle->value;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 typedef struct
@@ -294,8 +290,8 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     NAPIHandleScope handleScope = NULL;
     // 内存分配失败，由最外层做 HandleScope
     {
-        NAPIStatus status = napi_open_handle_scope(functionInfo->baseInfo.env, &handleScope);
-        if (status != NAPIOK)
+        NAPIErrorStatus status = napi_open_handle_scope(functionInfo->baseInfo.env, &handleScope);
+        if (status != NAPIErrorOK)
         {
             if (useGlobalValue)
             {
@@ -339,18 +335,19 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope + napi_create_string_utf8
-NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data, NAPIValue *result)
+NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
+                                         NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(cb);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(cb, Exception)
+    CHECK_ARG(result, Exception)
 
     NAPIValue nameValue;
-    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &nameValue));
+    CHECK_NAPI(napi_create_string_utf8(env, utf8name, &nameValue), Exception, Exception)
 
     // malloc
     FunctionInfo *functionInfo = malloc(sizeof(FunctionInfo));
-    RETURN_STATUS_IF_FALSE(functionInfo, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(functionInfo, NAPIExceptionMemoryError)
     functionInfo->baseInfo.env = env;
     functionInfo->baseInfo.data = data;
     functionInfo->callback = cb;
@@ -361,7 +358,7 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
     {
         free(functionInfo);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     // functionInfo 生命周期被 JSValue 托管
     JS_SetOpaque(dataValue, functionInfo);
@@ -377,30 +374,28 @@ NAPIStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback 
                               JS_PROP_CONFIGURABLE);
     // 如果 functionValue 创建失败，fakePrototypeValue rc 不会被 +1，上面的引用计数 -1 => rc 为
     // 0，发生垃圾回收，FunctionInfo 结构体也被回收
-    RETURN_STATUS_IF_FALSE(!JS_IsException(functionValue), NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(!JS_IsException(functionValue), NAPIExceptionPendingException)
     struct Handle *functionHandle;
-    NAPIStatus status = addValueToHandleScope(env, functionValue, &functionHandle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, functionValue, &functionHandle);
+    if (status != NAPIErrorOK)
     {
         // 由于 dataValue 所有权被 functionValue 持有，所以只需要对 functionValue 做引用计数 -1
         JS_FreeValue(env->context, functionValue);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&functionHandle->value;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 static JSClassID externalClassId = 0;
 
-NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
+NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(value, Common)
+    CHECK_ARG(result, Common)
 
     JSValue jsValue = *((JSValue *)value);
     if (JS_IsUndefined(jsValue))
@@ -438,18 +433,18 @@ NAPIStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
     }
     else
     {
-        return NAPIInvalidArg;
+        return NAPICommonInvalidArg;
     }
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 // NAPINumberExpected
-NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
+NAPIErrorStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
     JSValue jsValue = *((JSValue *)value);
     int tag = JS_VALUE_GET_TAG(jsValue);
@@ -463,173 +458,171 @@ NAPIStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
     }
     else
     {
-        return NAPINumberExpected;
+        return NAPIErrorNumberExpected;
     }
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 // NAPIBooleanExpected
-NAPIStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
+NAPIErrorStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
-    RETURN_STATUS_IF_FALSE(JS_IsBool(*((JSValue *)value)), NAPIBooleanExpected);
+    RETURN_STATUS_IF_FALSE(JS_IsBool(*((JSValue *)value)), NAPIErrorBooleanExpected)
     *result = JS_VALUE_GET_BOOL(*((JSValue *)value));
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
 // NAPIPendingException + napi_get_boolean
-NAPIStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIExceptionStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(value, Exception)
+    CHECK_ARG(result, Exception)
 
     int boolStatus = JS_ToBool(env->context, *((JSValue *)value));
-    RETURN_STATUS_IF_FALSE(boolStatus != -1, NAPIPendingException);
-    CHECK_NAPI(napi_get_boolean(env, boolStatus, result));
+    RETURN_STATUS_IF_FALSE(boolStatus != -1, NAPIExceptionPendingException)
+    CHECK_NAPI(napi_get_boolean(env, boolStatus, result), Error, Exception)
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException + napi_create_double
-NAPIStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIExceptionStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(value, Exception)
+    CHECK_ARG(result, Exception)
 
     double doubleValue;
     // JS_ToFloat64 只有 -1 0 两种
     int floatStatus = JS_ToFloat64(env->context, &doubleValue, *((JSValue *)value));
-    RETURN_STATUS_IF_FALSE(floatStatus != -1, NAPIPendingException);
-    CHECK_NAPI(napi_create_double(env, doubleValue, result));
+    RETURN_STATUS_IF_FALSE(floatStatus != -1, NAPIExceptionPendingException)
+    CHECK_NAPI(napi_create_double(env, doubleValue, result), Error, Exception)
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result)
+NAPIExceptionStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(value, Exception)
+    CHECK_ARG(result, Exception)
 
     JSValue stringValue = JS_ToString(env->context, *((JSValue *)value));
-    RETURN_STATUS_IF_FALSE(!JS_IsException(stringValue), NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(!JS_IsException(stringValue), NAPIExceptionPendingException)
     struct Handle *stringHandle;
-    NAPIStatus status = addValueToHandleScope(env, stringValue, &stringHandle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, stringValue, &stringHandle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, stringValue);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&stringHandle->value;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException/NAPIGenericFailure
-NAPIStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value)
+NAPIExceptionStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(object);
-    CHECK_ARG(key);
-    CHECK_ARG(value);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(object, Exception)
+    CHECK_ARG(key, Exception)
+    CHECK_ARG(value, Exception)
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
-    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIExceptionPendingException)
     // JS_SetProperty 转移所有权
     int status =
         JS_SetProperty(env->context, *((JSValue *)object), atom, JS_DupValue(env->context, *((JSValue *)value)));
     JS_FreeAtom(env->context, atom);
-    RETURN_STATUS_IF_FALSE(status != -1, NAPIPendingException);
-    RETURN_STATUS_IF_FALSE(status, NAPIGenericFailure);
+    RETURN_STATUS_IF_FALSE(status != -1, NAPIExceptionPendingException)
+    RETURN_STATUS_IF_FALSE(status, NAPIExceptionGenericFailure)
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException
-NAPIStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
+NAPIExceptionStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(object);
-    CHECK_ARG(key);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(object, Exception)
+    CHECK_ARG(key, Exception)
+    CHECK_ARG(result, Exception)
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
-    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIExceptionPendingException)
     int status = JS_HasProperty(env->context, *((JSValue *)object), atom);
     JS_FreeAtom(env->context, atom);
-    RETURN_STATUS_IF_FALSE(status != -1, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(status != -1, NAPIExceptionPendingException)
     *result = status;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result)
+NAPIExceptionStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(object);
-    CHECK_ARG(key);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(object, Exception)
+    CHECK_ARG(key, Exception)
+    CHECK_ARG(result, Exception)
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
-    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIExceptionPendingException)
     JSValue value = JS_GetProperty(env->context, *((JSValue *)object), atom);
     JS_FreeAtom(env->context, atom);
-    RETURN_STATUS_IF_FALSE(!JS_IsException(value), NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(!JS_IsException(value), NAPIExceptionPendingException)
     struct Handle *handle;
-    NAPIStatus status = addValueToHandleScope(env, value, &handle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, value, &handle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, value);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&handle->value;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException
-NAPIStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
+NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(object);
-    CHECK_ARG(key);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(object, Exception)
+    CHECK_ARG(key, Exception)
 
     JSAtom atom = JS_ValueToAtom(env->context, *((JSValue *)key));
-    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(atom != JS_ATOM_NULL, NAPIExceptionPendingException)
     // 不抛出异常
     int status = JS_DeleteProperty(env->context, *((JSValue *)object), atom, 0);
     JS_FreeAtom(env->context, atom);
-    RETURN_STATUS_IF_FALSE(status != -1, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(status != -1, NAPIExceptionPendingException)
     if (result)
     {
         *result = status;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
-NAPIStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result)
+NAPICommonStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(value, Common)
+    CHECK_ARG(result, Common)
 
     *result = JS_IsArray(env->context, *((JSValue *)value));
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 static void processPendingTask(NAPIEnv env)
@@ -654,23 +647,23 @@ static void processPendingTask(NAPIEnv env)
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc, const NAPIValue *argv,
-                              NAPIValue *result)
+NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc,
+                                       const NAPIValue *argv, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(func);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(func, Exception)
 
     if (!thisValue)
     {
-        CHECK_NAPI(napi_get_global(env, &thisValue));
+        CHECK_NAPI(napi_get_global(env, &thisValue), Error, Exception)
     }
 
     JSValue *internalArgv = NULL;
     if (argc > 0)
     {
-        CHECK_ARG(argv);
+        CHECK_ARG(argv, Exception)
         internalArgv = malloc(sizeof(JSValue) * argc);
-        RETURN_STATUS_IF_FALSE(internalArgv, NAPIMemoryError);
+        RETURN_STATUS_IF_FALSE(internalArgv, NAPIExceptionMemoryError)
         for (size_t i = 0; i < argc; ++i)
         {
             internalArgv[i] = *((JSValue *)argv[i]);
@@ -690,18 +683,18 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
         }
         JS_Throw(env->context, exceptionValue);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     processPendingTask(env);
     if (result)
     {
         struct Handle *handle;
-        NAPIStatus status = addValueToHandleScope(env, returnValue, &handle);
-        if (status != NAPIOK)
+        NAPIErrorStatus status = addValueToHandleScope(env, returnValue, &handle);
+        if (status != NAPIErrorOK)
         {
             JS_FreeValue(env->context, returnValue);
 
-            return status;
+            return (NAPIExceptionStatus)status;
         }
         *result = (NAPIValue)&handle->value;
     }
@@ -710,22 +703,23 @@ NAPIStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, 
         JS_FreeValue(env->context, returnValue);
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException/NAPIMemoryError + addValueToHandleScope
-NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv, NAPIValue *result)
+NAPIExceptionStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv,
+                                      NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(constructor);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(constructor, Exception)
+    CHECK_ARG(result, Exception)
 
     JSValue *internalArgv = NULL;
     if (argc > 0)
     {
-        CHECK_ARG(argv);
+        CHECK_ARG(argv, Exception)
         internalArgv = malloc(sizeof(JSValue) * argc);
-        RETURN_STATUS_IF_FALSE(internalArgv, NAPIMemoryError);
+        RETURN_STATUS_IF_FALSE(internalArgv, NAPIExceptionMemoryError)
         for (size_t i = 0; i < argc; ++i)
         {
             internalArgv[i] = *((JSValue *)argv[i]);
@@ -744,46 +738,46 @@ NAPIStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, co
         }
         JS_Throw(env->context, exceptionValue);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     processPendingTask(env);
     struct Handle *handle;
-    NAPIStatus status = addValueToHandleScope(env, returnValue, &handle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, returnValue, &handle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, returnValue);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&handle->value;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIPendingException
-NAPIStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result)
+NAPIExceptionStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(object);
-    CHECK_ARG(constructor);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(object, Exception)
+    CHECK_ARG(constructor, Exception)
+    CHECK_ARG(result, Exception)
 
     int status = JS_IsInstanceOf(env->context, *((JSValue *)object), *((JSValue *)constructor));
-    RETURN_STATUS_IF_FALSE(status != -1, NAPIPendingException);
+    RETURN_STATUS_IF_FALSE(status != -1, NAPIExceptionPendingException)
     *result = status;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
-NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *argc, NAPIValue *argv,
-                            NAPIValue *thisArg, void **data)
+NAPICommonStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *argc, NAPIValue *argv,
+                                  NAPIValue *thisArg, void **data)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(callbackInfo);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(callbackInfo, Common)
 
     if (argv)
     {
-        CHECK_ARG(argc);
+        CHECK_ARG(argc, Common)
         size_t i = 0;
         size_t min = callbackInfo->argc < 0 || *argc > (size_t)callbackInfo->argc ? callbackInfo->argc : *argc;
         for (; i < min; ++i)
@@ -811,14 +805,14 @@ NAPIStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *
         *data = callbackInfo->data;
     }
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
-NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result)
+NAPICommonStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(callbackInfo);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(callbackInfo, Common)
+    CHECK_ARG(result, Common)
 
     if (!JS_IsUndefined(callbackInfo->newTarget))
     {
@@ -829,25 +823,25 @@ NAPIStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIV
         *result = NULL;
     }
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 typedef struct
 {
-    //    BaseInfo baseInfo;
     void *data;                    // size_t
     void *finalizeHint;            // size_t
     NAPIFinalize finalizeCallback; // size_t
 } ExternalInfo;
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
-NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint, NAPIValue *result)
+NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint,
+                                         NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(result);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(result, Exception)
 
     ExternalInfo *externalInfo = malloc(sizeof(ExternalInfo));
-    RETURN_STATUS_IF_FALSE(externalInfo, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(externalInfo, NAPIExceptionMemoryError)
     externalInfo->data = data;
     externalInfo->finalizeHint = finalizeHint;
     externalInfo->finalizeCallback = NULL;
@@ -856,34 +850,34 @@ NAPIStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB
     {
         free(externalInfo);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     JS_SetOpaque(object, externalInfo);
     struct Handle *handle;
-    NAPIStatus status = addValueToHandleScope(env, object, &handle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, object, &handle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, object);
 
-        return status;
+        return (NAPIExceptionStatus)status;
     }
     *result = (NAPIValue)&handle->value;
     // 不能先设置回调，万一出错，业务方也会收到回调
     externalInfo->finalizeCallback = finalizeCB;
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
-NAPIStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
+NAPICommonStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(value, Common)
+    CHECK_ARG(result, Common)
 
     ExternalInfo *externalInfo = JS_GetOpaque(*((JSValue *)value), externalClassId);
     *result = externalInfo ? externalInfo->data : NULL;
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 static bool gcLock = false;
@@ -923,64 +917,65 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
 // NAPINameExpected/NAPIMemoryError/NAPIGenericFailure + napi_create_string_utf8 + napi_get_property + napi_typeof +
 // napi_create_external
 // + napi_get_value_external + napi_set_property
-static NAPIStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
+static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(ref);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(value, Exception)
+    CHECK_ARG(ref, Exception)
 
-    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPINameExpected);
+    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPIExceptionNameExpected)
 
     NAPIValue referenceValue;
-    CHECK_NAPI(napi_get_property(env, value, (NAPIValue)&env->referenceSymbolValue, &referenceValue));
+    CHECK_NAPI(napi_get_property(env, value, (NAPIValue)&env->referenceSymbolValue, &referenceValue), Exception,
+               Exception)
     NAPIValueType valueType;
-    CHECK_NAPI(napi_typeof(env, referenceValue, &valueType));
-    RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIGenericFailure);
+    CHECK_NAPI(napi_typeof(env, referenceValue, &valueType), Common, Exception)
+    RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIExceptionGenericFailure)
     struct ReferenceInfo *referenceInfo;
     if (valueType == NAPIUndefined)
     {
         referenceInfo = malloc(sizeof(struct ReferenceInfo));
         referenceInfo->isEnvFreed = false;
-        RETURN_STATUS_IF_FALSE(referenceInfo, NAPIMemoryError);
+        RETURN_STATUS_IF_FALSE(referenceInfo, NAPIExceptionMemoryError)
         LIST_INIT(&referenceInfo->referenceList);
         {
-            NAPIStatus status = napi_create_external(env, referenceInfo, referenceFinalize, env, &referenceValue);
-            if (status != NAPIOK)
+            NAPIExceptionStatus status =
+                napi_create_external(env, referenceInfo, referenceFinalize, env, &referenceValue);
+            if (status != NAPIExceptionOK)
             {
                 free(referenceInfo);
 
                 return status;
             }
         }
-        CHECK_NAPI(napi_set_property(env, value, (NAPIValue)&env->referenceSymbolValue, referenceValue));
+        CHECK_NAPI(napi_set_property(env, value, (NAPIValue)&env->referenceSymbolValue, referenceValue), Exception,
+                   Exception)
         LIST_INSERT_HEAD(&env->referenceList, referenceInfo, node);
     }
     else
     {
-        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo));
+        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Common, Exception)
         if (!referenceInfo)
         {
             assert(false);
 
-            return NAPIGenericFailure;
+            return NAPIExceptionGenericFailure;
         }
     }
     LIST_INSERT_HEAD(&referenceInfo->referenceList, ref, node);
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIMemoryError + setWeak
-NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
+NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
-
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(value, Exception)
+    CHECK_ARG(result, Exception)
 
     *result = malloc(sizeof(struct OpaqueNAPIRef));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(*result, NAPIExceptionMemoryError)
     // 标量 && 弱引用
     if (!JS_IsObject(*((JSValue *)value)) && !initialRefCount)
     {
@@ -988,7 +983,7 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         (*result)->value = undefinedValue;
         LIST_INSERT_HEAD(&env->valueList, *result, node);
 
-        return NAPIOK;
+        return NAPIExceptionOK;
     }
     // 对象 || 强引用
     (*result)->value = *((JSValue *)value);
@@ -999,60 +994,60 @@ NAPIStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialR
         (*result)->value = JS_DupValue(env->context, (*result)->value);
         LIST_INSERT_HEAD(&env->strongRefList, *result, node);
 
-        return NAPIOK;
+        return NAPIExceptionOK;
     }
     // 对象 && 弱引用
     // setWeak
-    NAPIStatus status = setWeak(env, value, *result);
-    if (status != NAPIOK)
+    NAPIExceptionStatus status = setWeak(env, value, *result);
+    if (status != NAPIExceptionOK)
     {
         free(*result);
 
         return status;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPINameExpected/NAPIGenericFailure + napi_create_string_utf8 + napi_get_property + napi_get_value_external +
 // napi_delete_property
-static NAPIStatus clearWeak(NAPIEnv env, NAPIRef ref)
+static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(ref);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
 
-    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPINameExpected);
+    RETURN_STATUS_IF_FALSE(JS_IsSymbol(env->referenceSymbolValue), NAPIExceptionNameExpected)
 
     NAPIValue externalValue;
-    CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &externalValue));
+    CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &externalValue),
+               Exception, Exception)
     struct ReferenceInfo *referenceInfo;
-    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo));
+    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Common, Exception)
     if (!referenceInfo)
     {
         assert(false);
 
-        return NAPIGenericFailure;
+        return NAPIExceptionGenericFailure;
     }
     if (!LIST_EMPTY(&referenceInfo->referenceList) && LIST_FIRST(&referenceInfo->referenceList) == ref &&
         !LIST_NEXT(ref, node))
     {
         bool deleteResult;
         CHECK_NAPI(
-            napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &deleteResult));
-        RETURN_STATUS_IF_FALSE(deleteResult, NAPIGenericFailure);
+            napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &deleteResult),
+            Exception, Exception)
+        RETURN_STATUS_IF_FALSE(deleteResult, NAPIExceptionGenericFailure)
     }
     LIST_REMOVE(ref, node);
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIGenericFailure + clearWeak
-NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
+NAPIExceptionStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(ref);
-
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
 
     // 标量 && 弱引用（被 GC 也会这样）
     if (!JS_IsObject(ref->value) && !ref->referenceCount)
@@ -1060,7 +1055,7 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
         LIST_REMOVE(ref, node);
         free(ref);
 
-        return NAPIOK;
+        return NAPIExceptionOK;
     }
     // 对象 || 强引用
     if (ref->referenceCount)
@@ -1069,31 +1064,26 @@ NAPIStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
         JS_FreeValue(env->context, ref->value);
         free(ref);
 
-        return NAPIOK;
+        return NAPIExceptionOK;
     }
     // 对象 && 弱引用
-    CHECK_NAPI(clearWeak(env, ref));
+    CHECK_NAPI(clearWeak(env, ref), Exception, Exception)
     free(ref);
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIGenericFailure + clearWeak
-NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
+NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(ref);
-
-    CHECK_ARG(env->context);
-
-    // !ref->referenceCount && JS_IsUndefined(ref->value) 已经被 GC
-    //    RETURN_STATUS_IF_FALSE(ref->referenceCount || !JS_IsUndefined(ref->value), NAPIGenericFailure);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
 
     if (!ref->referenceCount)
     {
         if (JS_IsObject(ref->value))
         {
-            CHECK_NAPI(clearWeak(env, ref));
+            CHECK_NAPI(clearWeak(env, ref), Exception, Exception)
         }
         else
         {
@@ -1108,25 +1098,23 @@ NAPIStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
         *result = count;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIGenericFailure + setWeak
-NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
+NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(ref);
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
 
-    CHECK_ARG(env->context);
-
-    RETURN_STATUS_IF_FALSE(ref->referenceCount, NAPIGenericFailure);
+    RETURN_STATUS_IF_FALSE(ref->referenceCount, NAPIExceptionGenericFailure)
 
     if (ref->referenceCount == 1)
     {
         LIST_REMOVE(ref, node);
         if (JS_IsObject(ref->value))
         {
-            CHECK_NAPI(setWeak(env, (NAPIValue)&ref->value, ref));
+            CHECK_NAPI(setWeak(env, (NAPIValue)&ref->value, ref), Exception, Exception)
             JS_FreeValue(env->context, ref->value);
         }
         else
@@ -1142,14 +1130,14 @@ NAPIStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
         *result = count;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
-NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPICommonStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(ref);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(ref, Common)
+    CHECK_ARG(result, Common)
 
     if (!ref->referenceCount && JS_IsUndefined(ref->value))
     {
@@ -1160,30 +1148,27 @@ NAPIStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
         *result = (NAPIValue)&ref->value;
     }
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
 // NAPIMemoryError
-NAPIStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
+NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     *result = malloc(sizeof(struct OpaqueNAPIHandleScope));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
     SLIST_INIT(&(*result)->handleList);
     LIST_INSERT_HEAD(&env->handleScopeList, *result, node);
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+NAPICommonStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(scope);
-
-    // JS_FreeValue 不能传入 NULL
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(scope, Common)
 
     // 先入后出 stack 规则
     assert(LIST_FIRST(&env->handleScopeList) == scope);
@@ -1195,6 +1180,8 @@ void napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
     }
     LIST_REMOVE(scope, node);
     free(scope);
+
+    return NAPICommonOK;
 }
 
 struct OpaqueNAPIEscapableHandleScope
@@ -1204,30 +1191,27 @@ struct OpaqueNAPIEscapableHandleScope
 };
 
 // NAPIMemoryError
-NAPIStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result)
+NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     // 万一前面的 handleScope 被 close 了，会导致当前 EscapableHandleScope 变成最上层
     // handleScope，这里的判断就没有意义了
     //    RETURN_STATUS_IF_FALSE(LIST_FIRST(&env->handleScopeList), NAPIHandleScopeMismatch);
     *result = malloc(sizeof(struct OpaqueNAPIEscapableHandleScope));
-    RETURN_STATUS_IF_FALSE(*result, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
     (*result)->escapeCalled = false;
     SLIST_INIT(&(*result)->handleScope.handleList);
     LIST_INSERT_HEAD(&env->handleScopeList, &((*result)->handleScope), node);
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+NAPICommonStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(scope);
-
-    // JS_FreeValue 不能传入 NULL
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Common)
+    CHECK_ARG(scope, Common)
 
     assert(LIST_FIRST(&env->handleScopeList) == &scope->handleScope);
     struct Handle *handle, *tempHandle;
@@ -1238,38 +1222,36 @@ void napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope sco
     }
     LIST_REMOVE(&scope->handleScope, node);
     free(scope);
+
+    return NAPICommonOK;
 }
 
 // NAPIMemoryError/NAPIEscapeCalledTwice/NAPIHandleScopeEmpty
-NAPIStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)
+NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(scope);
-    CHECK_ARG(escapee);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(scope, Error)
+    CHECK_ARG(escapee, Error)
+    CHECK_ARG(result, Error)
 
-    CHECK_ARG(env->context);
-
-    RETURN_STATUS_IF_FALSE(!scope->escapeCalled, NAPIEscapeCalledTwice);
+    RETURN_STATUS_IF_FALSE(!scope->escapeCalled, NAPIErrorEscapeCalledTwice)
 
     NAPIHandleScope handleScope = LIST_NEXT(&scope->handleScope, node);
-    RETURN_STATUS_IF_FALSE(handleScope, NAPIHandleScopeEmpty);
+    RETURN_STATUS_IF_FALSE(handleScope, NAPIErrorHandleScopeEmpty)
     struct Handle *handle = malloc(sizeof(struct Handle));
-    RETURN_STATUS_IF_FALSE(handle, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(handle, NAPIErrorMemoryError)
     scope->escapeCalled = true;
     handle->value = JS_DupValue(env->context, *((JSValue *)escapee));
     SLIST_INSERT_HEAD(&handleScope->handleList, handle, node);
     *result = (NAPIValue)&handle->value;
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
+NAPIExceptionStatus napi_throw(NAPIEnv env, NAPIValue error)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(error);
-
-    CHECK_ARG(env->context);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(error, Exception)
 
     if (!JS_IsNull(*((JSValue *)error)))
     {
@@ -1280,17 +1262,17 @@ NAPIStatus napi_throw(NAPIEnv env, NAPIValue error)
         env->isThrowNull = true;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // + addValueToHandleScope
-NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
+NAPIErrorStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(result, Error)
 
     // JS_GetException
-    CHECK_ARG(env->context);
+    CHECK_ARG(env->context, Error)
 
     JSValue exceptionValue = JS_GetException(env->context);
     if (JS_IsNull(exceptionValue) && !env->isThrowNull)
@@ -1299,8 +1281,8 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     }
     env->isThrowNull = false;
     struct Handle *exceptionHandle;
-    NAPIStatus status = addValueToHandleScope(env, exceptionValue, &exceptionHandle);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = addValueToHandleScope(env, exceptionValue, &exceptionHandle);
+    if (status != NAPIErrorOK)
     {
         JS_FreeValue(env->context, exceptionValue);
 
@@ -1308,22 +1290,23 @@ NAPIStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
     }
     *result = (NAPIValue)&exceptionHandle->value;
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-void NAPIClearException(NAPIEnv env)
+NAPICommonStatus NAPIClearException(NAPIEnv env)
 {
-    CHECK_ARG(env)
-    CHECK_ARG(env->context)
+    CHECK_ARG(env, Common)
 
     JSValue exceptionValue = JS_GetException(env->context);
     JS_FreeValue(env->context, exceptionValue);
+
+    return NAPICommonOK;
 }
 
 // NAPIPendingException + addValueToHandleScope
-NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
+NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
+    NAPI_PREAMBLE(env)
 
     // script 传入 NULL 会崩
     if (!script)
@@ -1346,23 +1329,23 @@ NAPIStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl,
         }
         JS_Throw(env->context, exceptionValue);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     processPendingTask(env);
     if (result)
     {
         struct Handle *returnHandle;
-        NAPIStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
-        if (status != NAPIOK)
+        NAPIErrorStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
+        if (status != NAPIErrorOK)
         {
             JS_FreeValue(env->context, returnValue);
 
-            return status;
+            return (NAPIExceptionStatus)status;
         }
         *result = (NAPIValue)&returnHandle->value;
     }
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 static uint8_t contextCount = 0;
@@ -1422,8 +1405,8 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     struct OpaqueNAPICallbackInfo callbackInfo = {newTarget, thisValue, argv,
                                                   constructorInfo->functionInfo.baseInfo.data, argc};
     NAPIHandleScope handleScope;
-    NAPIStatus status = napi_open_handle_scope(constructorInfo->functionInfo.baseInfo.env, &handleScope);
-    if (status != NAPIOK)
+    NAPIErrorStatus status = napi_open_handle_scope(constructorInfo->functionInfo.baseInfo.env, &handleScope);
+    if (status != NAPIErrorOK)
     {
         assert(false);
         JS_FreeValue(ctx, thisValue);
@@ -1458,16 +1441,15 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
 }
 
 // NAPIMemoryError/NAPIPendingException + addValueToHandleScope
-NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data, NAPIValue *result)
+NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
+                                    NAPIValue *result)
 {
-    NAPI_PREAMBLE(env);
-    CHECK_ARG(constructor);
-    CHECK_ARG(result);
-
-    CHECK_ARG(runtime);
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(constructor, Exception)
+    CHECK_ARG(result, Exception)
 
     ConstructorInfo *constructorInfo = malloc(sizeof(ConstructorInfo));
-    RETURN_STATUS_IF_FALSE(constructorInfo, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(constructorInfo, NAPIExceptionMemoryError)
     constructorInfo->functionInfo.baseInfo.env = env;
     constructorInfo->functionInfo.baseInfo.data = data;
     constructorInfo->functionInfo.callback = constructor;
@@ -1479,14 +1461,14 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     {
         free(constructorInfo);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     JSValue prototype = JS_NewObjectClass(env->context, (int)constructorClassId);
     if (JS_IsException(prototype))
     {
         free(constructorInfo);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     JS_SetOpaque(prototype, constructorInfo);
     // JS_NewCFunction2 会正确处理 utf8name 为空情况
@@ -1496,11 +1478,11 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
         // prototype 会自己 free ConstructorInfo 结构体
         JS_FreeValue(env->context, prototype);
 
-        return NAPIPendingException;
+        return NAPIExceptionPendingException;
     }
     struct Handle *handle;
-    NAPIStatus addStatus = addValueToHandleScope(env, constructorValue, &handle);
-    if (addStatus != NAPIOK)
+    NAPIErrorStatus addStatus = addValueToHandleScope(env, constructorValue, &handle);
+    if (addStatus != NAPIErrorOK)
     {
         JS_FreeValue(env->context, constructorValue);
         JS_FreeValue(env->context, prototype);
@@ -1515,21 +1497,21 @@ NAPIStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback const
     // 转移所有权
     JS_SetClassProto(env->context, constructorInfo->classId, prototype);
 
-    return NAPIOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIGenericFailure/NAPIMemoryError
-NAPIStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 {
-    CHECK_ARG(env);
+    CHECK_ARG(env, Error)
     if ((runtime && !contextCount) || (!runtime && contextCount))
     {
         assert(false);
 
-        return NAPIGenericFailure;
+        return NAPIErrorGenericFailure;
     }
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
-    RETURN_STATUS_IF_FALSE(*env, NAPIMemoryError);
+    RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
     if (!runtime)
     {
         runtime = JS_NewRuntime();
@@ -1537,7 +1519,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         {
             free(*env);
 
-            return NAPIMemoryError;
+            return NAPIErrorMemoryError;
         }
         // 一定成功
         JS_NewClassID(&constructorClassId);
@@ -1555,7 +1537,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
             functionClassId = 0;
             externalClassId = 0;
 
-            return NAPIGenericFailure;
+            return NAPIErrorGenericFailure;
         }
 
         classDef.class_name = "FunctionData";
@@ -1570,7 +1552,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
             functionClassId = 0;
             externalClassId = 0;
 
-            return NAPIGenericFailure;
+            return NAPIErrorGenericFailure;
         }
 
         classDef.class_name = "ConstructorPrototype";
@@ -1585,7 +1567,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
             functionClassId = 0;
             externalClassId = 0;
 
-            return NAPIGenericFailure;
+            return NAPIErrorGenericFailure;
         }
     }
     JSContext *context = JS_NewContext(runtime);
@@ -1599,7 +1581,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         functionClassId = 0;
         externalClassId = 0;
 
-        return NAPIMemoryError;
+        return NAPIErrorMemoryError;
     }
     JSValue prototype = JS_NewObject(context);
     if (JS_IsException(prototype))
@@ -1612,7 +1594,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         functionClassId = 0;
         externalClassId = 0;
 
-        return NAPIGenericFailure;
+        return NAPIErrorGenericFailure;
     }
     JS_SetClassProto(context, externalClassId, prototype);
     prototype = JS_NewObject(context);
@@ -1626,7 +1608,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         functionClassId = 0;
         externalClassId = 0;
 
-        return NAPIGenericFailure;
+        return NAPIErrorGenericFailure;
     }
     JS_SetClassProto(context, constructorClassId, prototype);
     const char *string = "(function () { return Symbol(\"reference\") })();";
@@ -1642,7 +1624,7 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
         functionClassId = 0;
         externalClassId = 0;
 
-        return NAPIGenericFailure;
+        return NAPIErrorGenericFailure;
     }
     contextCount += 1;
     (*env)->context = context;
@@ -1652,12 +1634,12 @@ NAPIStatus NAPICreateEnv(NAPIEnv *env)
     LIST_INIT(&(*env)->valueList);
     LIST_INIT(&(*env)->strongRefList);
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-void NAPIFreeEnv(NAPIEnv env)
+NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
 {
-    CHECK_ARG(env);
+    CHECK_ARG(env, Common)
 
     assert(LIST_EMPTY(&(*env).handleScopeList));
     //    NAPIHandleScope handleScope, tempHandleScope;
@@ -1683,7 +1665,7 @@ void NAPIFreeEnv(NAPIEnv env)
                 bool deleteResult;
                 // 可能触发 GC，如果触发 GC 会导致 referenceInfo 被销毁，遍历走不下去，所以添加了一个 gcLock
                 if (napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue,
-                                         &deleteResult) != NAPIOK)
+                                         &deleteResult) != NAPIExceptionOK)
                 {
                     assert(false);
                 }
@@ -1712,37 +1694,39 @@ void NAPIFreeEnv(NAPIEnv env)
         externalClassId = 0;
     }
     free(env);
+
+    return NAPICommonOK;
 }
 
-NAPIStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)
+NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)
 {
-    CHECK_ARG(env);
-    CHECK_ARG(value);
-    CHECK_ARG(result);
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
-    CHECK_ARG(env->context);
-    RETURN_STATUS_IF_FALSE(JS_IsString(*((JSValue *)value)), NAPIStringExpected);
+    RETURN_STATUS_IF_FALSE(JS_IsString(*((JSValue *)value)), NAPIErrorStringExpected);
 
     *result = JS_ToCString(env->context, *((JSValue *)value));
 
-    return NAPIOK;
+    return NAPIErrorOK;
 }
 
-NAPIStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
+NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
 {
-    CHECK_ARG(env);
-
-    CHECK_ARG(env->context);
+    CHECK_ARG(env, Common)
 
     JS_FreeCString(env->context, cString);
 
-    return NAPIOK;
+    return NAPICommonOK;
 }
 
-void NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env, __attribute__((unused)) const char *debuggerTitle)
+NAPICommonStatus NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env,
+                                    __attribute__((unused)) const char *debuggerTitle)
 {
+    return NAPICommonOK;
 }
 
-void NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
+NAPICommonStatus NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
 {
+    return NAPICommonOK;
 }
