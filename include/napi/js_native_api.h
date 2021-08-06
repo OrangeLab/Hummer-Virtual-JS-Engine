@@ -30,6 +30,7 @@ NAPI_EXPORT NAPIExceptionStatus napi_create_string_utf8(NAPIEnv env, const char 
 NAPI_EXPORT NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
                                                      NAPIValue *result);
 
+// 传入 Symbol 等 ES6 及以后的类型会提示 NAPIErrorInvalidArg 错误
 NAPI_EXPORT NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result);
 
 NAPI_EXPORT NAPIErrorStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result);

@@ -1293,7 +1293,7 @@ NAPIErrorStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result
     return NAPIErrorOK;
 }
 
-NAPICommonStatus NAPIClearException(NAPIEnv env)
+NAPICommonStatus NAPIClearLastException(NAPIEnv env)
 {
     CHECK_ARG(env, Common)
 
