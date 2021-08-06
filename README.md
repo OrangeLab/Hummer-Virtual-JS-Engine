@@ -3,10 +3,11 @@
 Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独立于 JavaScript 运行时的 API 接口层，旨在将 C 原生代码和 JavaScript 引擎隔离开来。API 通常用于创建和操作
 JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具有以下特点：
 
-1. 所有节点API调用都返回类型为 NAPIStatus 的状态代码。此状态指示 API 调用是成功还是失败。
-2. API 的返回值通过 out 参数传递。
-3. 所有 JavaScript 值都抽象在一个名为 NAPIValue 的不透明类型后面。
-4. 如果出现 NAPIPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取
+1. 所有节点API调用都返回类型为 NAPI{Common|Error|Exception}Status 的状态代码。此状态指示 API 调用是成功还是失败。
+2. NAPICommonStatus 类型的接口一般情况下不需要检查返回值，NAPIErrorStatus 接口可能抛出内存分配失败错误，NAPIExceptionStatus 代表可能抛出 JavaScript 异常
+3. API 的返回值通过 out 参数传递。
+4. 所有 JavaScript 值都抽象在一个名为 NAPIValue 的不透明类型后面。
+5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取，或通过 NAPIClearLastException 清除
 
 ## 代码静态分析
 
@@ -55,16 +56,16 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 1. `rm -rf napi`
 2. `mkdir napi`
-3. `tar czvf napi.tar.gz napi/*` 压缩产物
+3. `cp -r include napi`
+4. `tar czvf napi.tar.gz napi/*` 压缩产物
 
 ### iOS 静态库
 
 1. `gn gen x86_64 --args="build_ios=true cross_compile_target=\"x86_64\""`
 2. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\""`
 3. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\""`
-4. `ninja -C x86_64 {quickjs|hermes|napi_jsc} && ninja -C armv7 {quickjs|hermes|napi_jsc} && ninja -C arm64 {quickjs|hermes|napi_jsc}`
-5. `libtool -static x86_64/obj/lib{quickjs|hermes|napi_jsc}.a armv7/obj/lib{quickjs|hermes|napi_jsc}.a arm64/obj/lib{quickjs|hermes|napi_jsc}.a -o napi/lib{quickjs|hermes|napi_jsc}.a`
-6. `napi/lib{quickjs|hermes|napi_jsc}.a` 即为最终产物
+4. `ninja -C x86_64 quickjs hermes jsc && ninja -C armv7 quickjs hermes jsc && ninja -C arm64 quickjs hermes jsc`
+5. `libtool -static x86_64/obj/libquickjs.a armv7/obj/libquickjs.a arm64/obj/libquickjs.a -o napi/libquickjs.a && libtool -static x86_64/obj/libhermes.a armv7/obj/libhermes.a arm64/obj/libhermes.a -o napi/libhermes.a && libtool -static x86_64/obj/libjsc.a armv7/obj/libjsc.a arm64/obj/libjsc.a -o napi/libjsc.a`
 
 ### Android 动态库
 
@@ -72,18 +73,18 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 2. `gn gen arm64 --args="build_android=true cross_compile_target=\"arm64\""`
 3. `gn gen i386 --args="build_android=true cross_compile_target=\"i386\""`
 4. `gn gen x86_64 --args="build_android=true cross_compile_target=\"x86_64\""`
-5. `ninja -C armv7 {qjs|hermes} && ninja -C arm64 {qjs|hermes} && ninja -C i386 {qjs|hermes} && ninja -C x86_64 {qjs|hermes}`
+5. `ninja -C armv7 qjs hermes && ninja -C arm64 qjs hermes && ninja -C i386 qjs hermes && ninja -C x86_64 qjs hermes`
 6. `mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64`
-7. `mv armv7/obj/*.so napi/libs/armeabi-v7a && mv arm64/obj/*.so napi/libs/arm64-v8a && mv i386/obj/*.so napi/libs/x86 && mv x86_64/obj/*.so napi/libs/x86_64`
+7. `cp armv7/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && mv arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && mv i386/obj/lib{hermes,qjs}.so napi/libs/x86 && mv x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
 
 #### 交叉编译注意
 
-1. macOS shell 对文件描述符有限制，默认限制 256，会导致运行时链接出问题，可以通过 `ulimit -a` 查看，可以通过 `ulimit -S -n 4096` 临时修改
+1. macOS shell 对文件描述符有限制，默认限制 256，会导致链接出问题，可以通过 `ulimit -a` 查看，可以通过 `ulimit -S -n 4096` 临时修改
 
 #### 注意
 
 1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
-2. Hermes 引擎需要先应用 third_party/hermes_patch.diff 补丁
+2. Hermes 引擎需要先 `cd third_party/hermes && git apply ../hermes_patch.diff`
 3. Android 版本 libhermes.so 包括 fbjni 库，内含 OnLoad.cpp，需要使用 System.load("hermes") 显式加载，不能依赖 Linux 内核的动态库隐式加载
 
 ## 注意事项
