@@ -69,5 +69,5 @@ x86_64
 i386
 armv7
 arm64
-napi
+./napi
 napi.tar.gz
