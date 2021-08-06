@@ -226,7 +226,7 @@ class DecoratedRuntime : public facebook::jsi::WithRuntimeDecorator<ReentrancyCh
 #ifdef HERMES_ENABLE_DEBUGGER
         auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(runtime_, hermesRuntime_);
         std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
-        debuggerTitleString.append(" - React");
+        //        debuggerTitleString.append(" - React");
         facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
 #endif
     }
