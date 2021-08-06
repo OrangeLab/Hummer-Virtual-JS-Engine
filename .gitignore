@@ -60,14 +60,15 @@ Temporary Items
 *.out
 *.app
 
-out
-.vscode
-.idea
-clion
-static_analyze_report
-x86_64
-i386
-armv7
-arm64
-./napi
-napi.tar.gz
+/out/
+/.vscode/
+/.idea/
+/clion/
+/static_analyze_report/
+/x86_64/
+/i386/
+/armv7/
+/arm64/
+/napi/
+/napi_ios.tar.gz
+/napi_android.tar.gz

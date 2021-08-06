@@ -65,7 +65,7 @@ class External final : public hermes::vm::HostObjectProxy
   public:
     External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
 
-    [[nodiscard]] void *getData() const;
+    void *getData() const;
 
     ~External() override;
 
@@ -291,7 +291,7 @@ struct OpaqueNAPIEnv final
 
     ~OpaqueNAPIEnv();
 
-    [[nodiscard]] hermes::vm::Runtime *getRuntime() const
+    hermes::vm::Runtime *getRuntime() const
     {
         return runtime;
     }
@@ -348,7 +348,7 @@ struct OpaqueNAPIRef final
         hermes::vm::PinnedHermesValue pinnedHermesValue;                 // 64
         hermes::vm::WeakRef<hermes::vm::HermesValue> hermesValueWeakRef; // size_t
     };
-    [[nodiscard]] const hermes::vm::PinnedHermesValue *getHermesValue() const
+    const hermes::vm::PinnedHermesValue *getHermesValue() const
     {
         if (!referenceCount && !isObject)
         {
@@ -458,7 +458,7 @@ struct OpaqueNAPIRef final
         }
         --referenceCount;
     }
-    [[nodiscard]] uint8_t getReferenceCount() const
+    uint8_t getReferenceCount() const
     {
         return referenceCount;
     }
@@ -533,15 +533,15 @@ class FunctionInfo final
     FunctionInfo(NAPIEnv env, NAPICallback callback, void *data) : env(env), callback(callback), data(data)
     {
     }
-    [[nodiscard]] NAPIEnv getEnv() const
+    NAPIEnv getEnv() const
     {
         return env;
     }
-    [[nodiscard]] NAPICallback getCallback() const
+    NAPICallback getCallback() const
     {
         return callback;
     }
-    [[nodiscard]] void *getData() const
+    void *getData() const
     {
         return data;
     }
@@ -568,11 +568,11 @@ struct OpaqueNAPICallbackInfo
     OpaqueNAPICallbackInfo(const hermes::vm::NativeArgs &nativeArgs, void *data) : nativeArgs(nativeArgs), data(data)
     {
     }
-    [[nodiscard]] const hermes::vm::NativeArgs &getNativeArgs() const
+    const hermes::vm::NativeArgs &getNativeArgs() const
     {
         return nativeArgs;
     }
-    [[nodiscard]] void *getData() const
+    void *getData() const
     {
         return data;
     }
@@ -1279,7 +1279,7 @@ struct OpaqueNAPIEscapableHandleScope
     OpaqueNAPIEscapableHandleScope &operator=(const OpaqueNAPIEscapableHandleScope &) = delete;
     OpaqueNAPIEscapableHandleScope &operator=(OpaqueNAPIEscapableHandleScope &&) = delete;
 
-    [[nodiscard]] bool isEscapeCalled() const
+    bool isEscapeCalled() const
     {
         return escapeCalled;
     }
@@ -1473,7 +1473,7 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
     CHECK_ARG(env, Error)
 
     *env = new (::std::nothrow) OpaqueNAPIEnv();
-    RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError);
+    RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
 
     return NAPIErrorOK;
 }

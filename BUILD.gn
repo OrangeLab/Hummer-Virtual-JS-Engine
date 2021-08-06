@@ -636,7 +636,7 @@ source_set("hermes_inspector") {
 }
 
 source_set("napi_hermes_source_set") {
-    cflags_cc = ["-std=c++17",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
+    cflags_cc = ["-std=c++14",  "-fvisibility=hidden", "-Wno-unused-parameter", "-Wno-extra-semi", "-Wno-gnu-zero-variadic-macro-arguments", "-Wno-gnu-anonymous-struct", "-Wno-c99-extensions", "-Wno-nested-anon-types"]
     configs = [":llvm_build", ":hermes_build", ":strict_build", ":napi_build", ":react_native_common_build", ":jsi_hermes_build", ":rtti_build"]
     sources = [
     # WithRuntimeDecorator 需要 RTTI
