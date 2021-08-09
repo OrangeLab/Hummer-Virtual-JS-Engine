@@ -55,7 +55,6 @@
 
 #define NAPI_PREAMBLE(env)                                                                                             \
     CHECK_ARG(env, Exception)                                                                                          \
-    CHECK_ARG(env->getRuntime(), Exception)                                                                            \
     RETURN_STATUS_IF_FALSE(env->getRuntime()->getThrownValue().isEmpty(), NAPIExceptionPendingException)
 
 namespace
@@ -95,14 +94,14 @@ class External final : public hermes::vm::HostObjectProxy
 
 // hermes.cpp -> kMaxNumRegisters
 constexpr unsigned kMaxNumRegisters =
-    (512 * 1024 - sizeof(::hermes::vm::Runtime) - 4096 * 8) / sizeof(::hermes::vm::PinnedHermesValue);
+    (512 * 1024 - sizeof(hermes::vm::Runtime) - 4096 * 8) / sizeof(hermes::vm::PinnedHermesValue);
 
 #ifdef HERMES_ENABLE_DEBUGGER
 
-class HermesExecutorRuntimeAdapter : public facebook::hermes::inspector::RuntimeAdapter
+class HermesExecutorRuntimeAdapter final : public facebook::hermes::inspector::RuntimeAdapter
 {
   public:
-    HermesExecutorRuntimeAdapter(std::shared_ptr<facebook::jsi::Runtime> runtime,
+    HermesExecutorRuntimeAdapter(std::shared_ptr<facebook::hermes::HermesRuntime> runtime,
                                  facebook::hermes::HermesRuntime &hermesRuntime)
         : runtime_(std::move(runtime)), hermesRuntime_(hermesRuntime)
     {
@@ -121,135 +120,11 @@ class HermesExecutorRuntimeAdapter : public facebook::hermes::inspector::Runtime
     }
 
   private:
-    std::shared_ptr<facebook::jsi::Runtime> runtime_;
+    std::shared_ptr<facebook::hermes::HermesRuntime> runtime_;
     facebook::hermes::HermesRuntime &hermesRuntime_;
 };
 
 #endif
-
-struct ReentrancyCheck
-{
-// This is effectively a very subtle and complex assert, so only
-// include it in builds which would include asserts.
-#ifndef NDEBUG
-    ReentrancyCheck() : tid(std::thread::id()), depth(0)
-    {
-    }
-
-    void before()
-    {
-        std::thread::id this_id = std::this_thread::get_id();
-        std::thread::id expected = std::thread::id();
-
-        // A note on memory ordering: the main purpose of these checks is
-        // to observe a before/before race, without an intervening after.
-        // This will be detected by the compare_exchange_strong atomicity
-        // properties, regardless of memory order.
-        //
-        // For everything else, it is easiest to think of 'depth' as a
-        // proxy for any access made inside the VM.  If access to depth
-        // are reordered incorrectly, the same could be true of any other
-        // operation made by the VM.  In fact, using acquire/release
-        // memory ordering could create barriers which mask a programmer
-        // error.  So, we use relaxed memory order, to avoid masking
-        // actual ordering errors.  Although, in practice, ordering errors
-        // of this sort would be surprising, because the decorator would
-        // need to call after() without before().
-
-        if (tid.compare_exchange_strong(expected, this_id, std::memory_order_relaxed))
-        {
-            // Returns true if tid and expected were the same.  If they
-            // were, then the stored tid referred to no thread, and we
-            // atomically saved this thread's tid.  Now increment depth.
-            assert(depth == 0 && "No thread id, but depth != 0");
-            ++depth;
-        }
-        else if (expected == this_id)
-        {
-            // If the stored tid referred to a thread, expected was set to
-            // that value.  If that value is this thread's tid, that's ok,
-            // just increment depth again.
-            assert(depth != 0 && "Thread id was set, but depth == 0");
-            ++depth;
-        }
-        else
-        {
-            // The stored tid was some other thread.  This indicates a bad
-            // programmer error, where VM methods were called on two
-            // different threads unsafely.  Fail fast (and hard) so the
-            // crash can be analyzed.
-            __builtin_trap();
-        }
-    }
-
-    void after()
-    {
-        assert(tid.load(std::memory_order_relaxed) == std::this_thread::get_id() && "No thread id in after()");
-        if (--depth == 0)
-        {
-            // If we decremented depth to zero, store no-thread into tid.
-            std::thread::id expected = std::this_thread::get_id();
-            bool didWrite = tid.compare_exchange_strong(expected, std::thread::id(), std::memory_order_relaxed);
-            assert(didWrite && "Decremented to zero, but no tid write");
-        }
-    }
-
-    std::atomic<std::thread::id> tid;
-    // This is not atomic, as it is only written or read from the owning
-    // thread.
-    unsigned int depth;
-#endif
-};
-
-// This adds ReentrancyCheck and debugger enable/teardown to the given
-// Runtime.
-class DecoratedRuntime : public facebook::jsi::WithRuntimeDecorator<ReentrancyCheck>
-{
-  public:
-    // The first argument may be another decorator which itself
-    // decorates the real HermesRuntime, depending on the build config.
-    // The second argument is the real HermesRuntime as well to
-    // manage the debugger registration.
-    DecoratedRuntime(std::unique_ptr<facebook::jsi::Runtime> runtime, facebook::hermes::HermesRuntime &hermesRuntime)
-        : facebook::jsi::WithRuntimeDecorator<ReentrancyCheck>(*runtime, reentrancyCheck_),
-          runtime_(std::move(runtime)), hermesRuntime_(hermesRuntime)
-    {
-    }
-
-    ~DecoratedRuntime() override
-    {
-        disableDebugger();
-    }
-
-    void enableDebugger(const char *debuggerTitle)
-    {
-#ifdef HERMES_ENABLE_DEBUGGER
-        auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(runtime_, hermesRuntime_);
-        std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
-        //        debuggerTitleString.append(" - React");
-        facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
-#endif
-    }
-
-    void disableDebugger()
-    {
-#ifdef HERMES_ENABLE_DEBUGGER
-        facebook::hermes::inspector::chrome::disableDebugging(hermesRuntime_);
-#endif
-    }
-
-  private:
-    // runtime_ is a potentially decorated Runtime.
-    // hermesRuntime is a reference to a HermesRuntime managed by runtime_.
-    //
-    // HermesExecutorRuntimeAdapter requirements are kept, because the
-    // dtor will disable debugging on the HermesRuntime before the
-    // member managing it is destroyed.
-
-    std::shared_ptr<Runtime> runtime_;
-    ReentrancyCheck reentrancyCheck_;
-    facebook::hermes::HermesRuntime &hermesRuntime_;
-};
 } // namespace
 
 External::External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
@@ -287,7 +162,7 @@ struct OpaqueNAPIRef;
 
 struct OpaqueNAPIEnv final
 {
-    OpaqueNAPIEnv();
+    explicit OpaqueNAPIEnv(const hermes::vm::RuntimeConfig &runtimeConfig);
 
     ~OpaqueNAPIEnv();
 
@@ -315,69 +190,44 @@ struct OpaqueNAPIEnv final
     void disableDebugger();
 
   private:
-    std::shared_ptr<DecoratedRuntime> decoratedRuntime;
+    //    std::shared_ptr<DecoratedRuntime> decoratedRuntime;
     hermes::vm::Runtime *runtime;
+
+    std::shared_ptr<facebook::hermes::HermesRuntime> hermesRuntimeSharedPtr;
+    facebook::hermes::HermesRuntime &hermesRuntime;
 };
 
 void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle)
 {
-    decoratedRuntime->enableDebugger(debuggerTitle);
+#ifdef HERMES_ENABLE_DEBUGGER
+    auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(hermesRuntimeSharedPtr, hermesRuntime);
+    std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
+    //        debuggerTitleString.append(" - React");
+    facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
+#endif
 }
 
 void OpaqueNAPIEnv::disableDebugger()
 {
-    decoratedRuntime->disableDebugger();
+#ifdef HERMES_ENABLE_DEBUGGER
+    facebook::hermes::inspector::chrome::disableDebugging(hermesRuntime);
+#endif
 }
 
-// !referenceCount && !isObject => (undefined, 0) => nullptr
+// 初始状态
+// !referenceCount && !isObject => (undefined, 0) => addValue
 // referenceCount > 0 => 强引用 => addStrong
-// !referenceCount && isObject => weakRef => addWeak
+// !referenceCount && isObject => 弱引用 => addWeak
 
-// 1 + ref => undefined 强引用 => addStrong
+// 1 + ref => undefined 强引用 => removeValue + addStrong
 // 2 + ref => 强引用
 // (2 + unref) && isObject => weakRef => removeStrong + addWeak
-// (2 + unref) && !isObject => (undefined, 0) => nullptr => removeStrong
-// (3 + ref) && isValid => 强引用 => removeWeak + addStrong
-// (3 + ref) && !isValid => undefined 强引用 => removeWeak + addStrong + isObject = false;
+// (2 + unref) && !isObject => (undefined, 0) => removeStrong + addValue
+// (3 + ref) && 有效 => 强引用 => removeWeak + addStrong
+// (3 + ref) && 无效 => undefined 强引用 => removeWeak + addStrong + isObject = false;
 
 struct OpaqueNAPIRef final
 {
-    LIST_ENTRY(OpaqueNAPIRef) node;
-
-    union {
-        hermes::vm::PinnedHermesValue pinnedHermesValue;                 // 64
-        hermes::vm::WeakRef<hermes::vm::HermesValue> hermesValueWeakRef; // size_t
-    };
-    const hermes::vm::PinnedHermesValue *getHermesValue() const
-    {
-        if (!referenceCount && !isObject)
-        {
-            return nullptr;
-        }
-        else if (referenceCount)
-        {
-            return &pinnedHermesValue;
-        }
-        else
-        {
-            auto hermesValueHandleOptional = hermesValueWeakRef.get(env->getRuntime(), &env->getRuntime()->getHeap());
-            if (hermesValueHandleOptional.hasValue())
-            {
-                return hermesValueHandleOptional.getValue().unsafeGetPinnedHermesValue();
-            }
-            else
-            {
-                return nullptr;
-            }
-        }
-    }
-
-  private:
-    NAPIEnv env;
-    uint8_t referenceCount;
-    bool isObject;
-
-  public:
     OpaqueNAPIRef(NAPIEnv env, const hermes::vm::PinnedHermesValue &pinnedHermesValue, uint8_t referenceCount)
         : env(env), referenceCount(referenceCount), isObject(pinnedHermesValue.isObject())
     {
@@ -417,24 +267,27 @@ struct OpaqueNAPIRef final
     }
     void ref()
     {
-        LIST_REMOVE(this, node);
-        if (!referenceCount && !isObject)
+        if (!referenceCount)
         {
-            LIST_INSERT_HEAD(&env->strongRefList, this, node);
-        }
-        else if (isObject && !referenceCount)
-        {
-            auto hermesValueOptional = hermesValueWeakRef.unsafeGetOptional(&env->getRuntime()->getHeap());
-            if (hermesValueOptional.hasValue())
+            LIST_REMOVE(this, node);
+            if (!isObject)
             {
-                pinnedHermesValue = hermesValueOptional.getValue();
+                LIST_INSERT_HEAD(&env->strongRefList, this, node);
             }
             else
             {
-                pinnedHermesValue = *hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
-                isObject = false;
+                auto hermesValueOptional = hermesValueWeakRef.unsafeGetOptional(&env->getRuntime()->getHeap());
+                if (hermesValueOptional.hasValue())
+                {
+                    pinnedHermesValue = hermesValueOptional.getValue();
+                }
+                else
+                {
+                    pinnedHermesValue = *hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+                    isObject = false;
+                }
+                LIST_INSERT_HEAD(&env->strongRefList, this, node);
             }
-            LIST_INSERT_HEAD(&env->strongRefList, this, node);
         }
         ++referenceCount;
     }
@@ -462,12 +315,50 @@ struct OpaqueNAPIRef final
     {
         return referenceCount;
     }
+
+    LIST_ENTRY(OpaqueNAPIRef) node;
+
+    union {
+        hermes::vm::PinnedHermesValue pinnedHermesValue;                 // 64
+        hermes::vm::WeakRef<hermes::vm::HermesValue> hermesValueWeakRef; // size_t
+    };
+    const hermes::vm::PinnedHermesValue *getHermesValue() const
+    {
+        if (!referenceCount && !isObject)
+        {
+            return nullptr;
+        }
+        else if (referenceCount)
+        {
+            return &pinnedHermesValue;
+        }
+        else
+        {
+            // 会创建 Handle
+            auto hermesValueHandleOptional = hermesValueWeakRef.get(env->getRuntime(), &env->getRuntime()->getHeap());
+            if (hermesValueHandleOptional.hasValue())
+            {
+                return hermesValueHandleOptional.getValue().unsafeGetPinnedHermesValue();
+            }
+            else
+            {
+                return nullptr;
+            }
+        }
+    }
+
+  private:
+    NAPIEnv env;
+    uint8_t referenceCount;
+    bool isObject;
 };
 
 EXTERN_C_END
 
 OpaqueNAPIEnv::~OpaqueNAPIEnv()
 {
+    disableDebugger();
+
     NAPIRef ref, temp;
     LIST_FOREACH_SAFE(ref, &valueList, node, temp)
     {
@@ -483,25 +374,27 @@ OpaqueNAPIEnv::~OpaqueNAPIEnv()
     }
 }
 
-OpaqueNAPIEnv::OpaqueNAPIEnv()
+OpaqueNAPIEnv::OpaqueNAPIEnv(const hermes::vm::RuntimeConfig &runtimeConfig)
+    : hermesRuntimeSharedPtr(facebook::hermes::makeHermesRuntime(runtimeConfig)), hermesRuntime(*hermesRuntimeSharedPtr)
 {
     // HermesExecutorFactory -> heapSizeMB 1024 -> HermesExecutor -> initHybrid
     // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L85
     // https://github.com/facebook/react-native/blob/v0.64.2/ReactAndroid/src/main/java/com/facebook/hermes/reactexecutor/OnLoad.cpp#L33
-    auto gcConfigBuilder = hermes::vm::GCConfig::Builder()
-                               .withName("N-API")
-                               //                               .withAllocInYoung(false)
-                               //                               .withRevertToYGAtTTI(true)
-                               .withMaxHeapSize(1024 << 20);
-    auto runtimeConfig = hermes::vm::RuntimeConfig::Builder()
-                             .withGCConfig(gcConfigBuilder.build())
-                             //                             .withRegisterStack(nullptr)
-                             .withMaxNumRegisters(kMaxNumRegisters)
-                             .build();
-    std::unique_ptr<facebook::hermes::HermesRuntime> hermesRuntime = facebook::hermes::makeHermesRuntime(runtimeConfig);
-    facebook::hermes::HermesRuntime &hermesRuntimeRef = *hermesRuntime;
-    decoratedRuntime = std::make_shared<DecoratedRuntime>(std::move(hermesRuntime), hermesRuntimeRef);
-    runtime = facebook::hermes::HermesRuntime::getHermesRuntimeFromJSI(&hermesRuntimeRef);
+    //    auto gcConfigBuilder = hermes::vm::GCConfig::Builder()
+    //                               .withName("N-API")
+    //                               .withAllocInYoung(false)
+    //                               .withRevertToYGAtTTI(true)
+    //                               .withMaxHeapSize(1024 << 20);
+    //    auto runtimeConfig = hermes::vm::RuntimeConfig::Builder()
+    //                             .withGCConfig(gcConfigBuilder.build())
+    //                             .withRegisterStack(nullptr)
+    //                             .withMaxNumRegisters(kMaxNumRegisters)
+    //                             .build();
+    //    std::unique_ptr<facebook::hermes::HermesRuntime> hermesRuntime =
+    //    facebook::hermes::makeHermesRuntime(runtimeConfig); facebook::hermes::HermesRuntime &hermesRuntimeRef =
+    //    *hermesRuntime; decoratedRuntime = std::make_shared<DecoratedRuntime>(std::move(hermesRuntime),
+    //    hermesRuntimeRef);
+    runtime = facebook::hermes::HermesRuntime::getHermesRuntimeFromJSI(&hermesRuntime);
     // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode -> clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
     // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ = {} => undefined
     runtime->clearThrownValue();
@@ -705,7 +598,7 @@ NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPI
 
     NAPIValue stringValue;
     CHECK_NAPI(napi_create_string_utf8(env, utf8name, &stringValue), Exception, Exception)
-    auto stringPrimitive = ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
+    auto stringPrimitive = hermes::vm::dyn_vmcast_or_null<::hermes::vm::StringPrimitive>(
         *(const ::hermes::vm::PinnedHermesValue *)stringValue);
     RETURN_STATUS_IF_FALSE(stringPrimitive, NAPIExceptionMemoryError)
     auto callResult =
@@ -1472,7 +1365,17 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 {
     CHECK_ARG(env, Error)
 
-    *env = new (::std::nothrow) OpaqueNAPIEnv();
+    auto gcConfigBuilder = hermes::vm::GCConfig::Builder()
+                               .withName("N-API")
+                               //                                   .withAllocInYoung(false)
+                               //                                   .withRevertToYGAtTTI(true)
+                               .withMaxHeapSize(1024 << 20);
+    auto runtimeConfig = hermes::vm::RuntimeConfig::Builder()
+                             .withGCConfig(gcConfigBuilder.build())
+                             //                                 .withRegisterStack(nullptr)
+                             .withMaxNumRegisters(kMaxNumRegisters)
+                             .build();
+    *env = new (::std::nothrow) OpaqueNAPIEnv(runtimeConfig);
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
 
     return NAPIErrorOK;
