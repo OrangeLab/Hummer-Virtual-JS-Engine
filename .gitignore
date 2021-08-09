@@ -71,4 +71,5 @@ Temporary Items
 /arm64/
 /napi/
 /napi_ios.tar.gz
-/napi_android.tar.gz
+/napi_hermes_android.tar.gz
+/napi_quickjs_android.tar.gz

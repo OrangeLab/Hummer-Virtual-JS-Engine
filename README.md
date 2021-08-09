@@ -75,7 +75,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 4. `gn gen x86_64 --args="build_android=true cross_compile_target=\"x86_64\""`
 5. `ninja -C armv7 qjs hermes && ninja -C arm64 qjs hermes && ninja -C i386 qjs hermes && ninja -C x86_64 qjs hermes`
 6. `mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64`
-7. `cp armv7/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && mv arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && mv i386/obj/lib{hermes,qjs}.so napi/libs/x86 && mv x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
+7. `cp armv7/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && cp arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && cp i386/obj/lib{hermes,qjs}.so napi/libs/x86 && cp x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
 
 #### 交叉编译注意
 
