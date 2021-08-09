@@ -1063,11 +1063,11 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     NAPI_PREAMBLE(env)
     CHECK_ARG(result, Exception)
 
-    auto hermesExternalObject = new (::std::nothrow)::External(data, finalizeCB, finalizeHint);
+    auto hermesExternalObject = new (std::nothrow)::External(data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIExceptionMemoryError)
 
-    auto callResult = hermes::vm::HostObject::createWithoutPrototype(
-        env->getRuntime(), ::std::unique_ptr<::External>(hermesExternalObject));
+    auto callResult = hermes::vm::HostObject::createWithoutPrototype(env->getRuntime(),
+                                                                     std::unique_ptr<External>(hermesExternalObject));
     CHECK_HERMES(callResult)
     *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
 
@@ -1081,26 +1081,22 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
     CHECK_ARG(result, Error)
 
     auto hostObject =
-        ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::HostObject>(*(const ::hermes::vm::PinnedHermesValue *)value);
+        hermes::vm::dyn_vmcast_or_null<hermes::vm::HostObject>(*(const hermes::vm::PinnedHermesValue *)value);
     RETURN_STATUS_IF_FALSE(hostObject, NAPIErrorExternalExpected)
 
-    // 转换失败返回空指针
-    auto external = (::External *)hostObject->getProxy();
+    auto external = (External *)hostObject->getProxy();
     *result = external ? external->getData() : nullptr;
 
     return NAPIErrorOK;
 }
 
-// ref: 0 -> 1 => removeWeak + addStrong || ++referenceCount => none
-// unref: 1 -> 0 => removeStrong + addWeak || --referenceCount => none
-// weak: isInvalid => false -> true
 NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
     CHECK_ARG(env, Exception)
     CHECK_ARG(value, Exception)
     CHECK_ARG(result, Exception)
 
-    *result = new (::std::nothrow) OpaqueNAPIRef(env, *(const ::hermes::vm::PinnedHermesValue *)value, initialRefCount);
+    *result = new (std::nothrow) OpaqueNAPIRef(env, *(const hermes::vm::PinnedHermesValue *)value, initialRefCount);
     RETURN_STATUS_IF_FALSE(*result, NAPIExceptionMemoryError)
 
     return NAPIExceptionOK;
@@ -1161,7 +1157,7 @@ NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
-    *result = (NAPIHandleScope) new (::std::nothrow)::hermes::vm::GCScope(env->getRuntime());
+    *result = (NAPIHandleScope) new (std::nothrow) hermes::vm::GCScope(env->getRuntime());
     RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
 
     return NAPIErrorOK;
@@ -1172,7 +1168,7 @@ NAPICommonStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
     CHECK_ARG(env, Common)
     CHECK_ARG(scope, Common)
 
-    delete (::hermes::vm::GCScope *)scope;
+    delete (hermes::vm::GCScope *)scope;
 
     return NAPICommonOK;
 }
@@ -1200,7 +1196,7 @@ struct OpaqueNAPIEscapableHandleScope
         escapeCalled = escapeCalled1;
     }
 
-    ::hermes::vm::GCScope *gcScope = nullptr;
+    hermes::vm::GCScope *gcScope = nullptr;
 
   private:
     bool escapeCalled;
@@ -1215,9 +1211,9 @@ NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandl
 
     RETURN_STATUS_IF_FALSE(env->getRuntime()->getTopGCScope(), NAPIErrorHandleScopeMismatch)
 
-    auto gcScope = new (::std::nothrow)::hermes::vm::GCScope(env->getRuntime());
+    auto gcScope = new (std::nothrow) hermes::vm::GCScope(env->getRuntime());
     RETURN_STATUS_IF_FALSE(gcScope, NAPIErrorMemoryError)
-    *result = new (::std::nothrow) OpaqueNAPIEscapableHandleScope();
+    *result = new (std::nothrow) OpaqueNAPIEscapableHandleScope();
     if (!*result)
     {
         delete gcScope;
@@ -1249,8 +1245,8 @@ NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, 
 
     RETURN_STATUS_IF_FALSE(!scope->isEscapeCalled(), NAPIErrorEscapeCalledTwice)
 
-    *result = (NAPIValue)::hermes::vm::Handle<::hermes::vm::HermesValue>(
-                  scope->gcScope->getParentScope(), *(const ::hermes::vm::PinnedHermesValue *)escapee)
+    *result = (NAPIValue)hermes::vm::Handle<hermes::vm::HermesValue>(scope->gcScope->getParentScope(),
+                                                                     *(const hermes::vm::PinnedHermesValue *)escapee)
                   .unsafeGetPinnedHermesValue();
     scope->setEscapeCalled(true);
 
@@ -1263,7 +1259,7 @@ NAPIExceptionStatus napi_throw(NAPIEnv env, NAPIValue error)
     CHECK_ARG(error, Exception)
 
     // 直接忽略返回值
-    env->getRuntime()->setThrownValue(*(::hermes::vm::PinnedHermesValue *)error);
+    env->getRuntime()->setThrownValue(*(const hermes::vm::PinnedHermesValue *)error);
 
     return NAPIExceptionOK;
 }
@@ -1275,7 +1271,7 @@ NAPIErrorStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result
 
     if (env->getRuntime()->getThrownValue().isEmpty())
     {
-        *result = (NAPIValue)::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+        *result = (NAPIValue)hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
     }
     else
     {
@@ -1300,7 +1296,7 @@ NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, const char *s
 {
     NAPI_PREAMBLE(env)
 
-    ::hermes::hbc::CompileFlags compileFlags = {};
+    hermes::hbc::CompileFlags compileFlags = {};
     compileFlags.lazy = true;
     compileFlags.debug = true;
     auto callResult = env->getRuntime()->run(script, sourceUrl, compileFlags);
