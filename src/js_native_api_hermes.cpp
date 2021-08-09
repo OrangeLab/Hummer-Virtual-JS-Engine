@@ -1316,7 +1316,9 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     CHECK_ARG(constructor, Exception)
     CHECK_ARG(result, Exception)
 
-    auto functionInfo = new (::std::nothrow) FunctionInfo(env, constructor, data);
+    hermes::vm::GCScope gcScope(env->getRuntime());
+
+    auto functionInfo = new (std::nothrow) FunctionInfo(env, constructor, data);
     RETURN_STATUS_IF_FALSE(functionInfo, NAPIExceptionMemoryError)
     NAPIValue externalValue;
     auto finalizeCallback = [](void *finalizeData, void * /*finalizeHint*/) { delete (FunctionInfo *)finalizeData; };
@@ -1325,7 +1327,7 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =
         [](void *context, ::hermes::vm::Runtime *runtime,
            ::hermes::vm::NativeArgs args) -> ::hermes::vm::CallResult<::hermes::vm::HermesValue> {
-        ::hermes::vm::GCScope gcScope(runtime);
+        ::hermes::vm::GCScope inlineGCScope(runtime);
         auto innerFunctionInfo = (FunctionInfo *)context;
         if (!innerFunctionInfo->getCallback() || !innerFunctionInfo->getEnv())
         {
