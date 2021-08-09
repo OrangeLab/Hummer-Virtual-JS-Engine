@@ -860,7 +860,7 @@ NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValu
             env->getRuntime(), env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)key));
         CHECK_HERMES(callResult)
         auto deleteCallResult = hermes::vm::JSObject::deleteNamed(env->getRuntime()->makeHandle(jsObject),
-                                                                    env->getRuntime(), callResult.getValue().get());
+                                                                  env->getRuntime(), callResult.getValue().get());
         CHECK_HERMES(deleteCallResult)
         isSuccess = deleteCallResult.getValue();
     }
@@ -878,7 +878,7 @@ NAPICommonStatus napi_is_array(NAPIEnv /*env*/, NAPIValue value, bool *result)
     CHECK_ARG(result, Common)
 
     // 虽然有 ArrayImpl，但是主要是为了提供给 Arguments 使用
-    *result = ::hermes::vm::vmisa<::hermes::vm::JSArray>(*(const ::hermes::vm::PinnedHermesValue *)value);
+    *result = hermes::vm::vmisa<hermes::vm::JSArray>(*(const hermes::vm::PinnedHermesValue *)value);
 
     return NAPICommonOK;
 }
@@ -893,8 +893,10 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
         CHECK_ARG(argv, Exception)
     }
 
-    RETURN_STATUS_IF_FALSE(::hermes::vm::vmisa<::hermes::vm::Callable>(*(const ::hermes::vm::PinnedHermesValue *)func),
+    RETURN_STATUS_IF_FALSE(hermes::vm::vmisa<hermes::vm::Callable>(*(const hermes::vm::PinnedHermesValue *)func),
                            NAPIExceptionFunctionExpected)
+
+    hermes::vm::GCScope gcScope(env->getRuntime());
 
     // this
     if (!thisValue)
@@ -903,25 +905,25 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
     }
 
     // 开启严格模式后，可以直接传入空句柄
-    auto callResult = ::hermes::vm::Arguments::create(
-        env->getRuntime(), argc, ::hermes::vm::HandleRootOwner::makeNullHandle<::hermes::vm::Callable>(), true);
+    auto callResult = hermes::vm::Arguments::create(
+        env->getRuntime(), argc, hermes::vm::HandleRootOwner::makeNullHandle<::hermes::vm::Callable>(), true);
     CHECK_HERMES(callResult)
     for (size_t i = 0; i < argc; ++i)
     {
-        ::hermes::vm::ArrayImpl::setElementAt(
+        hermes::vm::ArrayImpl::setElementAt(
             callResult.getValue(), env->getRuntime(), i,
-            env->getRuntime()->makeHandle(*(const ::hermes::vm::PinnedHermesValue *)argv[i]));
+            env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)argv[i]));
     }
-    auto function =
-        ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::Callable>(*(const ::hermes::vm::PinnedHermesValue *)func);
-    auto executeCallResult = ::hermes::vm::Callable::executeCall(
-        env->getRuntime()->makeHandle(function), env->getRuntime(), ::hermes::vm::Runtime::getUndefinedValue(),
-        env->getRuntime()->makeHandle(*(const ::hermes::vm::PinnedHermesValue *)thisValue), callResult.getValue());
+    auto function = hermes::vm::dyn_vmcast_or_null<hermes::vm::Callable>(*(const hermes::vm::PinnedHermesValue *)func);
+    auto executeCallResult = hermes::vm::Callable::executeCall(
+        env->getRuntime()->makeHandle(function), env->getRuntime(), hermes::vm::Runtime::getUndefinedValue(),
+        env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)thisValue), callResult.getValue());
     CHECK_HERMES(executeCallResult)
     if (result)
     {
-        *result =
-            (NAPIValue)env->getRuntime()->makeHandle(executeCallResult.getValue().get()).unsafeGetPinnedHermesValue();
+        *result = (NAPIValue)hermes::vm::Handle<hermes::vm::HermesValue>(gcScope.getParentScope(),
+                                                                         executeCallResult.getValue().get())
+                      .unsafeGetPinnedHermesValue();
     }
 
     return NAPIExceptionOK;
