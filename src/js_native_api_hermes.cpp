@@ -1234,15 +1234,15 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
     return NAPIExceptionOK;
 }
 
-NAPICommonStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_ARG(env, Common)
-    CHECK_ARG(ref, Common)
-    CHECK_ARG(result, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(ref, Error)
+    CHECK_ARG(result, Error)
 
     *result = (NAPIValue)ref->getHermesValue();
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)

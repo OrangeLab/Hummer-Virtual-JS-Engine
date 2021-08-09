@@ -1133,11 +1133,11 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
     return NAPIExceptionOK;
 }
 
-NAPICommonStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_ARG(env, Common)
-    CHECK_ARG(ref, Common)
-    CHECK_ARG(result, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(ref, Error)
+    CHECK_ARG(result, Error)
 
     if (!ref->referenceCount && JS_IsUndefined(ref->value))
     {
@@ -1145,10 +1145,19 @@ NAPICommonStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *r
     }
     else
     {
-        *result = (NAPIValue)&ref->value;
+        JSValue strongValue = JS_DupValue(env->context, ref->value);
+        struct Handle *handleScope;
+        NAPIErrorStatus errorStatus = addValueToHandleScope(env, strongValue, &handleScope);
+        if (errorStatus != NAPIErrorOK)
+        {
+            JS_FreeValue(env->context, strongValue);
+
+            return errorStatus;
+        }
+        *result = (NAPIValue)&handleScope->value;
     }
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 // NAPIMemoryError

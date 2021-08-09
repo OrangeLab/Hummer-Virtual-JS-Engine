@@ -90,7 +90,7 @@ NAPI_EXPORT NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uin
 // result 可空
 NAPI_EXPORT NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result);
 
-NAPI_EXPORT NAPICommonStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result);
+NAPI_EXPORT NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result);
 
 NAPI_EXPORT NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result);
 
