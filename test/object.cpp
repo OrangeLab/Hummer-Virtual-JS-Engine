@@ -172,6 +172,9 @@ TEST_F(Test, Object)
 {
     NAPIValue externalValue;
     ASSERT_EQ(napi_create_external(globalEnv, globalEnv, externalFinalize, globalEnv, &externalValue), NAPIExceptionOK);
+    NAPIValueType externalValueType;
+    ASSERT_EQ(napi_typeof(globalEnv, externalValue, &externalValueType), NAPICommonOK);
+    ASSERT_EQ(externalValueType, NAPIExternal);
     void *data;
     ASSERT_EQ(napi_get_value_external(globalEnv, externalValue, &data), NAPICommonOK);
     ASSERT_EQ(data, globalEnv);
