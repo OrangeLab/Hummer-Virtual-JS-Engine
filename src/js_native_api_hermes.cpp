@@ -190,10 +190,10 @@ struct OpaqueNAPIEnv final
     void disableDebugger();
 
   private:
-    //    std::shared_ptr<DecoratedRuntime> decoratedRuntime;
     hermes::vm::Runtime *runtime;
 
     std::shared_ptr<facebook::hermes::HermesRuntime> hermesRuntimeSharedPtr;
+
     facebook::hermes::HermesRuntime &hermesRuntime;
 };
 
@@ -941,36 +941,41 @@ NAPIExceptionStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t
     CHECK_ARG(result, Exception)
 
     RETURN_STATUS_IF_FALSE(
-        ::hermes::vm::isConstructor(env->getRuntime(), *(const ::hermes::vm::PinnedHermesValue *)constructor),
+        hermes::vm::isConstructor(env->getRuntime(), *(const hermes::vm::PinnedHermesValue *)constructor),
         NAPIExceptionFunctionExpected)
 
+    hermes::vm::GCScope gcScope(env->getRuntime());
+
     // 开启严格模式后，可以直接传入空句柄
-    auto callResult = ::hermes::vm::Arguments::create(
-        env->getRuntime(), argc, ::hermes::vm::HandleRootOwner::makeNullHandle<::hermes::vm::Callable>(), true);
+    auto callResult = hermes::vm::Arguments::create(
+        env->getRuntime(), argc, hermes::vm::HandleRootOwner::makeNullHandle<::hermes::vm::Callable>(), true);
     CHECK_HERMES(callResult)
     for (size_t i = 0; i < argc; ++i)
     {
-        ::hermes::vm::ArrayImpl::setElementAt(
+        hermes::vm::ArrayImpl::setElementAt(
             callResult.getValue(), env->getRuntime(), i,
-            env->getRuntime()->makeHandle(*(const ::hermes::vm::PinnedHermesValue *)argv[i]));
+            env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)argv[i]));
     }
     auto function =
-        ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::Callable>(*(const ::hermes::vm::PinnedHermesValue *)constructor);
+        hermes::vm::dyn_vmcast_or_null<hermes::vm::Callable>(*(const hermes::vm::PinnedHermesValue *)constructor);
     auto functionHandle = env->getRuntime()->makeHandle(function);
-    auto thisCallResult = ::hermes::vm::Callable::createThisForConstruct(functionHandle, env->getRuntime());
+    auto thisCallResult = hermes::vm::Callable::createThisForConstruct(functionHandle, env->getRuntime());
     auto thisHandle = env->getRuntime()->makeHandle(thisCallResult->getHermesValue());
     CHECK_HERMES(thisCallResult)
-    auto executeCallResult = ::hermes::vm::Callable::executeCall(functionHandle, env->getRuntime(), functionHandle,
-                                                                 thisHandle, callResult.getValue());
+    auto executeCallResult = hermes::vm::Callable::executeCall(functionHandle, env->getRuntime(), functionHandle,
+                                                               thisHandle, callResult.getValue());
     CHECK_HERMES(executeCallResult)
     if (executeCallResult.getValue()->isObject())
     {
-        *result =
-            (NAPIValue)env->getRuntime()->makeHandle(executeCallResult.getValue().get()).unsafeGetPinnedHermesValue();
+        *result = (NAPIValue)hermes::vm::Handle<hermes::vm::HermesValue>(gcScope.getParentScope(),
+                                                                         executeCallResult.getValue().get())
+                      .unsafeGetPinnedHermesValue();
     }
     else
     {
-        *result = (NAPIValue)thisHandle.unsafeGetPinnedHermesValue();
+        // TODO(ChasonTang): 返回标量的情况添加单测
+        *result = (NAPIValue)hermes::vm::Handle<hermes::vm::HermesValue>(gcScope.getParentScope(), thisHandle.get())
+                      .unsafeGetPinnedHermesValue();
     }
 
     return NAPIExceptionOK;
@@ -983,9 +988,11 @@ NAPIExceptionStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue con
     CHECK_ARG(constructor, Exception)
     CHECK_ARG(result, Exception)
 
-    auto callResult = ::hermes::vm::instanceOfOperator_RJS(
-        env->getRuntime(), env->getRuntime()->makeHandle(*(const ::hermes::vm::PinnedHermesValue *)object),
-        env->getRuntime()->makeHandle(*(const ::hermes::vm::PinnedHermesValue *)constructor));
+    hermes::vm::GCScope gcScope(env->getRuntime());
+
+    auto callResult = hermes::vm::instanceOfOperator_RJS(
+        env->getRuntime(), env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)object),
+        env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)constructor));
     CHECK_HERMES(callResult)
     *result = callResult.getValue();
 
@@ -1002,14 +1009,14 @@ NAPICommonStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, si
     {
         CHECK_ARG(argc, Common)
         unsigned int i = 0;
-        size_t min = ::std::min(callbackInfo->getNativeArgs().getArgCount(), (unsigned int)*argc);
+        size_t min = std::min(callbackInfo->getNativeArgs().getArgCount(), (unsigned int)*argc);
         for (; i < min; ++i)
         {
             argv[i] = (NAPIValue)callbackInfo->getNativeArgs().getArgHandle(i).unsafeGetPinnedHermesValue();
         }
         if (i < *argc)
         {
-            NAPIValue undefined = (NAPIValue)::hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
+            NAPIValue undefined = (NAPIValue)hermes::vm::Runtime::getUndefinedValue().unsafeGetPinnedHermesValue();
             for (; i < *argc; ++i)
             {
                 argv[i] = undefined;
