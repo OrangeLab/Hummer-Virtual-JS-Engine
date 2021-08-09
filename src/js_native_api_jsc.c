@@ -954,21 +954,21 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     return NAPIExceptionOK;
 }
 
-NAPICommonStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
+NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
 {
-    CHECK_ARG(env, Common)
-    CHECK_ARG(value, Common)
-    CHECK_ARG(result, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
-    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)value), NAPICommonInvalidArg)
+    RETURN_STATUS_IF_FALSE(JSValueIsObject(env->context, (JSValueRef)value), NAPIErrorExternalExpected)
     JSValueRef exception = NULL;
     JSObjectRef objectRef = JSValueToObject(env->context, (JSValueRef)value, &exception);
-    RETURN_STATUS_IF_FALSE(!exception && objectRef, NAPICommonInvalidArg)
+    RETURN_STATUS_IF_FALSE(!exception && objectRef, NAPIErrorExternalExpected)
 
     ExternalInfo *info = JSObjectGetPrivate(objectRef);
     *result = info ? info->data : NULL;
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 static const char *const REFERENCE_STRING = "__reference__";
@@ -1041,7 +1041,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     }
     else
     {
-        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Common, Exception)
+        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Error, Exception)
         if (!referenceInfo)
         {
             assert(false);
@@ -1106,7 +1106,7 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
     NAPIValue externalValue;
     CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, stringValue, &externalValue), Exception, Exception)
     struct ReferenceInfo *referenceInfo;
-    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Common, Exception)
+    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Error, Exception)
     if (!referenceInfo)
     {
         assert(false);

@@ -868,16 +868,16 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     return NAPIExceptionOK;
 }
 
-NAPICommonStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
+NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
 {
-    CHECK_ARG(env, Common)
-    CHECK_ARG(value, Common)
-    CHECK_ARG(result, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
     ExternalInfo *externalInfo = JS_GetOpaque(*((JSValue *)value), externalClassId);
     *result = externalInfo ? externalInfo->data : NULL;
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 static bool gcLock = false;
@@ -954,7 +954,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     }
     else
     {
-        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Common, Exception)
+        CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Error, Exception)
         if (!referenceInfo)
         {
             assert(false);
@@ -1022,7 +1022,7 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
     CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &externalValue),
                Exception, Exception)
     struct ReferenceInfo *referenceInfo;
-    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Common, Exception)
+    CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Error, Exception)
     if (!referenceInfo)
     {
         assert(false);

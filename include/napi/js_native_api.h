@@ -75,7 +75,7 @@ NAPI_EXPORT NAPICommonStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo c
 NAPI_EXPORT NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB,
                                                      void *finalizeHint, NAPIValue *result);
 
-NAPI_EXPORT NAPICommonStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result);
+NAPI_EXPORT NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result);
 
 // Set initial_refcount to 0 for a weak reference, >0 for a strong reference.
 // QuickJS 和 JavaScriptCore 实现弱引用会产生异常

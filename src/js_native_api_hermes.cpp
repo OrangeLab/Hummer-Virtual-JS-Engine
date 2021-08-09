@@ -1163,21 +1163,21 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     return NAPIExceptionOK;
 }
 
-NAPICommonStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
+NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
 {
-    CHECK_ARG(env, Common)
-    CHECK_ARG(value, Common)
-    CHECK_ARG(result, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(value, Error)
+    CHECK_ARG(result, Error)
 
     auto hostObject =
         ::hermes::vm::dyn_vmcast_or_null<::hermes::vm::HostObject>(*(const ::hermes::vm::PinnedHermesValue *)value);
-    RETURN_STATUS_IF_FALSE(hostObject, NAPICommonInvalidArg)
+    RETURN_STATUS_IF_FALSE(hostObject, NAPIErrorExternalExpected)
 
     // 转换失败返回空指针
     auto external = (::External *)hostObject->getProxy();
     *result = external ? external->getData() : nullptr;
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 // ref: 0 -> 1 => removeWeak + addStrong || ++referenceCount => none
