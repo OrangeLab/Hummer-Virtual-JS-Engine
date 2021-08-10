@@ -636,7 +636,12 @@ NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPI
     // TODO(ChasonTang): 添加 .prototype 属性
     auto functionCallResult = hermes::vm::FinalizableNativeFunction::createWithoutPrototype(
         env->getRuntime(), functionInfo, nativeFunctionPtr, finalizeNativeFunctionPtr, symbolId, 0);
-    CHECK_HERMES(functionCallResult)
+    if (functionCallResult == hermes::vm::ExecutionStatus::EXCEPTION)
+    {
+        delete functionInfo;
+
+        return NAPIExceptionPendingException;
+    }
     *result =
         (NAPIValue)hermes::vm::Handle<hermes::vm::HermesValue>(gcScope.getParentScope(), functionCallResult.getValue())
             .unsafeGetPinnedHermesValue();
@@ -1066,8 +1071,8 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     auto hermesExternalObject = new (std::nothrow)::External(data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIExceptionMemoryError)
 
-    auto callResult = hermes::vm::HostObject::createWithoutPrototype(env->getRuntime(),
-                                                                     std::unique_ptr<External>(hermesExternalObject));
+    auto callResult = hermes::vm::HostObject::createWithoutPrototype(
+        env->getRuntime(), std::unique_ptr<External>(hermesExternalObject));
     CHECK_HERMES(callResult)
     *result = (NAPIValue)env->getRuntime()->makeHandle(callResult.getValue()).unsafeGetPinnedHermesValue();
 
@@ -1322,7 +1327,12 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     RETURN_STATUS_IF_FALSE(functionInfo, NAPIExceptionMemoryError)
     NAPIValue externalValue;
     auto finalizeCallback = [](void *finalizeData, void * /*finalizeHint*/) { delete (FunctionInfo *)finalizeData; };
-    CHECK_NAPI(napi_create_external(env, functionInfo, finalizeCallback, nullptr, &externalValue), Exception, Exception)
+    auto createExternalStatus = napi_create_external(env, functionInfo, finalizeCallback, nullptr, &externalValue);
+    if (createExternalStatus != NAPIExceptionOK) {
+        delete functionInfo;
+
+        return createExternalStatus;
+    }
 
     ::hermes::vm::NativeFunctionPtr nativeFunctionPtr =
         [](void *context, ::hermes::vm::Runtime *runtime,
