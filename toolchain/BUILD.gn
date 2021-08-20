@@ -16,7 +16,10 @@ if (debug) {
     compiler_command = string_join(" ", ["-O0", compiler_command])
 } else {
 # NDEBUG for assert.h
-    compiler_command = string_join(" ", ["-Os -flto -DNDEBUG", compiler_command])
+    compiler_command = string_join(" ", ["-Os -DNDEBUG", compiler_command])
+    if (lto) {
+        compiler_command = string_join(" ", ["-flto", compiler_command])
+    }
 }
 
 compiler_outputs = [
@@ -28,7 +31,7 @@ linker_outputs = [
 
 toolchain("android") {
     compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong -fPIC", compiler_command])
-    if (debug) {
+    if (!lto) {
         compiler_command = string_join(" ", ["-fdata-sections -ffunction-sections", compiler_command])
     }
     if (cross_compile_target == "armv7") {

@@ -1,6 +1,8 @@
 declare_args() {
 # -Os/-O0
     debug = false
+    # 只有 debug=false 的情况才生效
+    lto = true
 
     # 是否交叉编译 Android 动态库
     build_android = false
