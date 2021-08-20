@@ -85,7 +85,7 @@ toolchain("android") {
 }
 
 toolchain("clang") {
-    if (!lto) {
+    if (!lto && bitcode) {
         if (debug) {
             compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
         } else {
