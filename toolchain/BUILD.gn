@@ -29,6 +29,15 @@ linker_outputs = [
     "{{output_dir}}/{{target_output_name}}{{output_extension}}"
 ]
 
+# debug -> -O0
+#       -> -Os
+# lto -> -flto
+
+# iOS
+#   debug -> -fembed-bitcode-marker
+#         -> lto
+#                -> -fembed-bitcode
+
 toolchain("android") {
     compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong -fPIC", compiler_command])
     if (!lto) {
@@ -76,8 +85,12 @@ toolchain("android") {
 }
 
 toolchain("clang") {
-    if (debug) {
-        compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
+    if (!lto) {
+        if (debug) {
+            compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
+        } else {
+            compiler_command = string_join(" ", ["-fembed-bitcode", compiler_command])
+        }
     }
     if (code_coverage) {
         compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
