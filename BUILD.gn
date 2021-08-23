@@ -7,6 +7,11 @@ config("standard_build") {
     cflags_cc = ["-std=c++11"]
 }
 
+config("new_build") {
+    configs = [":minimal_size_build"]
+    cflags_cc = ["-std=c++14"]
+}
+
 config("strict_build") {
     cflags = ["-Wall", "-Wextra", "-Werror", "-Wpedantic"]
 }
@@ -21,6 +26,11 @@ config("rtti_build") {
 
 config("exception_rtti_build") {
     cflags_cc = ["-fexceptions", "-frtti"]
+}
+
+config("new_rtti_build") {
+    configs = [":rtti_build"]
+    cflags_cc = ["-std=c++14"]
 }
 
 config("new_exception_build") {
@@ -127,7 +137,7 @@ source_set("llvm_support") {
 config("hermes_build") {
 # TBD(ChasonTang): hermes/Support/Config.h 公有/私有头文件？
     include_dirs = ["third_party/hermes/include", "third_party/hermes/public"]
-    defines = ["HERMESVM_GC_NONCONTIG_GENERATIONAL", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMES_ENABLE_DEBUGGER"]
+    defines = ["HERMESVM_GC_HADES", "HERMESVM_ALLOW_COMPRESSED_POINTERS", "HERMESVM_HEAP_SEGMENT_SIZE_KB=4096", "HERMESVM_ALLOW_CONCURRENT_GC", "HERMES_ENABLE_DEBUGGER"]
     if (build_android) {
         defines += ["HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA"]
     }
@@ -144,7 +154,7 @@ source_set("hermes_frontend_defs") {
 }
 
 source_set("hermes_optimizer") {
-    configs = [":llvm_build", ":standard_build", ":hermes_build"]
+    configs = [":llvm_build", ":new_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Optimizer/PassManager/Pipeline.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/SimplifyCFG.cpp",
@@ -159,7 +169,6 @@ source_set("hermes_optimizer") {
         "third_party/hermes/lib/Optimizer/Scalar/SimpleCallGraphProvider.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/ResolveStaticRequire.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/FuncSigOpts.cpp",
-        "third_party/hermes/lib/Optimizer/Scalar/BundlerUtils.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/Utils.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/Inlining.cpp",
         "third_party/hermes/lib/Optimizer/Scalar/HoistStartGenerator.cpp",
@@ -196,7 +205,7 @@ source_set("hermes_platform_unicode") {
 }
 
 source_set("hermes_regex") {
-    configs = [":standard_build", ":llvm_build", ":hermes_build"]
+    configs = [":new_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/Regex/RegexParser.cpp",
         "third_party/hermes/lib/Regex/Executor.cpp"
@@ -211,7 +220,7 @@ source_set("hermes_platform") {
 }
 
 source_set("hermes_ast") {
-    configs = [":standard_build", ":hermes_build", ":llvm_build"]
+    configs = [":new_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/AST/ASTBuilder.cpp",
         "third_party/hermes/lib/AST/ESTree.cpp",
@@ -234,7 +243,7 @@ source_set("jsi") {
 }
 
 source_set("hermes_frontend") {
-    configs = [":standard_build", ":llvm_build", ":hermes_build"]
+    configs = [":new_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/IRGen/IRGen.cpp",
         "third_party/hermes/lib/IR/CFG.cpp",
@@ -272,7 +281,7 @@ config("dtoa_build") {
 }
 
 source_set("hermes_parser") {
-    configs = [":standard_build", ":llvm_build", ":hermes_build", ":dtoa_build"]
+    configs = [":new_build", ":llvm_build", ":hermes_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/Parser/JSLexer.cpp",
         "third_party/hermes/lib/Parser/JSONParser.cpp",
@@ -284,7 +293,7 @@ source_set("hermes_parser") {
 }
 
 source_set("hermes_source_map") {
-    configs = [":standard_build", ":llvm_build", ":hermes_build"]
+    configs = [":new_build", ":llvm_build", ":hermes_build"]
     sources = [
         "third_party/hermes/lib/SourceMap/SourceMap.cpp",
         "third_party/hermes/lib/SourceMap/SourceMapGenerator.cpp",
@@ -294,9 +303,10 @@ source_set("hermes_source_map") {
 }
 
 source_set("hermes_support") {
-    configs = [":standard_build", ":hermes_build", ":llvm_build", ":dtoa_build"]
+    configs = [":new_build", ":hermes_build", ":llvm_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/Support/Allocator.cpp",
+        "third_party/hermes/lib/Support/Base64.cpp",
         "third_party/hermes/lib/Support/Base64vlq.cpp",
         "third_party/hermes/lib/Support/CheckedMalloc.cpp",
         "third_party/hermes/lib/Support/Conversions.cpp",
@@ -314,7 +324,6 @@ source_set("hermes_support") {
         "third_party/hermes/lib/Support/Semaphore.cpp",
         "third_party/hermes/lib/Support/SimpleDiagHandler.cpp",
         "third_party/hermes/lib/Support/SourceErrorManager.cpp",
-        "third_party/hermes/lib/Support/StringKind.cpp",
         "third_party/hermes/lib/Support/StringTable.cpp",
         "third_party/hermes/lib/Support/UTF16Stream.cpp",
         "third_party/hermes/lib/Support/UTF8.cpp"
@@ -322,7 +331,7 @@ source_set("hermes_support") {
 }
 
 source_set("hermes_backend") {
-    configs = [":standard_build", ":hermes_build", ":llvm_build"]
+    configs = [":new_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/BCGen/BCOpt.cpp",
         "third_party/hermes/lib/BCGen/Exceptions.cpp",
@@ -332,7 +341,7 @@ source_set("hermes_backend") {
 }
 
 source_set("hermes_hbc_backend") {
-    configs = [":standard_build", ":hermes_build", ":llvm_build"]
+    configs = [":new_build", ":hermes_build", ":llvm_build"]
     sources = [
         "third_party/hermes/lib/BCGen/HBC/BackendContext.cpp",
         "third_party/hermes/lib/BCGen/HBC/Bytecode.cpp",
@@ -354,6 +363,7 @@ source_set("hermes_hbc_backend") {
         "third_party/hermes/lib/BCGen/HBC/SerializedLiteralGenerator.cpp",
         "third_party/hermes/lib/BCGen/HBC/SerializedLiteralParserBase.cpp",
         "third_party/hermes/lib/BCGen/HBC/SimpleBytecodeBuilder.cpp",
+        "third_party/hermes/lib/BCGen/HBC/StringKind.cpp",
         "third_party/hermes/lib/BCGen/HBC/TraverseLiteralStrings.cpp",
         "third_party/hermes/lib/BCGen/HBC/UniquingFilenameTable.cpp",
         "third_party/hermes/lib/BCGen/HBC/UniquingStringLiteralTable.cpp",
@@ -361,8 +371,7 @@ source_set("hermes_hbc_backend") {
 }
 
 source_set("hermes_vm_runtime_rtti") {
-    cflags_cc = ["-std=c++11"]
-    configs = [":hermes_build", ":llvm_build", ":rtti_build"]
+    configs = [":hermes_build", ":llvm_build", ":new_rtti_build"]
     sources = [
         "third_party/hermes/lib/VM/HostModel.cpp",
         "third_party/hermes/lib/VM/DecoratedObject.cpp"
@@ -370,10 +379,11 @@ source_set("hermes_vm_runtime_rtti") {
 }
 
 source_set("hermes_vm_runtime") {
-    configs = [":hermes_build", ":standard_build", ":llvm_build", ":dtoa_build"]
+    configs = [":hermes_build", ":new_build", ":llvm_build", ":dtoa_build"]
     sources = [
         "third_party/hermes/lib/VM/ArrayStorage.cpp",
         "third_party/hermes/lib/VM/BasicBlockExecutionInfo.cpp",
+        "third_party/hermes/lib/VM/BoxedDouble.cpp",
         "third_party/hermes/lib/VM/BuildMetadata.cpp",
         "third_party/hermes/lib/VM/Callable.cpp",
         "third_party/hermes/lib/VM/CellKind.cpp",
@@ -402,6 +412,7 @@ source_set("hermes_vm_runtime") {
         "third_party/hermes/lib/VM/JSLib/Array.cpp",
         "third_party/hermes/lib/VM/JSLib/ArrayBuffer.cpp",
         "third_party/hermes/lib/VM/JSLib/ArrayIterator.cpp",
+        "third_party/hermes/lib/VM/JSLib/AsyncFunction.cpp",
         "third_party/hermes/lib/VM/JSLib/Boolean.cpp",
         "third_party/hermes/lib/VM/JSLib/DataView.cpp",
         "third_party/hermes/lib/VM/JSLib/Date.cpp",
@@ -461,7 +472,7 @@ source_set("hermes_vm_runtime") {
         "third_party/hermes/lib/VM/Profiler/CodeCoverageProfiler.cpp",
         "third_party/hermes/lib/VM/Profiler/InlineCacheProfiler.cpp",
         "third_party/hermes/lib/VM/Profiler/SamplingProfilerPosix.cpp",
-        "third_party/hermes/lib/VM/Profiler/SamplingProfilerStub.cpp",
+        "third_party/hermes/lib/VM/PropertyAccessor.cpp",
         "third_party/hermes/lib/VM/Runtime-profilers.cpp",
         "third_party/hermes/lib/VM/Runtime.cpp",
         "third_party/hermes/lib/VM/RuntimeModule.cpp",
@@ -484,14 +495,8 @@ source_set("hermes_vm_runtime") {
         "third_party/hermes/lib/VM/gcs/AlignedHeapSegment.cpp",
         "third_party/hermes/lib/VM/gcs/AlignedStorage.cpp",
         "third_party/hermes/lib/VM/gcs/CardTableNC.cpp",
-        "third_party/hermes/lib/VM/gcs/CompleteMarkState.cpp",
         "third_party/hermes/lib/VM/gcs/FillerCell.cpp",
-        "third_party/hermes/lib/VM/gcs/GCGeneration.cpp",
-        "third_party/hermes/lib/VM/gcs/GCSegmentAddressIndex.cpp",
-        "third_party/hermes/lib/VM/gcs/GenGCNC.cpp",
-        "third_party/hermes/lib/VM/gcs/OldGenNC.cpp",
-        "third_party/hermes/lib/VM/gcs/OldGenSegmentRanges.cpp",
-        "third_party/hermes/lib/VM/gcs/YoungGenNC.cpp",
+        "third_party/hermes/lib/VM/gcs/HadesGC.cpp"
     ]
 }
 
@@ -506,7 +511,6 @@ source_set("jsi_hermes") {
     sources = [
         "third_party/hermes/API/hermes/DebuggerAPI.cpp",
         "third_party/hermes/API/hermes/hermes.cpp",
-        "third_party/hermes/API/hermes/hermes_tracing_compat.cpp"
     ]
 }
 
@@ -590,11 +594,10 @@ source_set("folly_futures") {
 }
 
 source_set("jsinspector") {
-    configs = [":minimal_size_build"]
-    cflags_cc = ["-std=c++14"]
+    configs = [":new_build"]
     # Android 需要 getInspectorInstance 方法，而该方法没有被标记为 JSINSPECTOR_EXPORT，因此需要去除 -fvisibility=hidden
     if (!build_android) {
-        cflags_cc += ["-fvisibility=hidden"]
+        cflags_cc = ["-fvisibility=hidden"]
     }
     sources = [
         "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp"
