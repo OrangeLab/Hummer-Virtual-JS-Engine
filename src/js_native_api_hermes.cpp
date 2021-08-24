@@ -397,15 +397,16 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const hermes::vm::RuntimeConfig &runtimeConfig)
     runtime = facebook::hermes::HermesRuntime::getHermesRuntimeFromJSI(&hermesRuntime);
     // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode -> clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
     // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ = {} => undefined
-    runtime->clearThrownValue();
+    //    runtime->clearThrownValue();
     LIST_INIT(&valueList);
     LIST_INIT(&weakRefList);
     LIST_INIT(&strongRefList);
-    runtime->addCustomRootsFunction([this](hermes::vm::GC *, hermes::vm::SlotAcceptor &slotAcceptor) {
+
+    runtime->addCustomRootsFunction([this](hermes::vm::GC *, hermes::vm::RootAcceptor &rootAcceptor) {
         NAPIRef ref;
         LIST_FOREACH(ref, &this->valueList, node)
         {
-            slotAcceptor.accept(ref->pinnedHermesValue);
+            rootAcceptor.accept(ref->pinnedHermesValue);
         }
     });
     runtime->addCustomWeakRootsFunction([this](hermes::vm::GC *, hermes::vm::WeakRefAcceptor &weakRefAcceptor) {

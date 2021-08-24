@@ -370,6 +370,12 @@ source_set("hermes_hbc_backend") {
     ]
 }
 
+source_set("hermes_internal_bytecode") {
+    configs = [":standard_build", ":hermes_build", ":llvm_build"]
+    defines = ["HERMES_CMAKE_BUILD"]
+    sources = ["third_party/hermes/lib/InternalBytecode/InternalBytecode.cpp"]
+}
+
 source_set("hermes_vm_runtime_rtti") {
     configs = [":hermes_build", ":llvm_build", ":new_rtti_build"]
     sources = [
@@ -766,6 +772,7 @@ if (build_android) {
             ":hermes_platform_unicode",
             ":hermes_platform_unicode_java",
             ":dtoa",
+            ":hermes_internal_bytecode",
             ":hermes_vm_runtime_rtti",
             ":hermes_vm_runtime",
             ":fbjni",
@@ -827,6 +834,7 @@ if (build_android) {
                 ":hermes_platform",
                 ":hermes_platform_unicode",
                 ":dtoa",
+                ":hermes_internal_bytecode",
                 ":hermes_vm_runtime_rtti",
                 ":hermes_vm_runtime",
                 ":jsi",
@@ -920,6 +928,7 @@ if (build_android) {
                 ":hermes_platform",
                 ":hermes_platform_unicode",
                 ":dtoa",
+                ":hermes_internal_bytecode",
                 ":hermes_vm_runtime_rtti",
                 ":hermes_vm_runtime",
                 ":jsi",

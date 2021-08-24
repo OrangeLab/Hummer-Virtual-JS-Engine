@@ -86,6 +86,13 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
 2. Hermes 引擎需要先 `cd third_party/hermes && git apply ../hermes_patch.diff`
 3. Android 版本 libhermes.so 包括 fbjni 库，内含 OnLoad.cpp，需要使用 System.load("hermes") 显式加载，不能依赖 Linux 内核的动态库隐式加载
+4. Hermes 引擎 0.8.1 版本内置字节码，需要先编译主机 hermesc，后输入如下命令
+```
+> cd third_party/hermes/lib/InternalBytecode
+> cat 00-header.js 01-Promise.js 02-AsyncFn.js 99-footer.js > InternalBytecode.js
+> hermesc -O -Wno-undefined-variable -fno-enable-tdz -emit-binary -out=./InternalBytecode.hbc ./InternalBytecode.js
+> python xxd.py ./InternalBytecode.hbc > ./InternalBytecode.inc
+```
 
 ## 注意事项
 
