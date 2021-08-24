@@ -3,6 +3,7 @@ declare_args() {
     debug = false
     # 只有 debug=false 的情况才生效
     lto = true
+    # iOS 平台不开启 lto 的情况下才生效，和 debug 无关
     bitcode = true
 
     # 是否交叉编译 Android 动态库
