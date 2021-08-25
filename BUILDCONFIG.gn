@@ -1,5 +1,7 @@
 declare_args() {
-# -Os/-O0
+    # -g
+    debug_info = true
+    # -Os/-O0
     debug = false
     # 只有 debug=false 的情况才生效
     lto = true

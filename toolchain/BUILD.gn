@@ -1,5 +1,8 @@
 depfile = "{{output}}.d"
-compiler_command = "-c {{source}} -o {{output}} -g -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
+compiler_command = "-c {{source}} -o {{output}} -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
+if (debug_info) {
+    compiler_command = string_join(" ", ["-g", compiler_command])
+}
 linker_command = ""
 if (asan) {
     compiler_command = string_join(" ", ["-fsanitize=address", compiler_command])
