@@ -57,7 +57,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 1. `rm -rf napi`
 2. `mkdir napi`
 3. `cp -r include napi`
-4. `tar czvf napi.tar.gz . -C napi` 压缩产物
+4. `tar czvf napi.tar.gz -C napi .` 压缩产物
 
 ### iOS 静态库
 
