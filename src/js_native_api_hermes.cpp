@@ -62,7 +62,7 @@ namespace
 class External final : public hermes::vm::HostObjectProxy
 {
   public:
-    External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
+    External(hermes::vm::Runtime *runtime, void *data, NAPIFinalize finalizeCallback, void *finalizeHint);
 
     void *getData() const;
 
@@ -87,6 +87,7 @@ class External final : public hermes::vm::HostObjectProxy
     External &operator=(External &&) = delete;
 
   private:
+    hermes::vm::Runtime *runtime;
     void *data;
     NAPIFinalize finalizeCallback;
     void *finalizeHint;
@@ -127,8 +128,8 @@ class HermesExecutorRuntimeAdapter final : public facebook::hermes::inspector::R
 #endif
 } // namespace
 
-External::External(void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
-    : data(data), finalizeCallback(finalizeCallback), finalizeHint(finalizeHint)
+External::External(hermes::vm::Runtime *runtime, void *data, NAPIFinalize finalizeCallback, void *finalizeHint)
+    : runtime(runtime), data(data), finalizeCallback(finalizeCallback), finalizeHint(finalizeHint)
 {
 }
 
@@ -153,7 +154,7 @@ hermes::vm::CallResult<bool> External::set(hermes::vm::SymbolID symbolId, hermes
 }
 hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>> External::getHostPropertyNames()
 {
-    return hermes::vm::Runtime::makeNullHandle<hermes::vm::JSArray>();
+    return hermes::vm::JSArray::create(runtime, 0, 0);
 }
 
 EXTERN_C_START
@@ -1074,7 +1075,7 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     NAPI_PREAMBLE(env)
     CHECK_ARG(result, Exception)
 
-    auto hermesExternalObject = new (std::nothrow)::External(data, finalizeCB, finalizeHint);
+    auto hermesExternalObject = new (std::nothrow)::External(env->getRuntime(), data, finalizeCB, finalizeHint);
     RETURN_STATUS_IF_FALSE(hermesExternalObject, NAPIExceptionMemoryError)
 
     auto callResult = hermes::vm::HostObject::createWithoutPrototype(env->getRuntime(),
