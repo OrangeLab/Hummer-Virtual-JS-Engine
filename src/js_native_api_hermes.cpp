@@ -330,7 +330,8 @@ struct OpaqueNAPIRef final
         }
         else if (referenceCount)
         {
-            return &pinnedHermesValue;
+            return hermes::vm::Handle<hermes::vm::HermesValue>::vmcast(env->getRuntime(), pinnedHermesValue)
+                .unsafeGetPinnedHermesValue();
         }
         else
         {
@@ -404,7 +405,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const hermes::vm::RuntimeConfig &runtimeConfig)
 
     runtime->addCustomRootsFunction([this](hermes::vm::GC *, hermes::vm::RootAcceptor &rootAcceptor) {
         NAPIRef ref;
-        LIST_FOREACH(ref, &this->valueList, node)
+        LIST_FOREACH(ref, &this->strongRefList, node)
         {
             rootAcceptor.accept(ref->pinnedHermesValue);
         }
@@ -921,6 +922,10 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
             env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)argv[i]));
     }
     auto function = hermes::vm::dyn_vmcast_or_null<hermes::vm::Callable>(*(const hermes::vm::PinnedHermesValue *)func);
+    if (!function)
+    {
+        assert(false && "func is not a Callable");
+    }
     auto executeCallResult = hermes::vm::Callable::executeCall(
         env->getRuntime()->makeHandle(function), env->getRuntime(), hermes::vm::Runtime::getUndefinedValue(),
         env->getRuntime()->makeHandle(*(const hermes::vm::PinnedHermesValue *)thisValue), callResult.getValue());
@@ -1152,6 +1157,8 @@ NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *re
     CHECK_ARG(env, Error)
     CHECK_ARG(ref, Error)
     CHECK_ARG(result, Error)
+
+    RETURN_STATUS_IF_FALSE(env->getRuntime()->getTopGCScope(), NAPIErrorHandleScopeEmpty)
 
     *result = (NAPIValue)ref->getHermesValue();
 
