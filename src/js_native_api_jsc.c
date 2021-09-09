@@ -1364,7 +1364,7 @@ NAPICommonStatus NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
     return NAPICommonOK;
 }
 
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, bool isolateRuntime)
 {
     // *env 才是 NAPIEnv
     if (!env)

@@ -1394,7 +1394,7 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     return NAPIExceptionOK;
 }
 
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, bool isolateRuntime)
 {
     CHECK_ARG(env, Error)
 

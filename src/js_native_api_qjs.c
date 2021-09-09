@@ -98,13 +98,17 @@ struct ReferenceInfo
 // } NAPIExtendedErrorInfo;
 struct OpaqueNAPIEnv
 {
-    JSValue referenceSymbolValue;                       // 64/128
+    JSValue referenceSymbolValue; // 64/128
+    JSRuntime *runtime;
     JSContext *context;                                 // size_t
     LIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList; // size_t
     bool isThrowNull;
     LIST_HEAD(, ReferenceInfo) referenceList;
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
     LIST_HEAD(, OpaqueNAPIRef) valueList;
+    JSClassID constructorClassId; // 32
+    JSClassID functionClassId;
+    JSClassID externalClassId;
 };
 
 // 这个函数不会修改引用计数和所有权
@@ -1510,133 +1514,159 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
 }
 
 // NAPIGenericFailure/NAPIMemoryError
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, bool isolateRuntime)
 {
     CHECK_ARG(env, Error)
-    if ((runtime && !contextCount) || (!runtime && contextCount))
-    {
-        assert(false);
-
-        return NAPIErrorGenericFailure;
-    }
+    //    if (!isolateRuntime && ((runtime && !contextCount) || (!runtime && contextCount)))
+    //    {
+    //        assert(false);
+    //
+    //        return NAPIErrorGenericFailure;
+    //    }
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
+    (*env)->runtime = NULL;
+    (*env)->constructorClassId = 0;
+    (*env)->functionClassId = 0;
+    (*env)->externalClassId = 0;
+
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
-    if (!runtime)
+    if ((!isolateRuntime && !runtime) || isolateRuntime)
     {
-        runtime = JS_NewRuntime();
-        if (!runtime)
+        JSRuntime *inlineRuntime = JS_NewRuntime();
+        JSClassID inlineConstructorClassId = 0;
+        JSClassID inlineFunctionClassId = 0;
+        JSClassID inlineExternalClassId = 0;
+
+        if (!inlineRuntime)
         {
             free(*env);
 
             return NAPIErrorMemoryError;
         }
         // 一定成功
-        JS_NewClassID(&constructorClassId);
-        JS_NewClassID(&functionClassId);
-        JS_NewClassID(&externalClassId);
+        JS_NewClassID(&inlineConstructorClassId);
+        JS_NewClassID(&inlineFunctionClassId);
+        JS_NewClassID(&inlineExternalClassId);
 
         JSClassDef classDef = {"External", externalFinalizer, NULL, NULL, NULL};
-        int status = JS_NewClass(runtime, externalClassId, &classDef);
+        int status = JS_NewClass(inlineRuntime, inlineExternalClassId, &classDef);
         if (status == -1)
         {
-            JS_FreeRuntime(runtime);
+            JS_FreeRuntime(inlineRuntime);
             free(*env);
-            runtime = NULL;
-            constructorClassId = 0;
-            functionClassId = 0;
-            externalClassId = 0;
 
             return NAPIErrorGenericFailure;
         }
 
         classDef.class_name = "FunctionData";
         classDef.finalizer = functionFinalizer;
-        status = JS_NewClass(runtime, functionClassId, &classDef);
+        status = JS_NewClass(inlineRuntime, inlineFunctionClassId, &classDef);
         if (status == -1)
         {
-            JS_FreeRuntime(runtime);
+            JS_FreeRuntime(inlineRuntime);
             free(*env);
-            runtime = NULL;
-            constructorClassId = 0;
-            functionClassId = 0;
-            externalClassId = 0;
 
             return NAPIErrorGenericFailure;
         }
 
         classDef.class_name = "ConstructorPrototype";
         classDef.finalizer = constructorFinalizer;
-        status = JS_NewClass(runtime, constructorClassId, &classDef);
+        status = JS_NewClass(inlineRuntime, inlineConstructorClassId, &classDef);
         if (status == -1)
         {
-            JS_FreeRuntime(runtime);
+            JS_FreeRuntime(inlineRuntime);
             free(*env);
+
+            return NAPIErrorGenericFailure;
+        }
+
+        if (isolateRuntime)
+        {
+            (*env)->runtime = inlineRuntime;
+            (*env)->externalClassId = inlineExternalClassId;
+            (*env)->constructorClassId = inlineConstructorClassId;
+            (*env)->functionClassId = inlineFunctionClassId;
+        }
+        else
+        {
+            runtime = inlineRuntime;
+            externalClassId = inlineExternalClassId;
+            constructorClassId = inlineConstructorClassId;
+            functionClassId = inlineFunctionClassId;
+        }
+    }
+    (*env)->context = JS_NewContext(isolateRuntime ? (*env)->runtime : runtime);
+    //    js_std_add_helpers(context, 0, NULL);
+    if (!(*env)->context)
+    {
+        JS_FreeRuntime(isolateRuntime ? (*env)->runtime : runtime);
+        free(*env);
+        if (!isolateRuntime)
+        {
             runtime = NULL;
             constructorClassId = 0;
             functionClassId = 0;
             externalClassId = 0;
-
-            return NAPIErrorGenericFailure;
         }
-    }
-    JSContext *context = JS_NewContext(runtime);
-    //    js_std_add_helpers(context, 0, NULL);
-    if (!context)
-    {
-        free(*env);
-        JS_FreeRuntime(runtime);
-        runtime = NULL;
-        constructorClassId = 0;
-        functionClassId = 0;
-        externalClassId = 0;
 
         return NAPIErrorMemoryError;
     }
-    JSValue prototype = JS_NewObject(context);
+    JSValue prototype = JS_NewObject((*env)->context);
     if (JS_IsException(prototype))
     {
-        JS_FreeContext(context);
-        JS_FreeRuntime(runtime);
+        JS_FreeContext((*env)->context);
+        JS_FreeRuntime(isolateRuntime ? (*env)->runtime : runtime);
         free(*env);
-        runtime = NULL;
-        constructorClassId = 0;
-        functionClassId = 0;
-        externalClassId = 0;
+        if (!isolateRuntime)
+        {
+            runtime = NULL;
+            constructorClassId = 0;
+            functionClassId = 0;
+            externalClassId = 0;
+        }
 
         return NAPIErrorGenericFailure;
     }
-    JS_SetClassProto(context, externalClassId, prototype);
-    prototype = JS_NewObject(context);
+    JS_SetClassProto((*env)->context, isolateRuntime ? (*env)->externalClassId : externalClassId, prototype);
+    prototype = JS_NewObject((*env)->context);
     if (JS_IsException(prototype))
     {
-        JS_FreeContext(context);
-        JS_FreeRuntime(runtime);
+        JS_FreeContext((*env)->context);
+        JS_FreeRuntime(isolateRuntime ? (*env)->runtime : runtime);
         free(*env);
-        runtime = NULL;
-        constructorClassId = 0;
-        functionClassId = 0;
-        externalClassId = 0;
+        if (!isolateRuntime)
+        {
+            runtime = NULL;
+            constructorClassId = 0;
+            functionClassId = 0;
+            externalClassId = 0;
+        }
 
         return NAPIErrorGenericFailure;
     }
-    JS_SetClassProto(context, constructorClassId, prototype);
-    const char *string = "(function () { return Symbol(\"reference\") })();";
-    (*env)->referenceSymbolValue =
-        JS_Eval(context, string, strlen(string), "https://n-api.com/qjs_reference_symbol.js", JS_EVAL_TYPE_GLOBAL);
+    JS_SetClassProto((*env)->context, isolateRuntime ? (*env)->constructorClassId : constructorClassId, prototype);
+    const char *string = "(function () { return Symbol(\"reference\") })()";
+    (*env)->referenceSymbolValue = JS_Eval((*env)->context, string, strlen(string),
+                                           "https://n-api.com/qjs_reference_symbol.js", JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException((*env)->referenceSymbolValue))
     {
-        JS_FreeContext(context);
-        JS_FreeRuntime(runtime);
+        JS_FreeContext((*env)->context);
+        JS_FreeRuntime(isolateRuntime ? (*env)->runtime : runtime);
         free(*env);
-        runtime = NULL;
-        constructorClassId = 0;
-        functionClassId = 0;
-        externalClassId = 0;
+        if (!isolateRuntime)
+        {
+            runtime = NULL;
+            constructorClassId = 0;
+            functionClassId = 0;
+            externalClassId = 0;
+        }
 
         return NAPIErrorGenericFailure;
     }
-    contextCount += 1;
-    (*env)->context = context;
+    if (!isolateRuntime)
+    {
+        contextCount += 1;
+    }
     (*env)->isThrowNull = false;
     LIST_INIT(&(*env)->handleScopeList);
     LIST_INIT(&(*env)->referenceList);
@@ -1684,7 +1714,6 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
         }
         referenceInfo->isEnvFreed = true;
     }
-    gcLock = false;
     // 到这一步，所有弱引用已经全部释放完成
     LIST_FOREACH_SAFE(ref, &env->valueList, node, temp)
     {
@@ -1693,9 +1722,12 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
     }
     JS_FreeValue(env->context, env->referenceSymbolValue);
     JS_FreeContext(env->context);
-    if (--contextCount == 0 && runtime)
+    if (env->runtime)
     {
-        // virtualMachine 不能为 NULL
+        JS_FreeRuntime(env->runtime);
+    }
+    else if (--contextCount == 0)
+    {
         JS_FreeRuntime(runtime);
         runtime = NULL;
         constructorClassId = 0;
