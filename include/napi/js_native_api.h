@@ -121,10 +121,6 @@ NAPI_EXPORT NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8nam
 
 NAPI_EXPORT NAPIErrorStatus NAPICreateEnv(NAPIEnv *env);
 
-// debuggerTitle 只对 Hermes 引擎生效，应当支持空指针
-NAPI_EXPORT NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle);
-
-NAPI_EXPORT NAPICommonStatus NAPIDisableDebugger(NAPIEnv env);
 
 NAPI_EXPORT NAPICommonStatus NAPIFreeEnv(NAPIEnv env);
 
