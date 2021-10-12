@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
+#include <napi/js_native_api_debugger.h>
 
 #ifndef SLIST_FOREACH_SAFE
 #define SLIST_FOREACH_SAFE(var, head, field, tvar)                                                                     \
@@ -1736,6 +1737,11 @@ NAPICommonStatus NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env,
 }
 
 NAPICommonStatus NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
+{
+    return NAPICommonOK;
+}
+NAPICommonStatus NAPISetMessageQueueThread(__attribute__((unused)) NAPIEnv env,
+                                           __attribute__((unused)) MessageQueueThreadWrapper jsQueueWrapper)
 {
     return NAPICommonOK;
 }

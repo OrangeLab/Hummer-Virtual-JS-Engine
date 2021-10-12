@@ -33,6 +33,7 @@
 #include <napi/js_native_api_types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <napi/js_native_api_debugger.h>
 
 struct OpaqueNAPIRef
 {
@@ -1363,6 +1364,13 @@ NAPICommonStatus NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
 {
     return NAPICommonOK;
 }
+
+NAPICommonStatus NAPISetMessageQueueThread(__attribute__((unused)) NAPIEnv env,
+                                           __attribute__((unused)) MessageQueueThreadWrapper jsQueueWrapper)
+{
+    return NAPICommonOK;
+}
+
 
 NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 {
