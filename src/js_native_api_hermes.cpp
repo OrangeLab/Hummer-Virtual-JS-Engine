@@ -1490,7 +1490,7 @@ NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char 
     auto stringPrimitive =
         hermes::vm::dyn_vmcast_or_null<hermes::vm::StringPrimitive>(*(const hermes::vm::PinnedHermesValue *)value);
     if (stringPrimitive->isASCII())
-    {·
+    {
         auto asciiStringRef = stringPrimitive->getStringRef<char>();
         char *buffer = static_cast<char *>(malloc(sizeof(char) * (asciiStringRef.size() + 1)));
         RETURN_STATUS_IF_FALSE(buffer, NAPIErrorMemoryError)
