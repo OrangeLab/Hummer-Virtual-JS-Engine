@@ -620,6 +620,19 @@ config("react_native_common_build") {
     include_dirs = ["third_party/react-native/ReactCommon"]
 }
 
+source_set("hermes_inspector_napi") {
+    cflags_cc = ["-fvisibility=hidden"]
+    configs = [":hermes_build", ":jsi_hermes_build", ":react_native_common_build", ":new_exception_rtti_build"]
+    if (build_android) {
+    # Thread.cpp 需要
+        configs += [":fbjni_build"]
+    }
+    sources = [
+        "src/inspector/js_native_api_hermes_inspector.cpp"
+    ]
+}
+
+
 source_set("hermes_inspector") {
     cflags_cc = ["-fvisibility=hidden"]
     configs = [":hermes_build", ":folly_build", ":jsi_hermes_build", ":react_native_common_build", ":new_exception_rtti_build"]
@@ -778,6 +791,7 @@ if (build_android) {
             ":fbjni",
             ":jsi",
             ":jsi_hermes",
+            ":hermes_inspector_napi",
 
             ":hermes_inspector",
             ":folly_json",
@@ -839,6 +853,7 @@ if (build_android) {
                 ":hermes_vm_runtime",
                 ":jsi",
                 ":jsi_hermes",
+                ":hermes_inspector_napi",
 
                 ":hermes_inspector",
                 ":folly_json",
@@ -933,6 +948,7 @@ if (build_android) {
                 ":hermes_vm_runtime",
                 ":jsi",
                 ":jsi_hermes",
+                ":hermes_inspector_napi",
 
                 ":hermes_inspector",
                 ":folly_json",

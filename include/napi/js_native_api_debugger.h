@@ -18,7 +18,7 @@ typedef struct OpaqueMessageQueueThreadWrapper *MessageQueueThreadWrapper;
 NAPI_EXPORT NAPICommonStatus NAPISetMessageQueueThread(NAPIEnv env, MessageQueueThreadWrapper jsQueueWrapper);
 
 // debuggerTitle 只对 Hermes 引擎生效，应当支持空指针
-NAPI_EXPORT NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle);
+NAPI_EXPORT NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle, bool waitForDebugger);
 
 NAPI_EXPORT NAPICommonStatus NAPIDisableDebugger(NAPIEnv env);
 

@@ -32,8 +32,13 @@ class NAPIEnvironment : public ::testing::Environment
     // Override this to define how to set up the environment.
     void SetUp() override
     {
+
         ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIErrorOK);
         NAPIHandleScope handleScope;
+
+        NAPIEnableDebugger(globalEnv, "test", true);
+
+
         ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIErrorOK);
         NAPIValue assertValue;
         ASSERT_EQ(napi_create_function(globalEnv, "assert", jsAssert, nullptr, &assertValue), NAPIExceptionOK);
@@ -58,6 +63,7 @@ int main(int argc, char **argv)
 {
     ::testing::AddGlobalTestEnvironment(new NAPIEnvironment());
     ::testing::InitGoogleTest(&argc, argv);
+
 
     return RUN_ALL_TESTS();
 }
