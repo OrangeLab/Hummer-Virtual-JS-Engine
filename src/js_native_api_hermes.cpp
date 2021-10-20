@@ -15,6 +15,11 @@
 #include <napi/js_native_api_debugger.h>
 #include <napi/js_native_api_debugger_hermes_types.h>
 #include <sys/queue.h>
+#include <string>
+#include <unordered_set>
+
+// private header
+#include "inspector/js_native_api_hermes_inspector.h"
 
 #ifdef HERMES_ENABLE_DEBUGGER
 #include <hermes/inspector/RuntimeAdapter.h>
@@ -172,6 +177,7 @@ hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>> External::getHos
     return hermes::vm::JSArray::create(runtime, 0, 0);
 }
 
+
 EXTERN_C_START
 
 struct OpaqueNAPIRef;
@@ -201,7 +207,7 @@ struct OpaqueNAPIEnv final
 
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
 
-    void enableDebugger(const char *debuggerTitle);
+    void enableDebugger(const char *debuggerTitle,  bool waitForDebugger);
 
     void disableDebugger();
 #ifdef HERMES_ENABLE_DEBUGGER
@@ -224,20 +230,20 @@ struct OpaqueNAPIEnv final
     std::shared_ptr<facebook::react::MessageQueueThread> thread_;
 };
 
-void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle)
+void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle, bool waitForDebugger)
 {
 #ifdef HERMES_ENABLE_DEBUGGER
+
     auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(hermesRuntimeSharedPtr, hermesRuntime, this->snapGetMessageQueueThread());
     std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
-    //        debuggerTitleString.append(" - React");
-    facebook::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString);
+    orangelab::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString, waitForDebugger);
 #endif
 }
 
 void OpaqueNAPIEnv::disableDebugger()
 {
 #ifdef HERMES_ENABLE_DEBUGGER
-    facebook::hermes::inspector::chrome::disableDebugging(hermesRuntime);
+    orangelab::hermes::inspector::chrome::disableDebugging(hermesRuntime);
 #endif
 }
 
@@ -1440,11 +1446,11 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
     return NAPIErrorOK;
 }
 
-NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle)
+NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle, bool waitForDebugger)
 {
     CHECK_ARG(env, Common)
 
-    env->enableDebugger(debuggerTitle);
+    env->enableDebugger(debuggerTitle, waitForDebugger);
 
     return NAPICommonOK;
 }
