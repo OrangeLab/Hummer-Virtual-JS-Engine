@@ -1355,7 +1355,8 @@ static JSContextGroupRef virtualMachine = NULL;
 static uint8_t contextCount = 0;
 
 NAPICommonStatus NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env,
-                                    __attribute__((unused)) const char *debuggerTitle)
+                                    __attribute__((unused)) const char *debuggerTitle,
+                                    __attribute__((unused)) bool waitForDebugger)
 {
     return NAPICommonOK;
 }
