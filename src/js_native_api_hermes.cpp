@@ -133,7 +133,7 @@ class HermesExecutorRuntimeAdapter final : public facebook::hermes::inspector::R
         // The queue will ensure that runtime_ is still valid when this
         // gets invoked.
         if (!this->thread_) return;
-        thread_->runOnQueue([&runtime = runtime_]() {
+        thread_->runOnQueue([runtime = runtime_]() {
           auto func =
               runtime->global().getPropertyAsFunction(*runtime, "__tickleJs");
           func.call(*runtime);
