@@ -62,11 +62,15 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### iOS 静态库
 
-1. `gn gen x86_64 --args="build_ios=true cross_compile_target=\"x86_64\""`
+1. `gn gen x86_64 --args="build_ios=true"`
 2. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\""`
 3. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\""`
-4. `ninja -C x86_64 quickjs hermes jsc && ninja -C armv7 quickjs hermes jsc && ninja -C arm64 quickjs hermes jsc`
-5. `libtool -static x86_64/obj/libquickjs.a armv7/obj/libquickjs.a arm64/obj/libquickjs.a -o napi/libquickjs.a && libtool -static x86_64/obj/libhermes.a armv7/obj/libhermes.a arm64/obj/libhermes.a -o napi/libhermes.a && libtool -static x86_64/obj/libjsc.a armv7/obj/libjsc.a arm64/obj/libjsc.a -o napi/libjsc.a`
+4. `ninja -C x86_64 quickjs jsc && ninja -C armv7 quickjs jsc && ninja -C arm64 quickjs jsc`
+5. `gn gen x86_64 --args="build_ios=true debug_info=false lto=false bitcode=false"`
+6. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\" debug_info=false lto=false bitcode=false"`
+7. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\" debug_info=false lto=false bitcode=false"`
+8. `ninja -C x86_64 hermes && ninja -C armv7 hermes && ninja -C hermes`
+9. `libtool -static x86_64/obj/libquickjs.a armv7/obj/libquickjs.a arm64/obj/libquickjs.a -o napi/libquickjs.a && libtool -static x86_64/obj/libhermes.a armv7/obj/libhermes.a arm64/obj/libhermes.a -o napi/libhermes.a && libtool -static x86_64/obj/libjsc.a armv7/obj/libjsc.a arm64/obj/libjsc.a -o napi/libjsc.a`
 
 ### Android 动态库
 
