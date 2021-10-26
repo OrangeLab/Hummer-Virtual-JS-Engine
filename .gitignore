@@ -70,6 +70,6 @@ Temporary Items
 /armv7/
 /arm64/
 /napi/
-/napi_ios_hermes.tar.gz
+/napi_ios.tar.gz
 /napi_hermes_android.tar.gz
-/napi_quickjs_android.tar.gz
+/napi_qjs_android.tar.gz
