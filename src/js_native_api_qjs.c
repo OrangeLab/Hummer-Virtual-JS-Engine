@@ -84,7 +84,6 @@ struct ReferenceInfo
 {
     LIST_ENTRY(ReferenceInfo) node;
     LIST_HEAD(, OpaqueNAPIRef) referenceList;
-    bool isEnvFreed;
 };
 
 // 1. external -> 不透明指针 + finalizer + 调用一个回调
@@ -106,6 +105,7 @@ struct OpaqueNAPIEnv
     LIST_HEAD(, ReferenceInfo) referenceList;
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
     LIST_HEAD(, OpaqueNAPIRef) valueList;
+    bool isFreeing;
 };
 
 // 这个函数不会修改引用计数和所有权
@@ -881,11 +881,15 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
     return NAPIErrorOK;
 }
 
-static bool gcLock = false;
-
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
-    assert(!gcLock);
+    NAPIEnv env = finalizeHint;
+    if (env->isFreeing)
+    {
+        assert(false);
+
+        return;
+    }
     if (!finalizeData)
     {
         assert(false);
@@ -893,25 +897,15 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
         return;
     }
     struct ReferenceInfo *referenceInfo = finalizeData;
-    // 如果弱引用列表为空，则为 NAPIFreeEnv 调用后
-    if (!referenceInfo->isEnvFreed)
+    NAPIRef reference, temp;
+    LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
     {
-        if (!finalizeHint)
-        {
-            assert(false);
-
-            return;
-        }
-        NAPIRef reference, temp;
-        LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
-        {
-            assert(!reference->referenceCount);
-            reference->value = undefinedValue;
-            LIST_REMOVE(reference, node);
-            LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
-        }
-        LIST_REMOVE(referenceInfo, node);
+        assert(!reference->referenceCount);
+        reference->value = undefinedValue;
+        LIST_REMOVE(reference, node);
+        LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
     }
+    LIST_REMOVE(referenceInfo, node);
     free(referenceInfo);
 }
 
@@ -936,7 +930,6 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     if (valueType == NAPIUndefined)
     {
         referenceInfo = malloc(sizeof(struct ReferenceInfo));
-        referenceInfo->isEnvFreed = false;
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIExceptionMemoryError)
         LIST_INIT(&referenceInfo->referenceList);
         {
@@ -1030,10 +1023,10 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
 
         return NAPIExceptionGenericFailure;
     }
-    if (!LIST_EMPTY(&referenceInfo->referenceList) && LIST_FIRST(&referenceInfo->referenceList) == ref &&
-        !LIST_NEXT(ref, node))
+    if (LIST_FIRST(&referenceInfo->referenceList) == ref && !LIST_NEXT(ref, node))
     {
         bool deleteResult;
+        // 一定不会在这里触发 GC
         CHECK_NAPI(
             napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue, &deleteResult),
             Exception, Exception)
@@ -1082,6 +1075,7 @@ NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *resul
 
     if (!ref->referenceCount)
     {
+        JSValue value = JS_DupValue(env->context, ref->value);
         if (JS_IsObject(ref->value))
         {
             CHECK_NAPI(clearWeak(env, ref), Exception, Exception)
@@ -1091,7 +1085,7 @@ NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *resul
             LIST_REMOVE(ref, node);
         }
         LIST_INSERT_HEAD(&env->strongRefList, ref, node);
-        ref->value = JS_DupValue(env->context, ref->value);
+        ref->value = value;
     }
     uint8_t count = ++ref->referenceCount;
     if (result)
@@ -1521,6 +1515,7 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
         return NAPIErrorGenericFailure;
     }
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
+    (*env)->isFreeing = false;
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
     if (!runtime)
     {
@@ -1652,6 +1647,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
     CHECK_ARG(env, Common)
 
     assert(LIST_EMPTY(&(*env).handleScopeList));
+    env->isFreeing = true;
     //    NAPIHandleScope handleScope, tempHandleScope;
     //    LIST_FOREACH_SAFE(handleScope, &(*env).handleScopeList, node, tempHandleScope)
     //    napi_close_handle_scope(env, handleScope);
@@ -1662,30 +1658,17 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
         JS_FreeValue(env->context, ref->value);
         free(ref);
     }
-    struct ReferenceInfo *referenceInfo;
-    gcLock = true;
-    LIST_FOREACH(referenceInfo, &env->referenceList, node)
+    struct ReferenceInfo *referenceInfo, *tempReferenceInfo;
+    LIST_FOREACH_SAFE(referenceInfo, &env->referenceList, node, tempReferenceInfo)
     {
         LIST_FOREACH_SAFE(ref, &referenceInfo->referenceList, node, temp)
         {
             LIST_REMOVE(ref, node);
-            if (!temp)
-            {
-                // 最后一个
-                bool deleteResult;
-                // 可能触发 GC，如果触发 GC 会导致 referenceInfo 被销毁，遍历走不下去，所以添加了一个 gcLock
-                if (napi_delete_property(env, (NAPIValue)&ref->value, (NAPIValue)&env->referenceSymbolValue,
-                                         &deleteResult) != NAPIExceptionOK)
-                {
-                    assert(false);
-                }
-                assert(deleteResult);
-            }
             free(ref);
         }
-        referenceInfo->isEnvFreed = true;
+        LIST_REMOVE(referenceInfo, node);
+        free(referenceInfo);
     }
-    gcLock = false;
     // 到这一步，所有弱引用已经全部释放完成
     LIST_FOREACH_SAFE(ref, &env->valueList, node, temp)
     {

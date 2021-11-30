@@ -1,5 +1,6 @@
 #include <cassert>
 #include <test.h>
+#include <napi/js_native_api_debugger.h>
 
 NAPIEnv globalEnv = nullptr;
 
