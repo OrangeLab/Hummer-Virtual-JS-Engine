@@ -83,6 +83,7 @@ struct ReferenceInfo
 {
     LIST_ENTRY(ReferenceInfo) node;
     LIST_HEAD(, OpaqueNAPIRef) referenceList;
+    bool isEnvFreed;
 };
 
 // 1. external -> 不透明指针 + finalizer + 调用一个回调
@@ -890,20 +891,22 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
 
         return;
     }
-
     struct ReferenceInfo *referenceInfo = finalizeData;
-    NAPIRef reference, temp;
-    // 如果不进入循环，基本是因为已经走了 NAPIFreeEnv
-    LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
-    {
-        assert(!reference->referenceCount);
-        reference->value = undefinedValue;
-        LIST_REMOVE(reference, node);
-        // 所以这里 finalizeHint 还是有效的 env
-        LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
+    if (!referenceInfo->isEnvFreed) {
+        NAPIRef reference, temp;
+        LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
+        {
+            // 如果进入循环，说明 env 是有效的
+            assert(!reference->referenceCount);
+            reference->value = undefinedValue;
+            LIST_REMOVE(reference, node);
+            // 所以这里 finalizeHint 还是有效的 env
+            LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
+        }
+        // 当前不是 last GC
+        LIST_REMOVE(referenceInfo, node);
     }
-    // LIST_REMOVE 不会影响 env，因此不需要考虑 env 是否有效
-    LIST_REMOVE(referenceInfo, node);
+
     free(referenceInfo);
 }
 
@@ -928,6 +931,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     if (valueType == NAPIUndefined)
     {
         referenceInfo = malloc(sizeof(struct ReferenceInfo));
+        referenceInfo->isEnvFreed = false;
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIExceptionMemoryError)
         LIST_INIT(&referenceInfo->referenceList);
         {
@@ -1661,6 +1665,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
             free(ref);
         }
         LIST_REMOVE(referenceInfo, node);
+        referenceInfo->isEnvFreed = true;
         // referenceInfo 本身不销毁，等到 GC 阶段销毁
     }
     // 到这一步，所有弱引用已经全部释放完成
