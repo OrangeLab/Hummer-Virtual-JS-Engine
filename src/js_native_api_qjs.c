@@ -3,14 +3,13 @@
 // NULL 初始化
 
 #include <assert.h>
-#include <math.h>
 #include <napi/js_native_api.h>
+#include <napi/js_native_api_debugger.h>
 #include <quickjs.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
-#include <napi/js_native_api_debugger.h>
 
 #ifndef SLIST_FOREACH_SAFE
 #define SLIST_FOREACH_SAFE(var, head, field, tvar)                                                                     \
@@ -84,6 +83,7 @@ struct ReferenceInfo
 {
     LIST_ENTRY(ReferenceInfo) node;
     LIST_HEAD(, OpaqueNAPIRef) referenceList;
+    bool isEnvFreed;
 };
 
 // 1. external -> 不透明指针 + finalizer + 调用一个回调
@@ -105,7 +105,6 @@ struct OpaqueNAPIEnv
     LIST_HEAD(, ReferenceInfo) referenceList;
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
     LIST_HEAD(, OpaqueNAPIRef) valueList;
-    bool isFreeing;
 };
 
 // 这个函数不会修改引用计数和所有权
@@ -881,15 +880,11 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
     return NAPIErrorOK;
 }
 
+static uint8_t contextCount = 0;
+
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
-    NAPIEnv env = finalizeHint;
-    if (env->isFreeing)
-    {
-        assert(false);
-
-        return;
-    }
+    // finalizeHint => env 不可靠
     if (!finalizeData)
     {
         assert(false);
@@ -897,15 +892,21 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
         return;
     }
     struct ReferenceInfo *referenceInfo = finalizeData;
-    NAPIRef reference, temp;
-    LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
-    {
-        assert(!reference->referenceCount);
-        reference->value = undefinedValue;
-        LIST_REMOVE(reference, node);
-        LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
+    if (!referenceInfo->isEnvFreed) {
+        NAPIRef reference, temp;
+        LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
+        {
+            // 如果进入循环，说明 env 是有效的
+            assert(!reference->referenceCount);
+            reference->value = undefinedValue;
+            LIST_REMOVE(reference, node);
+            // 所以这里 finalizeHint 还是有效的 env
+            LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
+        }
+        // 当前不是 last GC
+        LIST_REMOVE(referenceInfo, node);
     }
-    LIST_REMOVE(referenceInfo, node);
+
     free(referenceInfo);
 }
 
@@ -930,6 +931,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     if (valueType == NAPIUndefined)
     {
         referenceInfo = malloc(sizeof(struct ReferenceInfo));
+        referenceInfo->isEnvFreed = false;
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIExceptionMemoryError)
         LIST_INIT(&referenceInfo->referenceList);
         {
@@ -1352,8 +1354,6 @@ NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, const char *s
     return NAPIExceptionOK;
 }
 
-static uint8_t contextCount = 0;
-
 static void functionFinalizer(JSRuntime *rt, JSValue val)
 {
     FunctionInfo *functionInfo = JS_GetOpaque(val, functionClassId);
@@ -1515,7 +1515,6 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
         return NAPIErrorGenericFailure;
     }
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
-    (*env)->isFreeing = false;
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
     if (!runtime)
     {
@@ -1647,7 +1646,6 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
     CHECK_ARG(env, Common)
 
     assert(LIST_EMPTY(&(*env).handleScopeList));
-    env->isFreeing = true;
     //    NAPIHandleScope handleScope, tempHandleScope;
     //    LIST_FOREACH_SAFE(handleScope, &(*env).handleScopeList, node, tempHandleScope)
     //    napi_close_handle_scope(env, handleScope);
@@ -1667,7 +1665,8 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
             free(ref);
         }
         LIST_REMOVE(referenceInfo, node);
-        free(referenceInfo);
+        referenceInfo->isEnvFreed = true;
+        // referenceInfo 本身不销毁，等到 GC 阶段销毁
     }
     // 到这一步，所有弱引用已经全部释放完成
     LIST_FOREACH_SAFE(ref, &env->valueList, node, temp)
