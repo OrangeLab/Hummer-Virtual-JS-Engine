@@ -892,7 +892,8 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
         return;
     }
     struct ReferenceInfo *referenceInfo = finalizeData;
-    if (!referenceInfo->isEnvFreed) {
+    if (!referenceInfo->isEnvFreed)
+    {
         NAPIRef reference, temp;
         LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
         {
