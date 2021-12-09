@@ -974,11 +974,8 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
 
 static const char *const REFERENCE_STRING = "__reference__";
 
-static bool gcLock = false;
-
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
-    assert(!gcLock);
     if (!finalizeData)
     {
         assert(false);
@@ -988,12 +985,6 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
     struct ReferenceInfo *referenceInfo = finalizeData;
     if (!referenceInfo->isEnvFreed)
     {
-        if (!finalizeHint || !((NAPIEnv)finalizeHint)->context)
-        {
-            assert(false);
-
-            return;
-        }
         NAPIRef reference;
         LIST_FOREACH(reference, &referenceInfo->referenceList, node)
         {
@@ -1433,20 +1424,17 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
         JSValueUnprotect(env->context, ref->value);
         free(ref);
     }
-    struct ReferenceInfo *referenceInfo;
-    gcLock = true;
-    LIST_FOREACH(referenceInfo, &env->referenceList, node)
+    struct ReferenceInfo *referenceInfo, *tempReferenceInfo;
+    LIST_FOREACH_SAFE(referenceInfo, &env->referenceList, node, tempReferenceInfo)
     {
         LIST_FOREACH_SAFE(ref, &referenceInfo->referenceList, node, temp)
         {
-            if (napi_delete_reference(env, ref) != NAPICommonOK)
-            {
-                assert(false);
-            }
+            LIST_REMOVE(ref, node);
+            free(ref);
         }
+        LIST_REMOVE(referenceInfo, node);
         referenceInfo->isEnvFreed = true;
     }
-    gcLock = false;
     LIST_FOREACH_SAFE(ref, &env->valueList, node, temp)
     {
         LIST_REMOVE(ref, node);
