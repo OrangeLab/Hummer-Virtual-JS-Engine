@@ -30,10 +30,10 @@
 
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <assert.h>
+#include <napi/js_native_api_debugger.h>
 #include <napi/js_native_api_types.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <napi/js_native_api_debugger.h>
 
 struct OpaqueNAPIRef
 {
@@ -1105,7 +1105,7 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
     NAPIValue stringValue;
     CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, &stringValue), Exception, Exception)
     NAPIValue externalValue;
-    CHECK_NAPI(napi_get_property(env, (NAPIValue)&ref->value, stringValue, &externalValue), Exception, Exception)
+    CHECK_NAPI(napi_get_property(env, (NAPIValue)ref->value, stringValue, &externalValue), Exception, Exception)
     struct ReferenceInfo *referenceInfo;
     CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Error, Exception)
     if (!referenceInfo)
@@ -1118,7 +1118,7 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
         !LIST_NEXT(ref, node))
     {
         bool deleteResult;
-        CHECK_NAPI(napi_delete_property(env, (NAPIValue)&ref->value, stringValue, &deleteResult), Exception, Exception)
+        CHECK_NAPI(napi_delete_property(env, (NAPIValue)ref->value, stringValue, &deleteResult), Exception, Exception)
         RETURN_STATUS_IF_FALSE(deleteResult, NAPIExceptionGenericFailure)
     }
     LIST_REMOVE(ref, node);
@@ -1194,7 +1194,7 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
         LIST_REMOVE(ref, node);
         if (JSValueIsObject(env->context, ref->value))
         {
-            CHECK_NAPI(setWeak(env, (NAPIValue)&ref->value, ref), Exception, Exception)
+            CHECK_NAPI(setWeak(env, (NAPIValue)ref->value, ref), Exception, Exception)
             JSValueUnprotect(env->context, ref->value);
         }
         else
@@ -1225,7 +1225,7 @@ NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *re
     }
     else
     {
-        *result = (NAPIValue)&ref->value;
+        *result = (NAPIValue)ref->value;
     }
 
     return NAPIErrorOK;
@@ -1371,7 +1371,6 @@ NAPICommonStatus NAPISetMessageQueueThread(__attribute__((unused)) NAPIEnv env,
 {
     return NAPICommonOK;
 }
-
 
 NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 {
