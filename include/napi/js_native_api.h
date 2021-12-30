@@ -52,7 +52,7 @@ NAPI_EXPORT NAPIExceptionStatus napi_get_property(NAPIEnv env, NAPIValue object,
 // result 可空
 NAPI_EXPORT NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result);
 
-NAPI_EXPORT NAPICommonStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
+NAPI_EXPORT NAPIExceptionStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result);
 
 // thisValue/result 可空
 NAPI_EXPORT NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc,
