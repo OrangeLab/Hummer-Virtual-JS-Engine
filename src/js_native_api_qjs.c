@@ -689,19 +689,22 @@ NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValu
     return NAPIExceptionOK;
 }
 
-NAPIExceptionStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result)
+NAPICommonStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result)
 {
     CHECK_THREAD()
-    CHECK_ARG(env, Exception)
-    CHECK_ARG(value, Exception)
-    CHECK_ARG(result, Exception)
+    CHECK_ARG(env, Common)
+    CHECK_ARG(value, Common)
+    CHECK_ARG(result, Common)
 
-    // TODO(ChasonTang): 和正常 JS 引擎如 JavaScriptCore、V8 对比
-    int status = JS_IsArray(env->context, *((JSValue *)value));
-    RETURN_STATUS_IF_FALSE(status != -1, NAPIExceptionPendingException);
-    *result = status;
+    // 正常情况下 napi_is_array 不会检查 Proxy 的情况
+    int isArrayStatus = JS_IsArray(env->context, *((JSValue *)value));
+    if (isArrayStatus == -1)
+    {
+        CHECK_NAPI(NAPIClearLastException(env), Common, Common)
+    }
+    *result = isArrayStatus;
 
-    return NAPIExceptionOK;
+    return NAPICommonOK;
 }
 
 static void processPendingTask(NAPIEnv env)
