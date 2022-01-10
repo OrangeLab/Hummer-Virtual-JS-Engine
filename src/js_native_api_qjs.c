@@ -11,16 +11,7 @@
 #include <string.h>
 #include <sys/queue.h>
 
-#ifndef NDEBUG
 #include <limits.h>
-#include <pthread.h>
-static pthread_t threadId;
-#define CHECK_THREAD() assert(threadId == pthread_self() && "Multiple thread is forbidden.");
-#define INIT_THREAD() threadId = pthread_self();
-#else
-#define CHECK_THREAD()
-#define INIT_THREAD()
-#endif
 
 #ifndef SLIST_FOREACH_SAFE
 #define SLIST_FOREACH_SAFE(var, head, field, tvar)                                                                     \
@@ -120,7 +111,7 @@ struct OpaqueNAPIEnv
 // NAPIHandleScopeEmpty/NAPIMemoryError
 static NAPIErrorStatus addValueToHandleScope(NAPIEnv env, JSValue value, struct Handle **result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -138,7 +129,7 @@ static JSValueConst undefinedValue = JS_UNDEFINED;
 
 NAPICommonStatus napi_get_undefined(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(result, Common)
 
@@ -151,7 +142,7 @@ static JSValueConst nullValue = JS_NULL;
 
 NAPICommonStatus napi_get_null(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(result, Common)
 
@@ -168,7 +159,7 @@ static char *const NAPI_CLOSE_HANDLE_SCOPE_ERROR = "napi_close_handle_scope() re
 // NAPIGenericFailure + addValueToHandleScope
 NAPIErrorStatus napi_get_global(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -200,7 +191,7 @@ static JSValue falseValue = JS_FALSE;
 
 NAPIErrorStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -212,7 +203,7 @@ NAPIErrorStatus napi_get_boolean(NAPIEnv env, bool value, NAPIValue *result)
 // + addValueToHandleScope
 NAPIErrorStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -227,7 +218,7 @@ NAPIErrorStatus napi_create_double(NAPIEnv env, double value, NAPIValue *result)
 // NAPIPendingException + addValueToHandleScope
 NAPIExceptionStatus napi_create_string_utf8(NAPIEnv env, const char *str, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(result, Exception)
 
@@ -375,7 +366,7 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
 NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
                                          NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(cb, Exception)
     CHECK_ARG(result, Exception)
@@ -449,7 +440,7 @@ static JSClassID externalClassId = 0;
 
 NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(value, Common)
     CHECK_ARG(result, Common)
@@ -499,7 +490,7 @@ NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result
 // NAPINumberExpected
 NAPIErrorStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(value, Error)
     CHECK_ARG(result, Error)
@@ -525,7 +516,7 @@ NAPIErrorStatus napi_get_value_double(NAPIEnv env, NAPIValue value, double *resu
 // NAPIBooleanExpected
 NAPIErrorStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(value, Error)
     CHECK_ARG(result, Error)
@@ -539,7 +530,7 @@ NAPIErrorStatus napi_get_value_bool(NAPIEnv env, NAPIValue value, bool *result)
 // NAPIPendingException + napi_get_boolean
 NAPIExceptionStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(value, Exception)
     CHECK_ARG(result, Exception)
@@ -554,7 +545,7 @@ NAPIExceptionStatus napi_coerce_to_bool(NAPIEnv env, NAPIValue value, NAPIValue 
 // NAPIPendingException + napi_create_double
 NAPIExceptionStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(value, Exception)
     CHECK_ARG(result, Exception)
@@ -571,7 +562,7 @@ NAPIExceptionStatus napi_coerce_to_number(NAPIEnv env, NAPIValue value, NAPIValu
 // NAPIPendingException + addValueToHandleScope
 NAPIExceptionStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(value, Exception)
     CHECK_ARG(result, Exception)
@@ -594,7 +585,7 @@ NAPIExceptionStatus napi_coerce_to_string(NAPIEnv env, NAPIValue value, NAPIValu
 // NAPIPendingException/NAPIGenericFailure
 NAPIExceptionStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue value)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(object, Exception)
     CHECK_ARG(key, Exception)
@@ -621,7 +612,7 @@ NAPIExceptionStatus napi_set_property(NAPIEnv env, NAPIValue object, NAPIValue k
 // NAPIPendingException
 NAPIExceptionStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(object, Exception)
     CHECK_ARG(key, Exception)
@@ -640,7 +631,7 @@ NAPIExceptionStatus napi_has_property(NAPIEnv env, NAPIValue object, NAPIValue k
 // NAPIPendingException + addValueToHandleScope
 NAPIExceptionStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue key, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(object, Exception)
     CHECK_ARG(key, Exception)
@@ -669,7 +660,7 @@ NAPIExceptionStatus napi_get_property(NAPIEnv env, NAPIValue object, NAPIValue k
 // NAPIPendingException
 NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValue key, bool *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(object, Exception)
     CHECK_ARG(key, Exception)
@@ -691,7 +682,7 @@ NAPIExceptionStatus napi_delete_property(NAPIEnv env, NAPIValue object, NAPIValu
 
 NAPICommonStatus napi_is_array(NAPIEnv env, NAPIValue value, bool *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(value, Common)
     CHECK_ARG(result, Common)
@@ -734,7 +725,7 @@ static void processPendingTask(NAPIEnv env)
 NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIValue func, size_t argc,
                                        const NAPIValue *argv, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(func, Exception)
 
@@ -801,7 +792,7 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
 NAPIExceptionStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t argc, const NAPIValue *argv,
                                       NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(constructor, Exception)
     CHECK_ARG(result, Exception)
@@ -853,7 +844,7 @@ NAPIExceptionStatus napi_new_instance(NAPIEnv env, NAPIValue constructor, size_t
 // NAPIPendingException
 NAPIExceptionStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue constructor, bool *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(object, Exception)
     CHECK_ARG(constructor, Exception)
@@ -869,7 +860,7 @@ NAPIExceptionStatus napi_instanceof(NAPIEnv env, NAPIValue object, NAPIValue con
 NAPICommonStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, size_t *argc, NAPIValue *argv,
                                   NAPIValue *thisArg, void **data)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(callbackInfo, Common)
 
@@ -908,7 +899,7 @@ NAPICommonStatus napi_get_cb_info(NAPIEnv env, NAPICallbackInfo callbackInfo, si
 
 NAPICommonStatus napi_get_new_target(NAPIEnv env, NAPICallbackInfo callbackInfo, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(callbackInfo, Common)
     CHECK_ARG(result, Common)
@@ -936,7 +927,7 @@ typedef struct
 NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize finalizeCB, void *finalizeHint,
                                          NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(result, Exception)
 
@@ -977,7 +968,7 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
 
 NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(value, Error)
     CHECK_ARG(result, Error)
@@ -1088,7 +1079,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
 // NAPIMemoryError + setWeak
 NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t initialRefCount, NAPIRef *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(value, Exception)
     CHECK_ARG(result, Exception)
@@ -1168,7 +1159,7 @@ static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
 // NAPIGenericFailure + clearWeak
 NAPIExceptionStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(ref, Exception)
 
@@ -1199,7 +1190,7 @@ NAPIExceptionStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
 // NAPIGenericFailure + clearWeak
 NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(ref, Exception)
 
@@ -1230,7 +1221,7 @@ NAPIExceptionStatus napi_reference_ref(NAPIEnv env, NAPIRef ref, uint32_t *resul
 // NAPIGenericFailure + setWeak
 NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(ref, Exception)
 
@@ -1262,7 +1253,7 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
 
 NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(ref, Error)
     CHECK_ARG(result, Error)
@@ -1291,7 +1282,7 @@ NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *re
 // NAPIMemoryError
 NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -1306,7 +1297,7 @@ NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
 
 NAPICommonStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
     CHECK_ARG(scope, Common)
 
@@ -1335,7 +1326,7 @@ struct OpaqueNAPIEscapableHandleScope
 // NAPIMemoryError
 NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
@@ -1359,7 +1350,7 @@ NAPICommonStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHan
 // NAPIMemoryError/NAPIEscapeCalledTwice/NAPIHandleScopeEmpty
 NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(scope, Error)
     CHECK_ARG(escapee, Error)
@@ -1381,7 +1372,7 @@ NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, 
 
 NAPIExceptionStatus napi_throw(NAPIEnv env, NAPIValue error)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(error, Exception)
 
@@ -1400,7 +1391,7 @@ NAPIExceptionStatus napi_throw(NAPIEnv env, NAPIValue error)
 // + addValueToHandleScope
 NAPIErrorStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     // 这里不能用 NAPI_PREAMBLE(env)
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
@@ -1437,7 +1428,7 @@ NAPIErrorStatus napi_get_and_clear_last_exception(NAPIEnv env, NAPIValue *result
 
 NAPICommonStatus NAPIClearLastException(NAPIEnv env)
 {
-    CHECK_THREAD()
+
     // 这里不能用 NAPI_PREAMBLE(env)
     CHECK_ARG(env, Common)
 
@@ -1449,7 +1440,7 @@ NAPICommonStatus NAPIClearLastException(NAPIEnv env)
 // NAPIPendingException + addValueToHandleScope
 NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, const char *sourceUrl, NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
 
     // script 传入 NULL 会崩
@@ -1630,7 +1621,7 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
 NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
                                     NAPIValue *result)
 {
-    CHECK_THREAD()
+
     NAPI_PREAMBLE(env)
     CHECK_ARG(constructor, Exception)
     CHECK_ARG(result, Exception)
@@ -1716,7 +1707,6 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 
     if (!rt)
     {
-        INIT_THREAD()
         rt = JS_NewRuntime();
         if (__builtin_expect(!rt, false))
         {
@@ -1798,7 +1788,7 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
     if (__builtin_expect(JS_IsException((*env)->referenceSymbolValue), false))
     {
         JS_FreeContext(context);
-        JS_FreeRuntime(runtime);
+        JS_FreeRuntime(rt);
         free(*env);
 
         return NAPIErrorGenericFailure;
@@ -1821,7 +1811,6 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
 
 NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
 {
-    CHECK_THREAD()
     CHECK_ARG(env, Common)
 
     NAPIHandleScope handleScope, tempHandleScope;
@@ -1880,7 +1869,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
 
 NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Error)
     CHECK_ARG(value, Error)
     CHECK_ARG(result, Error)
@@ -1894,7 +1883,7 @@ NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char 
 
 NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
 {
-    CHECK_THREAD()
+
     CHECK_ARG(env, Common)
 
     JS_FreeCString(env->context, cString);
