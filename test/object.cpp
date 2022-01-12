@@ -153,7 +153,7 @@ static NAPIValue isArray(NAPIEnv env, NAPICallbackInfo callbackInfo)
     NAPIValue argv[1];
     assert(napi_get_cb_info(env, callbackInfo, &argc, argv, nullptr, nullptr) == NAPICommonOK);
     bool result;
-    assert(napi_is_array(env, argv[0], &result) == NAPIExceptionOK);
+    assert(napi_is_array(env, argv[0], &result) == NAPICommonOK);
     NAPIValue output;
     assert(napi_get_boolean(env, result, &output) == NAPIErrorOK);
 
