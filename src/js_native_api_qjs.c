@@ -1907,3 +1907,122 @@ NAPICommonStatus NAPISetMessageQueueThread(__attribute__((unused)) NAPIEnv env,
 {
     return NAPICommonOK;
 }
+
+NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(NAPIEnv env, const char *script, const char *sourceUrl,
+                                                        const uint8_t **byteBuffer, size_t *bufferSize)
+{
+    NAPI_PREAMBLE(env)
+    CHECK_ARG(byteBuffer, Exception)
+
+    if (!script)
+    {
+        script = "";
+    }
+    if (!sourceUrl)
+    {
+        sourceUrl = "";
+    }
+    JSValue returnValue =
+        JS_Eval(env->context, script, strlen(script), sourceUrl, JS_EVAL_FLAG_COMPILE_ONLY | JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(returnValue))
+    {
+        goto exceptionHandler;
+    }
+    *byteBuffer = JS_WriteObject(env->context, bufferSize, returnValue, JS_WRITE_OBJ_BYTECODE);
+    JS_FreeValue(env->context, returnValue);
+    if (!*byteBuffer)
+    {
+        goto exceptionHandler;
+    }
+
+    return NAPIExceptionOK;
+
+exceptionHandler : {
+    JSValue exceptionValue = JS_GetException(env->context);
+    if (JS_IsNull(exceptionValue))
+    {
+        env->isThrowNull = true;
+    }
+    else
+    {
+        JS_Throw(env->context, exceptionValue);
+    }
+}
+
+    return NAPIExceptionPendingException;
+}
+
+NAPI_EXPORT NAPICommonStatus NAPIFreeByteBuffer(NAPIEnv env, const uint8_t *byteBuffer)
+{
+    CHECK_ARG(env, Common)
+
+    js_free(env->context, (void *)byteBuffer);
+
+    return NAPICommonOK;
+}
+
+NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *byteBuffer, size_t bufferSize,
+                                                  NAPIValue *result)
+{
+    NAPI_PREAMBLE(env)
+
+    JSValue functionValue = JS_ReadObject(env->context, byteBuffer, bufferSize, JS_READ_OBJ_BYTECODE);
+    if (JS_IsException(functionValue))
+    {
+        goto exceptionHandler;
+    }
+
+    JSValue returnValue = JS_EvalFunction(env->context, functionValue);
+    if (JS_IsException(returnValue))
+    {
+        goto exceptionHandlerWithProcess;
+    }
+    JS_FreeValue(env->context, functionValue);
+    processPendingTask(env);
+    if (result)
+    {
+        struct Handle *returnHandle;
+        NAPIErrorStatus status = addValueToHandleScope(env, returnValue, &returnHandle);
+        if (__builtin_expect(status != NAPIErrorOK, false))
+        {
+            JS_FreeValue(env->context, returnValue);
+
+            return (NAPIExceptionStatus)status;
+        }
+        *result = (NAPIValue)&returnHandle->value;
+    }
+    else
+    {
+        JS_FreeValue(env->context, returnValue);
+    }
+
+    return NAPIExceptionOK;
+
+exceptionHandler : {
+    JSValue exceptionValue = JS_GetException(env->context);
+    if (JS_IsNull(exceptionValue))
+    {
+        env->isThrowNull = true;
+    }
+    else
+    {
+        JS_Throw(env->context, exceptionValue);
+    }
+}
+    return NAPIExceptionPendingException;
+
+exceptionHandlerWithProcess : {
+    JSValue exceptionValue = JS_GetException(env->context);
+    processPendingTask(env);
+    if (JS_IsNull(exceptionValue))
+    {
+        env->isThrowNull = true;
+    }
+    else
+    {
+        JS_Throw(env->context, exceptionValue);
+    }
+}
+
+    return NAPIExceptionPendingException;
+}

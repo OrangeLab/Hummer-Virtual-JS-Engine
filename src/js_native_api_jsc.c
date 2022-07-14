@@ -1487,3 +1487,26 @@ NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
 
     return NAPICommonOK;
 }
+
+NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(__attribute__((unused)) NAPIEnv env,
+                                                        __attribute__((unused)) const char *script,
+                                                        __attribute__((unused)) const char *sourceUrl,
+                                                        __attribute__((unused)) const uint8_t **byteBuffer,
+                                                        __attribute__((unused)) size_t *bufferSize)
+{
+    return NAPIExceptionOK;
+}
+
+NAPI_EXPORT NAPICommonStatus NAPIFreeByteBuffer(__attribute__((unused)) NAPIEnv env,
+                                                __attribute__((unused)) const uint8_t *byteBuffer)
+{
+    return NAPICommonOK;
+}
+
+NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(__attribute__((unused)) NAPIEnv env,
+                                                  __attribute__((unused)) const uint8_t *byteBuffer,
+                                                  __attribute__((unused)) size_t bufferSize,
+                                                  __attribute__((unused)) NAPIValue *result)
+{
+    return NAPIExceptionOK;
+}

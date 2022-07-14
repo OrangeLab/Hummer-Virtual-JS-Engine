@@ -14,16 +14,16 @@
 #include <napi/js_native_api.h>
 #include <napi/js_native_api_debugger.h>
 #include <napi/js_native_api_debugger_hermes_types.h>
-#include <sys/queue.h>
 #include <string>
+#include <sys/queue.h>
 #include <unordered_set>
 
 // private header
 #include "inspector/js_native_api_hermes_inspector.h"
 
 #ifdef HERMES_ENABLE_DEBUGGER
-#include <hermes/inspector/RuntimeAdapter.h>
 #include <cxxreact/MessageQueueThread.h>
+#include <hermes/inspector/RuntimeAdapter.h>
 #include <hermes/inspector/chrome/Registration.h>
 #endif
 
@@ -129,16 +129,18 @@ class HermesExecutorRuntimeAdapter final : public facebook::hermes::inspector::R
         return hermesRuntime_.getDebugger();
     }
 
-    void tickleJs() override {
+    void tickleJs() override
+    {
         // The queue will ensure that runtime_ is still valid when this
         // gets invoked.
-        if (!this->thread_) return;
+        if (!this->thread_)
+            return;
         thread_->runOnQueue([runtime = runtime_]() {
-          auto func =
-              runtime->global().getPropertyAsFunction(*runtime, "__tickleJs");
-          func.call(*runtime);
+            auto func = runtime->global().getPropertyAsFunction(*runtime, "__tickleJs");
+            func.call(*runtime);
         });
     }
+
   private:
     std::shared_ptr<facebook::hermes::HermesRuntime> runtime_;
     facebook::hermes::HermesRuntime &hermesRuntime_;
@@ -177,7 +179,6 @@ hermes::vm::CallResult<hermes::vm::Handle<hermes::vm::JSArray>> External::getHos
     return hermes::vm::JSArray::create(runtime, 0, 0);
 }
 
-
 EXTERN_C_START
 
 struct OpaqueNAPIRef;
@@ -207,15 +208,17 @@ struct OpaqueNAPIEnv final
 
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
 
-    void enableDebugger(const char *debuggerTitle,  bool waitForDebugger);
+    void enableDebugger(const char *debuggerTitle, bool waitForDebugger);
 
     void disableDebugger();
 #ifdef HERMES_ENABLE_DEBUGGER
-    void setMessageQueueThread(std::shared_ptr<facebook::react::MessageQueueThread> jsQueue){
+    void setMessageQueueThread(std::shared_ptr<facebook::react::MessageQueueThread> jsQueue)
+    {
         this->thread_ = jsQueue;
     }
-// 不做持有，直接传递给 runtimeAdapter。
-    std::shared_ptr<facebook::react::MessageQueueThread> snapGetMessageQueueThread(){
+    // 不做持有，直接传递给 runtimeAdapter。
+    std::shared_ptr<facebook::react::MessageQueueThread> snapGetMessageQueueThread()
+    {
         return std::move(this->thread_);
     }
 #endif
@@ -234,7 +237,8 @@ void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle, bool waitForDebugg
 {
 #ifdef HERMES_ENABLE_DEBUGGER
 
-    auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(hermesRuntimeSharedPtr, hermesRuntime, this->snapGetMessageQueueThread());
+    auto adapter = std::make_unique<HermesExecutorRuntimeAdapter>(hermesRuntimeSharedPtr, hermesRuntime,
+                                                                  this->snapGetMessageQueueThread());
     std::string debuggerTitleString = debuggerTitle ? debuggerTitle : "Hummer Hermes";
     orangelab::hermes::inspector::chrome::enableDebugging(std::move(adapter), debuggerTitleString, waitForDebugger);
 #endif
@@ -1464,15 +1468,14 @@ NAPICommonStatus NAPIDisableDebugger(NAPIEnv env)
     return NAPICommonOK;
 }
 
-
-NAPICommonStatus NAPISetMessageQueueThread(NAPIEnv env, MessageQueueThreadWrapper jsQueueWrapper){
+NAPICommonStatus NAPISetMessageQueueThread(NAPIEnv env, MessageQueueThreadWrapper jsQueueWrapper)
+{
 #ifdef HERMES_ENABLE_DEBUGGER
     CHECK_ARG(env, Common);
     env->setMessageQueueThread(jsQueueWrapper->thread_);
 #endif
     return NAPICommonOK;
 }
-
 
 NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
 {
@@ -1545,3 +1548,17 @@ NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString)
     return NAPICommonOK;
 }
 
+NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(NAPIEnv, const char *, const char *, const uint8_t **, size_t *)
+{
+    return NAPIExceptionOK;
+}
+
+NAPI_EXPORT NAPICommonStatus NAPIFreeByteBuffer(NAPIEnv, const uint8_t *)
+{
+    return NAPICommonOK;
+}
+
+NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv, const uint8_t *byteBuffer, size_t, NAPIValue *)
+{
+    return NAPIExceptionOK;
+}
