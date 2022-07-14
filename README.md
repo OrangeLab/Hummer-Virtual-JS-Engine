@@ -45,7 +45,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 
 ### CLion
 
-1. `gn gen clion --ide=json --json-ide-script=../gn_to_cmake.py`
+1. `gn gen clion --ide=json --json-ide-script=../gn_to_cmake.py --script-executable=python3`
 
 ### VSCode
 
@@ -96,7 +96,7 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 > cd third_party/hermes/lib/InternalBytecode
 > cat 00-header.js 01-Promise.js 02-AsyncFn.js 99-footer.js > InternalBytecode.js
 > hermesc -O -Wno-undefined-variable -fno-enable-tdz -emit-binary -out=./InternalBytecode.hbc ./InternalBytecode.js
-> python xxd.py ./InternalBytecode.hbc > ./InternalBytecode.inc
+> ./xxd.py ./InternalBytecode.hbc > ./InternalBytecode.inc
 ```
 
 ## 注意事项

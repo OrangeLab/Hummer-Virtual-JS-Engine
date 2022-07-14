@@ -128,6 +128,12 @@ NAPI_EXPORT NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value,
 
 NAPI_EXPORT NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString);
 
+NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(NAPIEnv env, const char *script, const char *sourceUrl, const uint8_t **byteBuffer, size_t *bufferSize);
+
+NAPI_EXPORT NAPICommonStatus NAPIFreeByteBuffer(NAPIEnv env, const uint8_t *byteBuffer);
+
+NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *byteBuffer, size_t bufferSize, NAPIValue *result);
+
 #pragma mark - 间接函数
 
 NAPI_EXPORT NAPIExceptionStatus napi_set_named_property(NAPIEnv env, NAPIValue object, const char *utf8name,
