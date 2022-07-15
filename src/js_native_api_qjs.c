@@ -1982,7 +1982,6 @@ NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *by
     {
         goto exceptionHandlerWithProcess;
     }
-    JS_FreeValue(env->context, functionValue);
     processPendingTask(env);
     if (result)
     {
