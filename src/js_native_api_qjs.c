@@ -151,11 +151,14 @@ NAPICommonStatus napi_get_null(NAPIEnv env, NAPIValue *result)
     return NAPICommonOK;
 }
 
+#ifndef NDEBUG
 static char *const JS_GET_GLOBAL_OBJECT_EXCEPTION = "JS_GetGlobalObject() -> JS_EXCEPTION.";
 static char *const FUNCTION_CLASS_ID_ZERO = "functionClassId must not be 0.";
 
 static char *const CONSTRUCTOR_CLASS_ID_ZERO = "constructorClassId must not be 0.";
 static char *const NAPI_CLOSE_HANDLE_SCOPE_ERROR = "napi_close_handle_scope() return error.";
+#endif
+
 // NAPIGenericFailure + addValueToHandleScope
 NAPIErrorStatus napi_get_global(NAPIEnv env, NAPIValue *result)
 {
@@ -311,6 +314,7 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     {
         NAPIErrorStatus status = napi_open_handle_scope(functionInfo->baseInfo.env, &handleScope);
         assert(status == NAPIErrorOK);
+        (void)status;
     }
     // callback 调用后，返回值应当属于当前 handleScope 管理，否则业务方后果自负
     NAPIValue retVal = functionInfo->callback(functionInfo->baseInfo.env, &callbackInfo);
@@ -1576,6 +1580,7 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     {
         NAPIErrorStatus status = napi_open_handle_scope(constructorInfo->functionInfo.baseInfo.env, &handleScope);
         assert(status == NAPIErrorOK);
+        (void)status;
     }
     NAPIValue retVal =
         constructorInfo->functionInfo.callback(constructorInfo->functionInfo.baseInfo.env, &callbackInfo);
