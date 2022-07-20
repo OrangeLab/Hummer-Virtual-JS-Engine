@@ -99,12 +99,21 @@ struct WeakReference
 struct OpaqueNAPIEnv
 {
     JSValue referenceSymbolValue;                       // size_t * 2
+    NAPIRuntime runtime;                                // size_t
     JSContext *context;                                 // size_t
     LIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList; // size_t
     LIST_HEAD(, WeakReference) weakReferenceList;       // size_t
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;           // size_t
     LIST_HEAD(, OpaqueNAPIRef) valueList;               // size_t
     bool isThrowNull;
+};
+
+struct OpaqueNAPIRuntime
+{
+    JSRuntime *runtime;           // size_t
+    JSClassID constructorClassId; // uint32_t
+    JSClassID functionClassId;    // uint32_t
+    JSClassID externalClassId;    // uint32_t
 };
 
 // 这个函数不会修改引用计数和所有权
@@ -264,8 +273,7 @@ typedef struct
 } FunctionInfo;
 
 // classId 必须为 0 才会被分配
-// TODO(ChasonTang): Place into NAPIEnv
-static JSClassID functionClassId = 0;
+// static JSClassID functionClassId = 0;
 
 struct OpaqueNAPICallbackInfo
 {
@@ -279,7 +287,9 @@ struct OpaqueNAPICallbackInfo
 static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JSValueConst *argv, int magic,
                               JSValue *funcData)
 {
-    if (__builtin_expect(!functionClassId, false))
+    JSRuntime *rt = JS_GetRuntime(ctx);
+    NAPIRuntime runtime = JS_GetRuntimeOpaque(rt);
+    if (__builtin_expect(!runtime->functionClassId, false))
     {
         assert(false && FUNCTION_CLASS_ID_ZERO);
 
@@ -287,7 +297,7 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     }
     // 固定 1 参数
     // JS_GetOpaque 不会抛出异常
-    FunctionInfo *functionInfo = JS_GetOpaque(funcData[0], functionClassId);
+    FunctionInfo *functionInfo = JS_GetOpaque(funcData[0], runtime->functionClassId);
     if (__builtin_expect(!functionInfo || !functionInfo->callback || !functionInfo->baseInfo.env, false))
     {
         assert(false && "callAsFunction() body use JS_GetOpaque() return error.");
@@ -370,7 +380,6 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
 NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPICallback cb, void *data,
                                          NAPIValue *result)
 {
-
     NAPI_PREAMBLE(env)
     CHECK_ARG(cb, Exception)
     CHECK_ARG(result, Exception)
@@ -387,7 +396,7 @@ NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPI
     functionInfo->baseInfo.data = data;
     functionInfo->callback = cb;
 
-    if (__builtin_expect(!functionClassId, false))
+    if (__builtin_expect(!env->runtime->functionClassId, false))
     {
         assert(false && FUNCTION_CLASS_ID_ZERO);
         free(functionInfo);
@@ -395,7 +404,7 @@ NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPI
         return NAPIExceptionGenericFailure;
     }
     // rc: 1
-    JSValue dataValue = JS_NewObjectClass(env->context, (int)functionClassId);
+    JSValue dataValue = JS_NewObjectClass(env->context, (int)env->runtime->functionClassId);
     if (__builtin_expect(JS_IsException(dataValue), false))
     {
         free(functionInfo);
@@ -440,7 +449,7 @@ NAPIExceptionStatus napi_create_function(NAPIEnv env, const char *utf8name, NAPI
     return NAPIExceptionOK;
 }
 
-static JSClassID externalClassId = 0;
+// static JSClassID externalClassId = 0;
 
 NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result)
 {
@@ -474,7 +483,7 @@ NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result
     {
         *result = NAPIFunction;
     }
-    else if (JS_GetOpaque(jsValue, externalClassId))
+    else if (JS_GetOpaque(jsValue, env->runtime->externalClassId))
     {
         // JS_GetOpaque 会检查 classId
         *result = NAPIExternal;
@@ -940,14 +949,14 @@ NAPIExceptionStatus napi_create_external(NAPIEnv env, void *data, NAPIFinalize f
     externalInfo->data = data;
     externalInfo->finalizeHint = finalizeHint;
     externalInfo->finalizeCallback = NULL;
-    if (__builtin_expect(!externalClassId, false))
+    if (__builtin_expect(!env->runtime->externalClassId, false))
     {
         assert(false && "externalClassId must not be 0.");
         free(externalInfo);
 
         return NAPIExceptionGenericFailure;
     }
-    JSValue object = JS_NewObjectClass(env->context, (int)externalClassId);
+    JSValue object = JS_NewObjectClass(env->context, (int)env->runtime->externalClassId);
     if (__builtin_expect(JS_IsException(object), false))
     {
         free(externalInfo);
@@ -977,19 +986,19 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
     CHECK_ARG(value, Error)
     CHECK_ARG(result, Error)
 
-    if (__builtin_expect(!externalClassId, false))
+    if (__builtin_expect(!env->runtime->externalClassId, false))
     {
         assert(false && "externalClassId must not be 0.");
 
         return NAPIErrorGenericFailure;
     }
-    ExternalInfo *externalInfo = JS_GetOpaque(*((JSValue *)value), externalClassId);
+    ExternalInfo *externalInfo = JS_GetOpaque(*((JSValue *)value), env->runtime->externalClassId);
     *result = externalInfo ? externalInfo->data : NULL;
 
     return NAPIErrorOK;
 }
 
-static uint8_t contextCount = 0;
+// static uint8_t contextCount = 0;
 
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
@@ -1496,25 +1505,27 @@ NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, const char *s
 
 static void functionFinalizer(JSRuntime *rt, JSValue val)
 {
-    if (__builtin_expect(!functionClassId, false))
+    NAPIRuntime runtime = JS_GetRuntimeOpaque(rt);
+    if (__builtin_expect(!runtime->functionClassId, false))
     {
         assert(false && FUNCTION_CLASS_ID_ZERO);
 
         return;
     }
-    FunctionInfo *functionInfo = JS_GetOpaque(val, functionClassId);
+    FunctionInfo *functionInfo = JS_GetOpaque(val, runtime->functionClassId);
     free(functionInfo);
 }
 
 static void externalFinalizer(JSRuntime *rt, JSValue val)
 {
-    if (__builtin_expect(!externalClassId, false))
+    NAPIRuntime runtime = JS_GetRuntimeOpaque(rt);
+    if (__builtin_expect(!runtime->externalClassId, false))
     {
         assert(false && FUNCTION_CLASS_ID_ZERO);
 
         return;
     }
-    ExternalInfo *externalInfo = JS_GetOpaque(val, externalClassId);
+    ExternalInfo *externalInfo = JS_GetOpaque(val, runtime->externalClassId);
     if (externalInfo && externalInfo->finalizeCallback)
     {
         externalInfo->finalizeCallback(externalInfo->data, externalInfo->finalizeHint);
@@ -1522,7 +1533,7 @@ static void externalFinalizer(JSRuntime *rt, JSValue val)
     free(externalInfo);
 }
 
-static JSRuntime *runtime = NULL;
+// static JSRuntime *runtime = NULL;
 
 typedef struct
 {
@@ -1530,22 +1541,25 @@ typedef struct
     JSClassID classId; // uint32_t
 } ConstructorInfo;
 
-static JSClassID constructorClassId = 0;
+// static JSClassID constructorClassId = 0;
 
 static void constructorFinalizer(JSRuntime *rt, JSValue val)
 {
-    if (__builtin_expect(!constructorClassId, false))
+    NAPIRuntime runtime = JS_GetRuntimeOpaque(rt);
+    if (__builtin_expect(!runtime->constructorClassId, false))
     {
         assert(false && CONSTRUCTOR_CLASS_ID_ZERO);
 
         return;
     }
-    ConstructorInfo *constructorInfo = JS_GetOpaque(val, constructorClassId);
+    ConstructorInfo *constructorInfo = JS_GetOpaque(val, runtime->constructorClassId);
     free(constructorInfo);
 }
 
 static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int argc, JSValueConst *argv)
 {
+    JSRuntime *rt = JS_GetRuntime(ctx);
+    NAPIRuntime runtime = JS_GetRuntimeOpaque(rt);
     JSValue prototypeValue = JS_GetPropertyStr(ctx, newTarget, "prototype");
     if (JS_IsException(prototypeValue))
     {
@@ -1553,13 +1567,13 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
 
         return prototypeValue;
     }
-    if (__builtin_expect(!constructorClassId, false))
+    if (__builtin_expect(!runtime->constructorClassId, false))
     {
         assert(false && CONSTRUCTOR_CLASS_ID_ZERO);
 
         return undefinedValue;
     }
-    ConstructorInfo *constructorInfo = JS_GetOpaque(prototypeValue, constructorClassId);
+    ConstructorInfo *constructorInfo = JS_GetOpaque(prototypeValue, runtime->constructorClassId);
     JS_FreeValue(ctx, prototypeValue);
     if (__builtin_expect(!constructorInfo || !constructorInfo->functionInfo.baseInfo.env ||
                              !constructorInfo->functionInfo.callback || !constructorInfo->classId,
@@ -1639,20 +1653,20 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     constructorInfo->classId = 0;
     JS_NewClassID(&constructorInfo->classId);
     JSClassDef classDef = {utf8name ?: "", NULL, NULL, NULL, NULL};
-    int status = JS_NewClass(runtime, constructorInfo->classId, &classDef);
+    int status = JS_NewClass(env->runtime->runtime, constructorInfo->classId, &classDef);
     if (__builtin_expect(status == -1, false))
     {
         free(constructorInfo);
 
         return NAPIExceptionPendingException;
     }
-    if (__builtin_expect(!constructorClassId, false))
+    if (__builtin_expect(!env->runtime->constructorClassId, false))
     {
         assert(false && CONSTRUCTOR_CLASS_ID_ZERO);
 
         return NAPIExceptionGenericFailure;
     }
-    JSValue prototype = JS_NewObjectClass(env->context, (int)constructorClassId);
+    JSValue prototype = JS_NewObjectClass(env->context, (int)env->runtime->constructorClassId);
     if (__builtin_expect(JS_IsException(prototype), false))
     {
         free(constructorInfo);
@@ -1689,81 +1703,82 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     return NAPIExceptionOK;
 }
 
-// NAPIGenericFailure/NAPIMemoryError
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateRuntime(NAPIRuntime *runtime)
 {
-    CHECK_ARG(env, Error)
+    CHECK_ARG(runtime, Error)
 
-    if (__builtin_expect((runtime && !contextCount) || (!runtime && contextCount), false))
+    *runtime = malloc(sizeof(struct OpaqueNAPIRuntime));
+    RETURN_STATUS_IF_FALSE(*runtime, NAPIErrorMemoryError)
+    (*runtime)->runtime = JS_NewRuntime();
+    // JS_NewClassID only accept 0.
+    // So we initialize classId field to 0.
+    (*runtime)->constructorClassId = 0;
+    (*runtime)->functionClassId = 0;
+    (*runtime)->externalClassId = 0;
+    if (!(*runtime)->runtime)
     {
-        assert(false);
+        free(*runtime);
+
+        return NAPIErrorMemoryError;
+    }
+    JS_SetRuntimeOpaque((*runtime)->runtime, *runtime);
+    // 一定成功
+    JS_NewClassID(&(*runtime)->constructorClassId);
+    JS_NewClassID(&(*runtime)->functionClassId);
+    JS_NewClassID(&(*runtime)->externalClassId);
+    JSClassDef classDef = {"External", externalFinalizer, NULL, NULL, NULL};
+    // JS_NewClass -> JS_NewClass1 返回值只有 -1 和 0
+    int status = JS_NewClass((*runtime)->runtime, (*runtime)->externalClassId, &classDef);
+    if (__builtin_expect(status == -1, false))
+    {
+        JS_FreeRuntime((*runtime)->runtime);
+        free(*runtime);
 
         return NAPIErrorGenericFailure;
     }
+
+    classDef.class_name = "FunctionData";
+    classDef.finalizer = functionFinalizer;
+    status = JS_NewClass((*runtime)->runtime, (*runtime)->functionClassId, &classDef);
+    if (__builtin_expect(status == -1, false))
+    {
+        JS_FreeRuntime((*runtime)->runtime);
+        free(*runtime);
+
+        return NAPIErrorGenericFailure;
+    }
+
+    classDef.class_name = "ConstructorPrototype";
+    classDef.finalizer = constructorFinalizer;
+    status = JS_NewClass((*runtime)->runtime, (*runtime)->constructorClassId, &classDef);
+    if (__builtin_expect(status == -1, false))
+    {
+        JS_FreeRuntime((*runtime)->runtime);
+        free(*runtime);
+
+        return NAPIErrorGenericFailure;
+    }
+
+    return NAPIErrorOK;
+}
+
+// NAPIGenericFailure/NAPIMemoryError
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
+{
+    CHECK_ARG(env, Error)
+    CHECK_ARG(runtime, Error)
+
     // Resource - NAPIEnv
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
+    (*env)->runtime = runtime;
 
-    // Resource - JSRuntime + JSClassID
-    JSRuntime *rt = runtime;
-    JSClassID ctorClassId = constructorClassId;
-    JSClassID funcClassId = functionClassId;
-    JSClassID extClassId = externalClassId;
-
-    if (!rt)
-    {
-        rt = JS_NewRuntime();
-        if (__builtin_expect(!rt, false))
-        {
-            free(*env);
-
-            return NAPIErrorMemoryError;
-        }
-        // 一定成功
-        JS_NewClassID(&ctorClassId);
-        JS_NewClassID(&funcClassId);
-        JS_NewClassID(&extClassId);
-
-        JSClassDef classDef = {"External", externalFinalizer, NULL, NULL, NULL};
-        // JS_NewClass -> JS_NewClass1 返回值只有 -1 和 0
-        int status = JS_NewClass(rt, extClassId, &classDef);
-        if (__builtin_expect(status == -1, false))
-        {
-            JS_FreeRuntime(rt);
-            free(*env);
-
-            return NAPIErrorGenericFailure;
-        }
-
-        classDef.class_name = "FunctionData";
-        classDef.finalizer = functionFinalizer;
-        status = JS_NewClass(rt, funcClassId, &classDef);
-        if (__builtin_expect(status == -1, false))
-        {
-            JS_FreeRuntime(rt);
-            free(*env);
-
-            return NAPIErrorGenericFailure;
-        }
-
-        classDef.class_name = "ConstructorPrototype";
-        classDef.finalizer = constructorFinalizer;
-        status = JS_NewClass(rt, ctorClassId, &classDef);
-        if (__builtin_expect(status == -1, false))
-        {
-            JS_FreeRuntime(rt);
-            free(*env);
-
-            return NAPIErrorGenericFailure;
-        }
-    }
     // Resource - JSContext
-    JSContext *context = JS_NewContext(rt);
+    JSContext *context = JS_NewContext(runtime->runtime);
     //    js_std_add_helpers(context, 0, NULL);
     if (__builtin_expect(!context, false))
     {
         free(*env);
-        JS_FreeRuntime(rt);
 
         return NAPIErrorMemoryError;
     }
@@ -1771,45 +1786,36 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
     if (__builtin_expect(JS_IsException(prototype), false))
     {
         JS_FreeContext(context);
-        JS_FreeRuntime(rt);
         free(*env);
 
         return NAPIErrorGenericFailure;
     }
-    JS_SetClassProto(context, extClassId, prototype);
+    JS_SetClassProto(context, runtime->externalClassId, prototype);
     prototype = JS_NewObject(context);
     if (__builtin_expect(JS_IsException(prototype), false))
     {
         JS_FreeContext(context);
-        JS_FreeRuntime(rt);
         free(*env);
 
         return NAPIErrorGenericFailure;
     }
-    JS_SetClassProto(context, ctorClassId, prototype);
+    JS_SetClassProto(context, runtime->constructorClassId, prototype);
     const char *string = "(function () { return Symbol(\"reference\") })();";
     (*env)->referenceSymbolValue =
         JS_Eval(context, string, strlen(string), "https://n-api.com/qjs_reference_symbol.js", JS_EVAL_TYPE_GLOBAL);
     if (__builtin_expect(JS_IsException((*env)->referenceSymbolValue), false))
     {
         JS_FreeContext(context);
-        JS_FreeRuntime(rt);
         free(*env);
 
         return NAPIErrorGenericFailure;
     }
-    contextCount += 1;
     (*env)->context = context;
     (*env)->isThrowNull = false;
     LIST_INIT(&(*env)->handleScopeList);
     LIST_INIT(&(*env)->weakReferenceList);
     LIST_INIT(&(*env)->valueList);
     LIST_INIT(&(*env)->strongRefList);
-
-    constructorClassId = ctorClassId;
-    functionClassId = funcClassId;
-    externalClassId = extClassId;
-    runtime = rt;
 
     return NAPIErrorOK;
 }
@@ -1858,16 +1864,16 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
     }
     JS_FreeValue(env->context, env->referenceSymbolValue);
     JS_FreeContext(env->context);
-    if (--contextCount == 0 && runtime)
-    {
-        // virtualMachine 不能为 NULL
-        JS_FreeRuntime(runtime);
-        runtime = NULL;
-        constructorClassId = 0;
-        functionClassId = 0;
-        externalClassId = 0;
-    }
     free(env);
+
+    return NAPICommonOK;
+}
+
+NAPICommonStatus NAPIFreeRuntime(NAPIRuntime runtime)
+{
+    CHECK_ARG(runtime, Common)
+
+    JS_FreeRuntime(runtime->runtime);
 
     return NAPICommonOK;
 }
@@ -1982,7 +1988,6 @@ NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *by
     {
         goto exceptionHandlerWithProcess;
     }
-    JS_FreeValue(env->context, functionValue);
     processPendingTask(env);
     if (result)
     {

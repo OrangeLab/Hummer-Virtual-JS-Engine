@@ -1,8 +1,10 @@
 #include <cassert>
-#include <test.h>
 #include <napi/js_native_api_debugger.h>
+#include <test.h>
 
 NAPIEnv globalEnv = nullptr;
+
+NAPIRuntime globalRuntime = nullptr;
 
 bool finalizeIsCalled = false;
 
@@ -33,12 +35,11 @@ class NAPIEnvironment : public ::testing::Environment
     // Override this to define how to set up the environment.
     void SetUp() override
     {
-
-        ASSERT_EQ(NAPICreateEnv(&globalEnv), NAPIErrorOK);
+        ASSERT_EQ(NAPICreateRuntime(&globalRuntime), NAPIErrorOK);
+        ASSERT_EQ(NAPICreateEnv(&globalEnv, globalRuntime), NAPIErrorOK);
         NAPIHandleScope handleScope;
 
-        NAPIEnableDebugger(globalEnv, "test", true);
-
+//        NAPIEnableDebugger(globalEnv, "test", true);
 
         ASSERT_EQ(napi_open_handle_scope(globalEnv, &handleScope), NAPIErrorOK);
         NAPIValue assertValue;
@@ -55,6 +56,7 @@ class NAPIEnvironment : public ::testing::Environment
     void TearDown() override
     {
         NAPIFreeEnv(globalEnv);
+        NAPIFreeRuntime(globalRuntime);
         ASSERT_TRUE(finalizeIsCalled);
     }
 };
@@ -64,7 +66,6 @@ int main(int argc, char **argv)
 {
     ::testing::AddGlobalTestEnvironment(new NAPIEnvironment());
     ::testing::InitGoogleTest(&argc, argv);
-
 
     return RUN_ALL_TESTS();
 }

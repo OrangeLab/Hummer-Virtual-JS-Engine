@@ -11,8 +11,11 @@
 #define EXTERN_C_END
 #endif
 
+#define NAPI_EXPORT __attribute__((visibility("default")))
+
 EXTERN_C_START
 
+typedef struct OpaqueNAPIRuntime *NAPIRuntime;
 typedef struct OpaqueNAPIEnv *NAPIEnv;
 typedef struct OpaqueNAPIValue *NAPIValue;
 typedef struct OpaqueNAPIRef *NAPIRef;

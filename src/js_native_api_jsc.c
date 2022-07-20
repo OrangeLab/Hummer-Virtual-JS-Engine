@@ -1341,9 +1341,9 @@ NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *utf8Script, const cha
     return NAPIExceptionOK;
 }
 
-static JSContextGroupRef virtualMachine = NULL;
+// static JSContextGroupRef virtualMachine = NULL;
 
-static uint8_t contextCount = 0;
+// static uint8_t contextCount = 0;
 
 NAPICommonStatus NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env,
                                     __attribute__((unused)) const char *debuggerTitle,
@@ -1363,48 +1363,39 @@ NAPICommonStatus NAPISetMessageQueueThread(__attribute__((unused)) NAPIEnv env,
     return NAPICommonOK;
 }
 
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateRuntime(NAPIRuntime *runtime)
 {
-    // *env 才是 NAPIEnv
-    if (!env)
-    {
-        return NAPIErrorInvalidArg;
-    }
+    CHECK_ARG(runtime, Error)
 
-    if ((virtualMachine && !contextCount) || (!virtualMachine && contextCount))
-    {
-        assert(false);
+    *runtime = (NAPIRuntime)JSContextGroupCreate();
+    RETURN_STATUS_IF_FALSE(*runtime, NAPIErrorMemoryError);
 
-        return NAPIErrorGenericFailure;
-    }
+    return NAPIErrorOK;
+}
+
+NAPICommonStatus NAPIFreeRuntime(NAPIRuntime runtime)
+{
+    CHECK_ARG(runtime, Common)
+
+    JSContextGroupRelease((JSContextGroupRef)runtime);
+
+    return NAPICommonOK;
+}
+
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
+{
+    CHECK_ARG(env, Error)
 
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
-    if (!*env)
-    {
-        return NAPIErrorMemoryError;
-    }
+    RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
 
-    if (!virtualMachine)
-    {
-        virtualMachine = JSContextGroupCreate();
-        if (!virtualMachine)
-        {
-            free(*env);
-
-            return NAPIErrorMemoryError;
-        }
-    }
-    JSGlobalContextRef globalContext = JSGlobalContextCreateInGroup(virtualMachine, NULL);
-    if (!globalContext)
+    (*env)->context = JSGlobalContextCreateInGroup((JSContextGroupRef)runtime, NULL);
+    if (!(*env)->context)
     {
         free(*env);
-        JSContextGroupRelease(virtualMachine);
-        virtualMachine = NULL;
 
         return NAPIErrorMemoryError;
     }
-    contextCount += 1;
-    (*env)->context = globalContext;
     (*env)->lastException = NULL;
     LIST_INIT(&(*env)->strongRefList);
     LIST_INIT(&(*env)->valueList);
@@ -1441,13 +1432,6 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
         free(ref);
     }
     JSGlobalContextRelease(env->context);
-    if (--contextCount == 0 && virtualMachine)
-    {
-        // virtualMachine 不能为 NULL
-        JSContextGroupRelease(virtualMachine);
-        virtualMachine = NULL;
-    }
-
     free(env);
 
     return NAPICommonOK;
