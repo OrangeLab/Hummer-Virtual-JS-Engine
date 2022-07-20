@@ -3,8 +3,6 @@
 
 #include <napi/js_native_api_types.h>
 
-#define NAPI_EXPORT __attribute__((visibility("default")))
-
 EXTERN_C_START
 
 #include <stdbool.h> // NOLINT(modernize-deprecated-headers)
@@ -119,20 +117,25 @@ NAPI_EXPORT NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *script, c
 NAPI_EXPORT NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallback constructor, void *data,
                                                 NAPIValue *result);
 
-NAPI_EXPORT NAPIErrorStatus NAPICreateEnv(NAPIEnv *env);
+NAPI_EXPORT NAPIErrorStatus NAPICreateRuntime(NAPIRuntime *runtime);
 
+NAPI_EXPORT NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime);
 
 NAPI_EXPORT NAPICommonStatus NAPIFreeEnv(NAPIEnv env);
+
+NAPI_EXPORT NAPICommonStatus NAPIFreeRuntime(NAPIRuntime runtime);
 
 NAPI_EXPORT NAPIErrorStatus NAPIGetValueStringUTF8(NAPIEnv env, NAPIValue value, const char **result);
 
 NAPI_EXPORT NAPICommonStatus NAPIFreeUTF8String(NAPIEnv env, const char *cString);
 
-NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(NAPIEnv env, const char *script, const char *sourceUrl, const uint8_t **byteBuffer, size_t *bufferSize);
+NAPI_EXPORT NAPIExceptionStatus NAPICompileToByteBuffer(NAPIEnv env, const char *script, const char *sourceUrl,
+                                                        const uint8_t **byteBuffer, size_t *bufferSize);
 
 NAPI_EXPORT NAPICommonStatus NAPIFreeByteBuffer(NAPIEnv env, const uint8_t *byteBuffer);
 
-NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *byteBuffer, size_t bufferSize, NAPIValue *result);
+NAPI_EXPORT NAPIExceptionStatus NAPIRunByteBuffer(NAPIEnv env, const uint8_t *byteBuffer, size_t bufferSize,
+                                                  NAPIValue *result);
 
 #pragma mark - 间接函数
 
