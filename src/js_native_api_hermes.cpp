@@ -14,7 +14,6 @@
 #include <napi/js_native_api.h>
 #include <napi/js_native_api_debugger.h>
 #include <napi/js_native_api_debugger_hermes_types.h>
-#include <string>
 #include <sys/queue.h>
 #include <unordered_set>
 
@@ -24,7 +23,6 @@
 #ifdef HERMES_ENABLE_DEBUGGER
 #include <cxxreact/MessageQueueThread.h>
 #include <hermes/inspector/RuntimeAdapter.h>
-#include <hermes/inspector/chrome/Registration.h>
 #endif
 
 #ifndef LIST_FOREACH_SAFE
@@ -1430,7 +1428,17 @@ NAPIExceptionStatus NAPIDefineClass(NAPIEnv env, const char *utf8name, NAPICallb
     return NAPIExceptionOK;
 }
 
-NAPIErrorStatus NAPICreateEnv(NAPIEnv *env)
+NAPIErrorStatus NAPICreateRuntime(NAPIRuntime *runtime)
+{
+    return NAPIErrorOK;
+}
+
+NAPICommonStatus NAPIFreeRuntime(NAPIRuntime runtime)
+{
+    return NAPICommonOK;
+}
+
+NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
 {
     CHECK_ARG(env, Error)
 
