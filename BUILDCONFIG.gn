@@ -1,36 +1,49 @@
-declare_args() {
-    # -g
-    debug_info = true
-    # -Os/-O0
-    debug = false
-    # 只有 debug=false 的情况才生效
-    lto = true
-    # iOS 平台不开启 lto 的情况下才生效，和 debug 无关
-    bitcode = true
-
-    # 是否交叉编译 Android 动态库
-    build_android = false
-    # NDK 路径
-    ndk_path = "~/Library/Android/sdk/ndk/21.4.7075529"
-
-    # 交叉编译 iOS Android 生效
-    cross_compile_target = "x86_64"
-
-    # 暂时只对 clang 工具链有效
-    code_coverage = false
-    asan = false
-    ubsan = false
-
-    # iOS 交叉编译，否则编译 macOS 版本
-    build_ios = false
-    # 和 -apple-ios9.0 拼接，作为 -target 参数
-
-    # QuickJS 专属
-    big_number = false
+if (target_os == "") {
+  target_os = host_os
+}
+if (target_cpu == "") {
+  target_cpu = host_cpu
 }
 
-if (build_android) {
-    set_default_toolchain("//toolchain:android")
+assert(target_os == "android" || target_os == "ios" || target_os == "mac",
+       "Unsupported target os.")
+assert(target_cpu == "arm" || target_cpu == "arm64" || target_cpu == "x86" ||
+           target_cpu == "x64",
+       "Unsupported target cpu.")
+
+declare_args() {
+  generate_dwarf = true
+  is_debug = false
+
+  if (target_os == "android") {
+    ndk_path = "~/Library/Android/sdk/ndk/21.4.7075529"
+  } else {
+    collect_code_coverage = false
+  }
+  asan = false
+  ubsan = false
+
+  enable_qjs_big_number = false
+}
+
+declare_args() {
+  if (!is_debug) {
+    lto = true
+  }
+}
+
+have_bitcode_flag =
+    target_os == "ios" && (target_cpu == "arm" || target_cpu == "arm64") &&
+    !is_debug && !lto
+
+declare_args() {
+  if (have_bitcode_flag) {
+    bitcode = true
+  }
+}
+
+if (target_os == "android") {
+  set_default_toolchain("//toolchain:android")
 } else {
-    set_default_toolchain("//toolchain:clang")
+  set_default_toolchain("//toolchain:clang")
 }

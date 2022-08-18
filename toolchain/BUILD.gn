@@ -1,147 +1,148 @@
-depfile = "{{output}}.d"
-compiler_command = "-c {{source}} -o {{output}} -MMD -MF $depfile {{include_dirs}} {{defines}} {{cflags}}"
-if (debug_info) {
-    compiler_command = string_join(" ", ["-g", compiler_command])
+# -fPIC -funwind-tables 在大部分平台都是默认开启，除了 PowerPC 32 bit 的平台等少数情况
+# -MMD 收集的用户头文件就足够了
+compiler_command = "-c {{source}} -o {{output}} -MMD -MF {{output}}.d {{include_dirs}} {{defines}} {{cflags}}"
+if (generate_dwarf) {
+  compiler_command = "-g $compiler_command"
 }
 linker_command = ""
 if (asan) {
-    compiler_command = string_join(" ", ["-fsanitize=address", compiler_command])
-    linker_command = string_join(" ", [linker_command, "-fsanitize=address"])
+  compiler_command = "-fsanitize=address $compiler_command"
+  linker_command = "-fsanitize=address $linker_command"
 }
 if (ubsan) {
-# vptr sanitizer 依赖 RTTI，会强制开启所有 RTTI 编译，因此必须关闭
-    compiler_command = string_join(" ", ["-fsanitize=undefined", "-fno-sanitize=vptr,function", compiler_command])
-    linker_command = string_join(" ", [linker_command, "-fsanitize=undefined"])
+  compiler_command = "-fsanitize=undefined $compiler_command"
+  linker_command = "-fsanitize=undefined $linker_command"
 }
-stamp_command = "touch {{output}}"
 
-if (debug) {
-    compiler_command = string_join(" ", ["-O0", compiler_command])
+if (!is_debug) {
+  # NDEBUG for assert.h
+  compiler_command = "-Os -DNDEBUG $compiler_command"
+  if (lto) {
+    compiler_command = "-flto $compiler_command"
+  }
 } else {
-# NDEBUG for assert.h
-    compiler_command = string_join(" ", ["-Os -DNDEBUG", compiler_command])
-    if (lto) {
-        compiler_command = string_join(" ", ["-flto", compiler_command])
-    }
+  compiler_command = "-O0 $compiler_command"
 }
 
-compiler_outputs = [
-    "{{source_out_dir}}/{{source_name_part}}.o"
-]
-linker_outputs = [
-    "{{output_dir}}/{{target_output_name}}{{output_extension}}"
-]
+compiler_outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
+linker_outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
 
-# debug -> -O0
-#       -> -Os
-# lto -> -flto
+if (target_os == "android") {
+  toolchain("android") {
+    sysroot_path = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"
+    compiler_command = "--sysroot $sysroot_path $compiler_command"
 
-# iOS
-#   debug -> -fembed-bitcode-marker
-#         -> lto
-#                -> -fembed-bitcode
+    # -fdata-sections 和 -ffunction-sections 原则上应当和链接器的 -Wl,–gc-sections 配合使用缩小包体积
+    object_generate_option = "-fdata-sections -ffunction-sections"
 
-toolchain("android") {
-    compiler_command = string_join(" ", ["--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -funwind-tables -fstack-protector-strong -fPIC", compiler_command])
-    if (!lto) {
-        compiler_command = string_join(" ", ["-fdata-sections -ffunction-sections", compiler_command])
-    }
-    if (cross_compile_target == "armv7") {
-        compiler_command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", compiler_command])
-        # 涉及链接库搜索路径
-        linker_command = string_join(" ", ["-target armv7-none-linux-androideabi18 -mthumb", linker_command])
-    } else if (cross_compile_target == "arm64") {
-        compiler_command = string_join(" ", ["-target aarch64-none-linux-android21", compiler_command])
-        linker_command = string_join(" ", ["-target aarch64-none-linux-android21", linker_command])
-    } else if (cross_compile_target == "i386") {
-        compiler_command = string_join(" ", ["-target i686-none-linux-android18 -mstackrealign", compiler_command])
-        linker_command = string_join(" ", ["-target i686-none-linux-android18", linker_command])
+    if (target_cpu == "arm") {
+      target_option = "-target armv7-none-linux-androideabi18 -thumb"
+    } else if (target_cpu == "arm64") {
+      target_option = "-target aarch64-none-linux-android21"
+    } else if (target_cpu == "x86") {
+      target_option = "-target i686-none-linux-android18"
     } else {
-        compiler_command = string_join(" ", ["-target x86_64-none-linux-android21", compiler_command])
-        linker_command = string_join(" ", ["-target x86_64-none-linux-android21", linker_command])
+      target_option = "-target x86_64-none-linux-android21"
     }
+
+    compiler_command = "$target_option $compiler_command"
+    if (linker_command == "") {
+      linker_command = target_option
+    } else {
+      linker_command = "$target_option $linker_command"
+    }
+
+    if (is_debug || !lto) {
+      compiler_command = "$object_generate_option $compiler_command"
+    } else {
+      linker_command = "$linker_command $object_generate_option"
+    }
+
     tool("cc") {
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", compiler_command, "{{cflags_c}}"])
-        outputs = compiler_outputs
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $compiler_command {{cflags_c}}"
+      depfile = "{{output}}.d"
+      depsformat = "gcc"
+      outputs = compiler_outputs
     }
     tool("cxx") {
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++", compiler_command, "{{cflags_cc}}"])
-        outputs = compiler_outputs
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ $compiler_command {{cflags_cc}}"
+      depfile = "{{output}}.d"
+      depsformat = "gcc"
+      outputs = compiler_outputs
     }
     tool("stamp") {
-        command = stamp_command
+      command = "touch {{output}}"
     }
     tool("solink") {
-        if (debug) {
-            optimize_level = "-O0"
-        } else {
-            optimize_level = "-O3"
-        }
-        default_output_extension = ".so"
-        command = string_join(" ", ["$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang", linker_command, optimize_level, "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -flto -fdata-sections -ffunction-sections -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--fatal-warnings -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}} {{ldflags}}"])
-        # target 选择 clang 具体工具链，指定 lto 参数 mcpu
-        # 不能指定 -Os 否则会出错
-        default_output_dir = "{{target_out_dir}}"
-        outputs = linker_outputs
-        output_prefix = "lib"
+      if (!is_debug) {
+        # NDK 链接器 LTO 插件问题
+        optimize_level = "-O3"
+      }
+      default_output_extension = ".so"
+      # target 选择 clang 具体工具链，指定 lto 参数 mcpu
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $linker_command $optimize_level --sysroot $sysroot_path -flto -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}} {{ldflags}}"
+      default_output_dir = "{{target_out_dir}}"
+      outputs = linker_outputs
+      output_prefix = "lib"
     }
-}
-
-toolchain("clang") {
-    if (!lto && bitcode) {
-        if (debug) {
-            compiler_command = string_join(" ", ["-fembed-bitcode-marker", compiler_command])
-        } else {
-            compiler_command = string_join(" ", ["-fembed-bitcode", compiler_command])
-        }
+  }
+} else {
+  toolchain("clang") {
+    if (have_bitcode_flag) {
+      compiler_command = "-fembed-bitcode $compiler_command"
     }
-    if (code_coverage) {
-        compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
+    if (collect_code_coverage) {
+      compiler_command =
+          "-fprofile-instr-generate -fcoverage-mapping $compiler_command"
     }
-    if (build_ios) {
-        target_option = "-target $cross_compile_target-apple-ios9.0"
-        if (cross_compile_target == "i386" || cross_compile_target == "x86_64") {
-            target_option = string_join("-", [target_option, "simulator"])
-            compiler_command = string_join(" ", ["-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk", compiler_command])
-        } else {
-            compiler_command = string_join(" ", ["-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk", compiler_command])
-        }
-        compiler_command = string_join(" ", [target_option, compiler_command])
+    if (target_os == "ios") {
+      if (target_cpu == "x86") {
+        compiler_command = "-target i386-apple-ios9.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
+      } else if (target_cpu == "x64") {
+        compiler_command = "-target x86_64-apple-ios9.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
+      } else if (target_cpu == "arm") {
+        compiler_command = "-target armv7-apple-ios9.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
+      } else {
+        compiler_command = "-target arm64-apple-ios9.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
+      }
     }
 
     tool("cc") {
-        command = string_join(" ", ["clang", compiler_command, "{{cflags_c}}"])
-        # depsformat = "gcc"
-        outputs = compiler_outputs
+      command = "clang $compiler_command {{cflags_c}}"
+      depfile = "{{output}}.d"
+      depsformat = "gcc"
+      outputs = compiler_outputs
     }
 
     tool("cxx") {
-        command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
-        # 默认 C++98 + libc++
-        outputs = compiler_outputs
+      command = "clang++ $compiler_command {{cflags_cc}}"
+      depfile = "{{output}}.d"
+      depsformat = "gcc"
+      outputs = compiler_outputs
     }
 
     tool("stamp") {
-        command = stamp_command
+      command = "touch {{output}}"
     }
 
     tool("link") {
-        command = string_join(" ", ["clang", linker_command, "-o {{output}} {{inputs}} {{frameworks}} {{ldflags}}"])
-        # 目前只用于单元测试，可以关闭 -fembed-bitcode 并使用 clang++
-        # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
-        # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
-        if (code_coverage) {
-            command = string_join(" ", [command, "-fprofile-instr-generate"])
-        }
-        default_output_dir = "{{root_out_dir}}"
-        outputs = linker_outputs
+      command = "clang $linker_command -o {{output}} {{inputs}} {{frameworks}} {{ldflags}}"
+
+      # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
+      # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
+      if (collect_code_coverage) {
+        command = "$command -fprofile-instr-generate"
+      }
+      default_output_dir = "{{root_out_dir}}"
+      outputs = linker_outputs
     }
 
     tool("alink") {
-        command = "libtool -static -o {{output}} {{inputs}}"
-        default_output_dir = "{{target_out_dir}}"
-        outputs = linker_outputs
-        default_output_extension = ".a"
-        output_prefix = "lib"
+      command = "libtool -static -o {{output}} {{inputs}}"
+      default_output_dir = "{{target_out_dir}}"
+      outputs = linker_outputs
+      default_output_extension = ".a"
+      output_prefix = "lib"
     }
+  }
 }
