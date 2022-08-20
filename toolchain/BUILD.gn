@@ -79,6 +79,7 @@ if (target_os == "android") {
         optimize_level = "-O3"
       }
       default_output_extension = ".so"
+
       # target 选择 clang 具体工具链，指定 lto 参数 mcpu
       command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $linker_command $optimize_level --sysroot $sysroot_path -flto -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}} {{ldflags}}"
       default_output_dir = "{{target_out_dir}}"
