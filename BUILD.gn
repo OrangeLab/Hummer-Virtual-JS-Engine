@@ -463,7 +463,6 @@ source_set("hermes_vm_runtime") {
   configs = [
     ":minimal_size_build",
     ":hermes_build",
-
     ":llvm_build",
     ":cpp_new_build",
   ]
@@ -588,6 +587,47 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/gcs/FillerCell.cpp",
     "third_party/hermes/lib/VM/gcs/HadesGC.cpp",
   ]
+}
+
+source_set("jsi") {
+  configs = [ ":cpp_new_build" ]
+  cflags_cc = [
+    "-fexceptions",
+    "-fno-rtti",
+  ]
+  include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
+  sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
+}
+
+source_set("hermes") {
+  configs = [
+    ":hermes_build",
+    ":llvm_build",
+    ":cpp_new_build",
+  ]
+  cflags_cc = [
+    "-fexceptions",
+    "-frtti",
+  ]
+  include_dirs = [
+    "third_party/hermes/API",
+    "third_party/react-native/ReactCommon/jsi",
+  ]
+  sources = [ "third_party/hermes/API/hermes/hermes.cpp" ]
+}
+
+source_set("debugger_api") {
+  configs = [
+    ":minimal_size_build",
+    ":hermes_build",
+    ":llvm_build",
+    ":cpp_new_build",
+  ]
+  include_dirs = [
+    "third_party/hermes/API",
+    "third_party/react-native/ReactCommon/jsi",
+  ]
+  sources = [ "third_party/hermes/API/hermes/DebuggerAPI.cpp" ]
 }
 
 source_set("napi_qjs_source_set") {
