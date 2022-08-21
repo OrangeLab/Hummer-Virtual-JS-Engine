@@ -33,10 +33,14 @@ source_set("quickjs_source_set") {
   }
 }
 
+config("common_build") {
+  include_dirs = [ "third_party/include" ]
+}
+
 config("llvm_build") {
+  configs = [ ":common_build" ]
   include_dirs = [
     "third_party/hermes/external/llvh/include",
-    "third_party/include",
     "third_party/hermes/external/llvh/gen/include",
   ]
   defines = [
@@ -432,6 +436,8 @@ source_set("hermes_support") {
     ":llvm_build",
     ":cpp_new_build",
   ]
+
+  # dtoa/dtoa.h
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
     "third_party/hermes/lib/Support/Allocator.cpp",
@@ -466,6 +472,8 @@ source_set("hermes_vm_runtime") {
     ":llvm_build",
     ":cpp_new_build",
   ]
+
+  # dtoa/dtoa.h
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
     "third_party/hermes/lib/VM/ArrayStorage.cpp",
@@ -589,16 +597,6 @@ source_set("hermes_vm_runtime") {
   ]
 }
 
-source_set("jsi") {
-  configs = [ ":cpp_new_build" ]
-  cflags_cc = [
-    "-fexceptions",
-    "-fno-rtti",
-  ]
-  include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
-  sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
-}
-
 source_set("hermes") {
   configs = [
     ":hermes_build",
@@ -630,6 +628,63 @@ source_set("debugger_api") {
   sources = [ "third_party/hermes/API/hermes/DebuggerAPI.cpp" ]
 }
 
+config("folly_build") {
+  configs = [
+    ":common_build",
+    ":libevent_build",
+  ]
+  defines = [
+    "FOLLY_NO_CONFIG",
+    "FOLLY_MOBILE=1",
+    "FOLLY_USE_LIBCPP=1",
+    "FOLLY_HAVE_CLOCK_GETTIME",
+  ]
+  include_dirs = [ "third_party/folly" ]
+}
+
+config("libevent_build") {
+  defines = [
+    "EVENT__HAVE_UINT64_T",
+    "EVENT__HAVE_UINT32_T",
+    "EVENT__HAVE_UINT16_T",
+    "EVENT__NUMERIC_VERSION=0x02010c00",
+  ]
+  include_dirs = [ "third_party/libevent/include" ]
+}
+
+source_set("hermes_inspector") {
+  configs = [
+    ":folly_build",
+    ":cpp_new_build",
+  ]
+  include_dirs = [
+    "third_party/hermes/API",
+    "third_party/react-native/ReactCommon/jsi",
+    "third_party/react-native/ReactCommon",
+    "third_party/hermes/public",
+  ]
+  defines = [ "HERMES_ENABLE_DEBUGGER" ]
+  cflags_cc = [
+    "-fexceptions",
+    "-frtti",
+  ]
+  sources = [
+    "third_party/react-native/ReactCommon/hermes/inspector/Inspector.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/InspectorState.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/RuntimeAdapter.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/AutoAttachUtils.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/Connection.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/ConnectionDemux.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/MessageConverters.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/MessageTypes.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/Registration.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/chrome/RemoteObjectsTable.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/detail/CallbackOStream.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/detail/SerialExecutor.cpp",
+    "third_party/react-native/ReactCommon/hermes/inspector/detail/Thread.cpp",
+  ]
+}
+
 source_set("napi_qjs_source_set") {
   configs = [
     ":quickjs_build",
@@ -638,9 +693,7 @@ source_set("napi_qjs_source_set") {
   include_dirs = [ "include" ]
   cflags_c = [
     "-fvisibility=hidden",
-
-    # TODO(Chason): QuickJS 头文件内联函数
-    "-Wno-unused-parameter",
+    "-Wno-unused-parameter",  # TODO(Chason): QuickJS 头文件内联函数
     "-Wno-pedantic",
   ]
   sources = [ "src/js_native_api_qjs.c" ]

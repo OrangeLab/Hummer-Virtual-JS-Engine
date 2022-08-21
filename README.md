@@ -9,6 +9,9 @@ JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具�
 4. 所有 JavaScript 值都抽象在一个名为 NAPIValue 的不透明类型后面。
 5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取，或通过 NAPIClearLastException 清除
 
+## Boost
+由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，而代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include 目录下。
+
 ## 代码静态分析
 
 ### JavaScriptCore
