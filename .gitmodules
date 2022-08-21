@@ -19,3 +19,6 @@
 [submodule "third_party/libevent"]
 	path = third_party/libevent
 	url = git@github.com:libevent/libevent.git
+[submodule "third_party/fbjni"]
+	path = third_party/fbjni
+	url = git@github.com:facebookincubator/fbjni.git

@@ -386,17 +386,25 @@ source_set("hermes_platform") {
 
 source_set("hermes_platform_unicode") {
   configs = [
-    ":minimal_size_build",
     ":llvm_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
+  include_dirs = [ "third_party/fbjni/cxx" ]
   sources =
       [ "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp" ]
   if (target_os != "android") {
+    configs += [ ":minimal_size_build" ]
     sources +=
         [ "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp" ]
     frameworks = [ "CoreFoundation.framework" ]
+  } else {
+    cflags_cc = [
+      "-fexceptions",
+      "-fno-rtti",
+    ]
+    sources +=
+        [ "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeJava.cpp" ]
   }
 }
 
@@ -706,7 +714,8 @@ source_set("napi_common") {
   sources = [ "src/js_native_api_common.c" ]
 }
 
-if (target_os != "android") {
+if (target_os == "android") {
+} else {
   source_set("napi_jsc_source_set") {
     configs = [ ":strict_build" ]
     include_dirs = [ "include" ]

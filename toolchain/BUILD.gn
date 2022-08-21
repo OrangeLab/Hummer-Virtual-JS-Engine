@@ -36,7 +36,7 @@ if (target_os == "android") {
     object_generate_option = "-fdata-sections -ffunction-sections"
 
     if (target_cpu == "arm") {
-      target_option = "-target armv7-none-linux-androideabi18 -thumb"
+      target_option = "-target armv7-none-linux-androideabi18 -mthumb"
     } else if (target_cpu == "arm64") {
       target_option = "-target aarch64-none-linux-android21"
     } else if (target_cpu == "x86") {
@@ -74,7 +74,9 @@ if (target_os == "android") {
       command = "touch {{output}}"
     }
     tool("solink") {
-      if (!is_debug) {
+      if (is_debug) {
+        optimize_level = "-O0"
+      } else {
         # NDK 链接器 LTO 插件问题
         optimize_level = "-O3"
       }
