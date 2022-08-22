@@ -1,6 +1,6 @@
 # -fPIC -funwind-tables 在大部分平台都是默认开启，除了 PowerPC 32 bit 的平台等少数情况
 # -MMD 收集的用户头文件就足够了
-compiler_command = "-c {{source}} -o {{output}} -MMD -MF {{output}}.d {{include_dirs}} {{defines}} {{cflags}}"
+compiler_command = "-c {{source}} -o {{output}} -fPIC -MMD -MF {{output}}.d {{include_dirs}} {{defines}} {{cflags}}"
 if (generate_dwarf) {
   compiler_command = "-g $compiler_command"
 }

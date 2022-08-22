@@ -1,7 +1,6 @@
-## N-API
+## 介绍
 
-Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独立于 JavaScript 运行时的 API 接口层，旨在将 C 原生代码和 JavaScript 引擎隔离开来。API 通常用于创建和操作
-JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具有以下特点：
+Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独立于 JavaScript 运行时的 API 接口层，旨在将 C 原生代码和 JavaScript 引擎隔离开来。API 通常用于创建和操作 JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具有以下特点：
 
 1. 所有节点API调用都返回类型为 NAPI{Common|Error|Exception}Status 的状态代码。此状态指示 API 调用是成功还是失败。
 2. NAPICommonStatus 类型的接口一般情况下不需要检查返回值，NAPIErrorStatus 接口可能抛出内存分配失败错误，NAPIExceptionStatus 代表可能抛出 JavaScript 异常

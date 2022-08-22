@@ -19,9 +19,10 @@ config("quickjs_build") {
   cflags_c = [ "-funsigned-char" ]
 }
 
-source_set("quickjs_source_set") {
+source_set("quickjs") {
   configs = [ ":quickjs_build" ]
-  defines = [ "CONFIG_VERSION=\"2021-03-27\"" ]
+  cflags_c = [ "-fvisibility=hidden" ]
+  defines = [ "CONFIG_VERSION=\"\"" ]
   sources = [
     "third_party/quickjs/cutils.c",
     "third_party/quickjs/libregexp.c",
@@ -57,14 +58,31 @@ config("llvm_build") {
     "HAVE_FCNTL_H=1",  # Process.inc:216
     "HAVE_SIGNAL_H=1",  # Process.inc:232
     "RETSIGTYPE=void",
+    "HAVE_SYS_PARAM_H",  # Unix.h:39
   ]
 }
 
 config("cpp_new_build") {
   cflags_cc = [
-    # 主要因为 NDK 目前暂时不支持 C++20
     "-std=c++17",
     "-fvisibility=hidden",
+  ]
+}
+
+source_set("dtoa") {
+  configs = [ ":minimal_size_build" ]
+  cflags = [ "-fvisibility=hidden" ]
+  sources = [
+    "third_party/hermes/external/dtoa/dtoa.c",
+    "third_party/hermes/external/dtoa/g_fmt.c",
+    "third_party/hermes/external/dtoa/locks.cpp",
+  ]
+  defines = [
+    "IEEE_8087",
+    "Long=int",
+    "NO_HEX_FP",
+    "NO_INFNAN_CHECK",
+    "MULTIPLE_THREADS",
   ]
 }
 
@@ -142,23 +160,6 @@ source_set("llvm_support") {
     "third_party/hermes/external/llvh/lib/Support/regexec.c",
     "third_party/hermes/external/llvh/lib/Support/regfree.c",
     "third_party/hermes/external/llvh/lib/Support/regstrlcpy.c",
-  ]
-}
-
-source_set("dtoa") {
-  configs = [ ":minimal_size_build" ]
-  cflags = [ "-fvisibility=hidden" ]
-  sources = [
-    "third_party/hermes/external/dtoa/dtoa.c",
-    "third_party/hermes/external/dtoa/g_fmt.c",
-    "third_party/hermes/external/dtoa/locks.cpp",
-  ]
-  defines = [
-    "IEEE_8087",
-    "Long=int",
-    "NO_HEX_FP",
-    "NO_INFNAN_CHECK",
-    "MULTIPLE_THREADS",
   ]
 }
 
@@ -362,6 +363,7 @@ source_set("hermes_parser") {
     ":llvm_build",
     ":cpp_new_build",
   ]
+  include_dirs = [ "third_party/hermes/external" ]
   sources = [
     "third_party/hermes/lib/Parser/JSLexer.cpp",
     "third_party/hermes/lib/Parser/JSONParser.cpp",
@@ -390,7 +392,6 @@ source_set("hermes_platform_unicode") {
     ":hermes_build",
     ":cpp_new_build",
   ]
-  include_dirs = [ "third_party/fbjni/cxx" ]
   sources =
       [ "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp" ]
   if (target_os != "android") {
@@ -399,6 +400,7 @@ source_set("hermes_platform_unicode") {
         [ "third_party/hermes/lib/Platform/Unicode/PlatformUnicodeCF.cpp" ]
     frameworks = [ "CoreFoundation.framework" ]
   } else {
+    include_dirs = [ "third_party/fbjni/cxx" ]
     cflags_cc = [
       "-fexceptions",
       "-fno-rtti",
@@ -444,8 +446,6 @@ source_set("hermes_support") {
     ":llvm_build",
     ":cpp_new_build",
   ]
-
-  # dtoa/dtoa.h
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
     "third_party/hermes/lib/Support/Allocator.cpp",
@@ -480,8 +480,6 @@ source_set("hermes_vm_runtime") {
     ":llvm_build",
     ":cpp_new_build",
   ]
-
-  # dtoa/dtoa.h
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
     "third_party/hermes/lib/VM/ArrayStorage.cpp",
@@ -493,7 +491,6 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/CheckHeapWellFormedAcceptor.cpp",
     "third_party/hermes/lib/VM/CodeBlock.cpp",
     "third_party/hermes/lib/VM/Debugger/Debugger.cpp",
-    "third_party/hermes/lib/VM/DecoratedObject.cpp",
     "third_party/hermes/lib/VM/DictPropertyMap.cpp",
     "third_party/hermes/lib/VM/Domain.cpp",
     "third_party/hermes/lib/VM/DummyObject.cpp",
@@ -502,7 +499,6 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/HeapSnapshot.cpp",
     "third_party/hermes/lib/VM/HermesValue.cpp",
     "third_party/hermes/lib/VM/HiddenClass.cpp",
-    "third_party/hermes/lib/VM/HostModel.cpp",
     "third_party/hermes/lib/VM/IdentifierTable.cpp",
     "third_party/hermes/lib/VM/Interpreter-slowpaths.cpp",
     "third_party/hermes/lib/VM/Interpreter.cpp",
@@ -605,7 +601,33 @@ source_set("hermes_vm_runtime") {
   ]
 }
 
-source_set("hermes") {
+source_set("hermes_vm_runtime_rtti") {
+  configs = [
+    ":hermes_build",
+    ":llvm_build",
+    ":cpp_new_build",
+  ]
+  cflags_cc = [
+    "-fno-exceptions",
+    "-frtti",
+  ]
+  sources = [
+    "third_party/hermes/lib/VM/DecoratedObject.cpp",
+    "third_party/hermes/lib/VM/HostModel.cpp",
+  ]
+}
+
+source_set("jsi") {
+  configs = [ ":cpp_new_build" ]
+  cflags_cc = [
+    "-fexceptions",
+    "-frtti",
+  ]
+  include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
+  sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
+}
+
+source_set("hermes_api") {
   configs = [
     ":hermes_build",
     ":llvm_build",
@@ -622,7 +644,7 @@ source_set("hermes") {
   sources = [ "third_party/hermes/API/hermes/hermes.cpp" ]
 }
 
-source_set("debugger_api") {
+source_set("hermes_debugger_api") {
   configs = [
     ":minimal_size_build",
     ":hermes_build",
@@ -634,6 +656,16 @@ source_set("debugger_api") {
     "third_party/react-native/ReactCommon/jsi",
   ]
   sources = [ "third_party/hermes/API/hermes/DebuggerAPI.cpp" ]
+}
+
+config("libevent_build") {
+  defines = [
+    "EVENT__HAVE_UINT64_T",
+    "EVENT__HAVE_UINT32_T",
+    "EVENT__HAVE_UINT16_T",
+    "EVENT__NUMERIC_VERSION=0x02010c00",
+  ]
+  include_dirs = [ "third_party/libevent/include" ]
 }
 
 config("folly_build") {
@@ -650,16 +682,6 @@ config("folly_build") {
   include_dirs = [ "third_party/folly" ]
 }
 
-config("libevent_build") {
-  defines = [
-    "EVENT__HAVE_UINT64_T",
-    "EVENT__HAVE_UINT32_T",
-    "EVENT__HAVE_UINT16_T",
-    "EVENT__NUMERIC_VERSION=0x02010c00",
-  ]
-  include_dirs = [ "third_party/libevent/include" ]
-}
-
 source_set("hermes_inspector") {
   configs = [
     ":folly_build",
@@ -671,6 +693,9 @@ source_set("hermes_inspector") {
     "third_party/react-native/ReactCommon",
     "third_party/hermes/public",
   ]
+  if (target_os == "android") {
+    include_dirs += [ "third_party/fbjni/cxx" ]
+  }
   defines = [ "HERMES_ENABLE_DEBUGGER" ]
   cflags_cc = [
     "-fexceptions",
@@ -693,7 +718,7 @@ source_set("hermes_inspector") {
   ]
 }
 
-source_set("napi_qjs_source_set") {
+source_set("napi_qjs") {
   configs = [
     ":quickjs_build",
     ":strict_build",
@@ -701,7 +726,7 @@ source_set("napi_qjs_source_set") {
   include_dirs = [ "include" ]
   cflags_c = [
     "-fvisibility=hidden",
-    "-Wno-unused-parameter",  # TODO(Chason): QuickJS 头文件内联函数
+    "-Wno-unused-parameter",
     "-Wno-pedantic",
   ]
   sources = [ "src/js_native_api_qjs.c" ]
@@ -715,8 +740,66 @@ source_set("napi_common") {
 }
 
 if (target_os == "android") {
+  source_set("fbjni") {
+    cflags_cc = [
+      "-fexceptions",
+      "-frtti",
+      "-fvisibility=hidden",
+    ]
+    include_dirs = [ "third_party/fbjni/cxx" ]
+    sources = [
+      #"third_party/fbjni/cxx/fbjni/ByteBuffer.cpp",
+      "third_party/fbjni/cxx/fbjni/OnLoad.cpp",
+
+      #"third_party/fbjni/cxx/fbjni/ReadableByteChannel.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/Environment.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/Exceptions.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/Hybrid.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/Meta.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/References.cpp",
+      "third_party/fbjni/cxx/fbjni/detail/utf8.cpp",
+      "third_party/fbjni/cxx/fbjni/fbjni.cpp",
+      "third_party/fbjni/cxx/lyra/cxa_throw.cpp",
+      "third_party/fbjni/cxx/lyra/lyra.cpp",
+
+      #"third_party/fbjni/cxx/lyra/lyra_breakpad.cpp",
+      "third_party/fbjni/cxx/lyra/lyra_exceptions.cpp",
+    ]
+  }
+  shared_library("hermes") {
+    ldflags = [
+      "-lc++",
+      "-llog",
+      "-lm",
+    ]
+    deps = [
+      ":dtoa",
+      ":fbjni",
+      ":hermes_adt",
+      ":hermes_api",
+      ":hermes_ast",
+      ":hermes_backend",
+      ":hermes_debugger_api",
+      ":hermes_frontend",
+      ":hermes_frontend_defs",
+      ":hermes_hbc_backend",
+      ":hermes_inst",
+      ":hermes_internal_bytecode",
+      ":hermes_optimizer",
+      ":hermes_parser",
+      ":hermes_platform",
+      ":hermes_platform_unicode",
+      ":hermes_regex",
+      ":hermes_source_map",
+      ":hermes_support",
+      ":hermes_vm_runtime",
+      ":hermes_vm_runtime_rtti",
+      ":jsi",
+      ":llvm_support",
+    ]
+  }
 } else {
-  source_set("napi_jsc_source_set") {
+  source_set("napi_jsc") {
     configs = [ ":strict_build" ]
     include_dirs = [ "include" ]
     cflags_c = [ "-fvisibility=hidden" ]
@@ -728,7 +811,7 @@ if (target_os == "android") {
       complete_static_lib = true
       deps = [
         ":napi_common",
-        ":napi_jsc_source_set",
+        ":napi_jsc",
       ]
     }
 
@@ -736,8 +819,8 @@ if (target_os == "android") {
       complete_static_lib = true
       deps = [
         ":napi_common",
-        ":napi_qjs_source_set",
-        ":quickjs_source_set",
+        ":napi_qjs",
+        ":quickjs",
       ]
     }
   } else {
@@ -776,7 +859,10 @@ if (target_os == "android") {
         "-fvisibility=hidden",
         "-std=c++20",
       ]
-      configs = [ ":minimal_size_build" ]
+      configs = [
+        ":minimal_size_build",
+        ":strict_build",
+      ]
       sources = [
         "test/callable.cpp",
         "test/conversion.cpp",
@@ -794,7 +880,7 @@ if (target_os == "android") {
       ldflags = [ "-lc++" ]
       deps = [
         ":napi_common",
-        ":napi_jsc_source_set",
+        ":napi_jsc",
         ":test",
       ]
     }
@@ -804,8 +890,8 @@ if (target_os == "android") {
       ldflags = [ "-lc++" ]
       deps = [
         ":napi_common",
-        ":napi_qjs_source_set",
-        ":quickjs_source_set",
+        ":napi_qjs",
+        ":quickjs",
         ":test",
       ]
     }
