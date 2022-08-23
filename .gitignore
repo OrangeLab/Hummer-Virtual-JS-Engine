@@ -1,4 +1,5 @@
 .DS_Store
+/third_party/include/boost/
 
 /out/
 
