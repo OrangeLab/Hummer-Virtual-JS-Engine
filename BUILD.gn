@@ -39,7 +39,6 @@ config("common_build") {
 }
 
 config("llvm_build") {
-  configs = [ ":common_build" ]
   include_dirs = [
     "third_party/hermes/external/llvh/include",
     "third_party/hermes/external/llvh/gen/include",
@@ -90,6 +89,7 @@ source_set("llvm_demangle") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -103,6 +103,7 @@ source_set("llvm_support") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -193,6 +194,7 @@ source_set("hermes_adt") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [ "third_party/hermes/lib/ADT/CompactArray.cpp" ]
@@ -203,6 +205,7 @@ source_set("hermes_ast") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -220,6 +223,7 @@ source_set("hermes_backend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -244,6 +248,7 @@ source_set("hermes_frontend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -270,6 +275,7 @@ source_set("hermes_hbc_backend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -305,6 +311,7 @@ source_set("hermes_inst") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   sources = [
@@ -318,6 +325,7 @@ source_set("hermes_internal_bytecode") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   defines = [ "HERMES_CMAKE_BUILD" ]
@@ -328,6 +336,7 @@ source_set("hermes_optimizer") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
@@ -361,6 +370,7 @@ source_set("hermes_parser") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
@@ -380,6 +390,7 @@ source_set("hermes_platform") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
@@ -389,6 +400,7 @@ source_set("hermes_platform") {
 source_set("hermes_platform_unicode") {
   configs = [
     ":llvm_build",
+    ":common_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
@@ -414,6 +426,7 @@ source_set("hermes_regex") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
@@ -427,6 +440,7 @@ source_set("hermes_source_map") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
+    ":common_build",
     ":hermes_build",
     ":cpp_new_build",
   ]
@@ -444,6 +458,7 @@ source_set("hermes_support") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
@@ -478,6 +493,7 @@ source_set("hermes_vm_runtime") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
@@ -605,6 +621,7 @@ source_set("hermes_vm_runtime_rtti") {
   configs = [
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   cflags_cc = [
@@ -627,10 +644,25 @@ source_set("jsi") {
   sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
 }
 
+source_set("jsi_dynamic") {
+  configs = [
+    ":cpp_new_build",
+    ":folly_build",
+    ":common_build",
+  ]
+  include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
+  cflags_cc = [
+    "-fexceptions",
+    "-fno-rtti",
+  ]
+  sources = [ "third_party/react-native/ReactCommon/jsi/jsi/JSIDynamic.cpp" ]
+}
+
 source_set("hermes_api") {
   configs = [
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
   ]
   cflags_cc = [
@@ -644,12 +676,26 @@ source_set("hermes_api") {
   sources = [ "third_party/hermes/API/hermes/hermes.cpp" ]
 }
 
-source_set("hermes_debugger_api") {
+source_set("jsinspector") {
   configs = [
     ":minimal_size_build",
+    ":cpp_new_build",
+  ]
+  sources = [
+    "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp",
+  ]
+}
+
+source_set("hermes_debugger_api") {
+  configs = [
     ":hermes_build",
     ":llvm_build",
+    ":common_build",
     ":cpp_new_build",
+  ]
+  cflags_cc = [
+    "-fno-exceptions",
+    "-frtti",
   ]
   include_dirs = [
     "third_party/hermes/API",
@@ -669,10 +715,6 @@ config("libevent_build") {
 }
 
 config("folly_build") {
-  configs = [
-    ":common_build",
-    ":libevent_build",
-  ]
   defines = [
     "FOLLY_NO_CONFIG",
     "FOLLY_MOBILE=1",
@@ -682,9 +724,93 @@ config("folly_build") {
   include_dirs = [ "third_party/folly" ]
 }
 
+source_set("double_conversion") {
+  configs = [ ":minimal_size_build" ]
+  cflags_cc = [ "-fvisibility=hidden" ]
+  sources = [
+    "third_party/double-conversion/src/bignum-dtoa.cc",
+    "third_party/double-conversion/src/bignum.cc",
+    "third_party/double-conversion/src/cached-powers.cc",
+    "third_party/double-conversion/src/diy-fp.cc",
+    "third_party/double-conversion/src/double-conversion.cc",
+    "third_party/double-conversion/src/fast-dtoa.cc",
+    "third_party/double-conversion/src/fixed-dtoa.cc",
+    "third_party/double-conversion/src/strtod.cc",
+  ]
+}
+
+source_set("fmt") {
+  cflags_cc = [
+    "-fvisibility=hidden",
+    "-frtti",
+    "-fno-exceptions",
+  ]
+  include_dirs = [ "third_party/fmt/include" ]
+  sources = [
+    "third_party/fmt/src/format.cc",
+    "third_party/fmt/src/os.cc",
+  ]
+}
+
+source_set("folly") {
+  configs = [
+    ":folly_build",
+    ":common_build",
+  ]
+  cflags_cc = [
+    "-fexceptions",
+    "-frtti",
+    "-fvisibility=hidden",
+  ]
+  include_dirs = [ "third_party/fmt/include" ]
+  sources = [
+    "third_party/folly/folly/Conv.cpp",
+    "third_party/folly/folly/Demangle.cpp",
+    "third_party/folly/folly/ExceptionString.cpp",
+    "third_party/folly/folly/ExceptionWrapper.cpp",
+    "third_party/folly/folly/Executor.cpp",
+    "third_party/folly/folly/Format.cpp",
+    "third_party/folly/folly/ScopeGuard.cpp",
+    "third_party/folly/folly/SharedMutex.cpp",
+    "third_party/folly/folly/String.cpp",
+    "third_party/folly/folly/Try.cpp",
+    "third_party/folly/folly/Unicode.cpp",
+    "third_party/folly/folly/concurrency/CacheLocality.cpp",
+    "third_party/folly/folly/detail/AsyncTrace.cpp",
+    "third_party/folly/folly/detail/AtFork.cpp",
+    "third_party/folly/folly/detail/Futex.cpp",
+    "third_party/folly/folly/detail/StaticSingletonManager.cpp",
+    "third_party/folly/folly/detail/ThreadLocalDetail.cpp",
+    "third_party/folly/folly/detail/UniqueInstance.cpp",
+    "third_party/folly/folly/dynamic.cpp",
+    "third_party/folly/folly/executors/InlineExecutor.cpp",
+    "third_party/folly/folly/executors/QueuedImmediateExecutor.cpp",
+    "third_party/folly/folly/futures/detail/Core.cpp",
+    "third_party/folly/folly/hash/SpookyHashV2.cpp",
+    "third_party/folly/folly/io/async/Request.cpp",
+    "third_party/folly/folly/json.cpp",
+    "third_party/folly/folly/json_pointer.cpp",
+    "third_party/folly/folly/lang/CString.cpp",
+    "third_party/folly/folly/lang/Exception.cpp",
+    "third_party/folly/folly/lang/SafeAssert.cpp",
+    "third_party/folly/folly/lang/ToAscii.cpp",
+    "third_party/folly/folly/memory/detail/MallocImpl.cpp",
+    "third_party/folly/folly/synchronization/AsymmetricMemoryBarrier.cpp",
+    "third_party/folly/folly/synchronization/Hazptr.cpp",
+    "third_party/folly/folly/synchronization/ParkingLot.cpp",
+    "third_party/folly/folly/synchronization/detail/Sleeper.cpp",
+    "third_party/folly/folly/system/ThreadId.cpp",
+  ]
+  if (is_debug) {
+    sources += [ "third_party/folly/folly/lang/Assume.cpp" ]
+  }
+}
+
 source_set("hermes_inspector") {
   configs = [
     ":folly_build",
+    ":common_build",
+    ":libevent_build",
     ":cpp_new_build",
   ]
   include_dirs = [
@@ -771,8 +897,11 @@ if (target_os == "android") {
       "m",
     ]
     deps = [
+      ":double_conversion",
       ":dtoa",
       ":fbjni",
+      ":fmt",
+      ":folly",
       ":hermes_adt",
       ":hermes_api",
       ":hermes_ast",
@@ -794,6 +923,8 @@ if (target_os == "android") {
       ":hermes_vm_runtime",
       ":hermes_vm_runtime_rtti",
       ":jsi",
+      ":jsi_dynamic",
+      ":jsinspector",
       ":llvm_support",
     ]
   }

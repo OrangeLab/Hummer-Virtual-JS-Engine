@@ -22,3 +22,6 @@
 [submodule "third_party/fbjni"]
 	path = third_party/fbjni
 	url = git@github.com:facebookincubator/fbjni.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = git@github.com:fmtlib/fmt.git
