@@ -748,10 +748,9 @@ if (target_os == "android") {
     ]
     include_dirs = [ "third_party/fbjni/cxx" ]
     sources = [
-      #"third_party/fbjni/cxx/fbjni/ByteBuffer.cpp",
+      "third_party/fbjni/cxx/fbjni/ByteBuffer.cpp",
       "third_party/fbjni/cxx/fbjni/OnLoad.cpp",
-
-      #"third_party/fbjni/cxx/fbjni/ReadableByteChannel.cpp",
+      "third_party/fbjni/cxx/fbjni/ReadableByteChannel.cpp",
       "third_party/fbjni/cxx/fbjni/detail/Environment.cpp",
       "third_party/fbjni/cxx/fbjni/detail/Exceptions.cpp",
       "third_party/fbjni/cxx/fbjni/detail/Hybrid.cpp",
@@ -761,16 +760,15 @@ if (target_os == "android") {
       "third_party/fbjni/cxx/fbjni/fbjni.cpp",
       "third_party/fbjni/cxx/lyra/cxa_throw.cpp",
       "third_party/fbjni/cxx/lyra/lyra.cpp",
-
-      #"third_party/fbjni/cxx/lyra/lyra_breakpad.cpp",
+      "third_party/fbjni/cxx/lyra/lyra_breakpad.cpp",
       "third_party/fbjni/cxx/lyra/lyra_exceptions.cpp",
     ]
   }
   shared_library("hermes") {
-    ldflags = [
-      "-lc++",
-      "-llog",
-      "-lm",
+    libs = [
+      "c++",
+      "log",
+      "m",
     ]
     deps = [
       ":dtoa",
@@ -783,6 +781,7 @@ if (target_os == "android") {
       ":hermes_frontend",
       ":hermes_frontend_defs",
       ":hermes_hbc_backend",
+      ":hermes_inspector",
       ":hermes_inst",
       ":hermes_internal_bytecode",
       ":hermes_optimizer",
@@ -877,7 +876,7 @@ if (target_os == "android") {
 
     executable("test_jsc") {
       testonly = true
-      ldflags = [ "-lc++" ]
+      libs = [ "c++" ]
       deps = [
         ":napi_common",
         ":napi_jsc",
@@ -887,7 +886,7 @@ if (target_os == "android") {
 
     executable("test_qjs") {
       testonly = true
-      ldflags = [ "-lc++" ]
+      libs = [ "c++" ]
       deps = [
         ":napi_common",
         ":napi_qjs",

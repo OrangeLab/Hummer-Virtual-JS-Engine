@@ -1,6 +1,6 @@
-# -fPIC -funwind-tables 在大部分平台都是默认开启，除了 PowerPC 32 bit 的平台等少数情况
 # -MMD 收集的用户头文件就足够了
-compiler_command = "-c {{source}} -o {{output}} -fPIC -MMD -MF {{output}}.d {{include_dirs}} {{defines}} {{cflags}}"
+depfile_string = "{{output}}.d"
+compiler_command = "-c {{source}} -o {{output}} -fPIC -funwind-tables -MMD -MF $depfile_string {{include_dirs}} {{defines}} {{cflags}}"
 if (generate_dwarf) {
   compiler_command = "-g $compiler_command"
 }
@@ -15,28 +15,21 @@ if (ubsan) {
 }
 
 if (!is_debug) {
-  # NDEBUG for assert.h
   compiler_command = "-Os -DNDEBUG $compiler_command"
   if (lto) {
     compiler_command = "-flto $compiler_command"
+    linker_command = "-flto $linker_command"
   }
 } else {
   compiler_command = "-O0 $compiler_command"
 }
 
-compiler_outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
-linker_outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
-
 if (target_os == "android") {
   toolchain("android") {
-    sysroot_path = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot"
-    compiler_command = "--sysroot $sysroot_path $compiler_command"
-
-    # -fdata-sections 和 -ffunction-sections 原则上应当和链接器的 -Wl,–gc-sections 配合使用缩小包体积
-    object_generate_option = "-fdata-sections -ffunction-sections"
+    compiler_command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot $compiler_command"
 
     if (target_cpu == "arm") {
-      target_option = "-target armv7-none-linux-androideabi18 -mthumb"
+      target_option = "-target armv7-none-linux-androideabi16 -mthumb"
     } else if (target_cpu == "arm64") {
       target_option = "-target aarch64-none-linux-android21"
     } else if (target_cpu == "x86") {
@@ -52,28 +45,23 @@ if (target_os == "android") {
       linker_command = "$target_option $linker_command"
     }
 
-    if (is_debug || !lto) {
-      compiler_command = "$object_generate_option $compiler_command"
-    } else {
-      linker_command = "$linker_command $object_generate_option"
-    }
-
     tool("cc") {
       command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $compiler_command {{cflags_c}}"
-      depfile = "{{output}}.d"
+      depfile = depfile_string
       depsformat = "gcc"
-      outputs = compiler_outputs
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
     }
     tool("cxx") {
       command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ $compiler_command {{cflags_cc}}"
-      depfile = "{{output}}.d"
+      depfile = depfile_string
       depsformat = "gcc"
-      outputs = compiler_outputs
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
     }
     tool("stamp") {
       command = "touch {{output}}"
     }
     tool("solink") {
+      lib_switch = "-l"
       if (is_debug) {
         optimize_level = "-O0"
       } else {
@@ -82,10 +70,9 @@ if (target_os == "android") {
       }
       default_output_extension = ".so"
 
-      # target 选择 clang 具体工具链，指定 lto 参数 mcpu
-      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $linker_command $optimize_level --sysroot $sysroot_path -flto -Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libgcc_real.a -Wl,--exclude-libs,libatomic.a -Wl,--build-id -Wl,--no-undefined -shared -Wl,-soname,{{target_output_name}}$default_output_extension -o {{output}} {{inputs}} {{libs}} {{ldflags}}"
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $linker_command $optimize_level --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Wl,--build-id -Wl,--no-undefined -Wl,--fatal-warnings -shared -Wl,-soname,{{target_output_name}}{{output_extension}} -o {{output}} {{inputs}} {{libs}}"
       default_output_dir = "{{target_out_dir}}"
-      outputs = linker_outputs
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
       output_prefix = "lib"
     }
   }
@@ -112,16 +99,16 @@ if (target_os == "android") {
 
     tool("cc") {
       command = "clang $compiler_command {{cflags_c}}"
-      depfile = "{{output}}.d"
+      depfile = depfile_string
       depsformat = "gcc"
-      outputs = compiler_outputs
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
     }
 
     tool("cxx") {
       command = "clang++ $compiler_command {{cflags_cc}}"
-      depfile = "{{output}}.d"
+      depfile = depfile_string
       depsformat = "gcc"
-      outputs = compiler_outputs
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
     }
 
     tool("stamp") {
@@ -129,21 +116,26 @@ if (target_os == "android") {
     }
 
     tool("link") {
-      command = "clang $linker_command -o {{output}} {{inputs}} {{frameworks}} {{ldflags}}"
+      lib_switch = "-l"
+      framework_switch = "-framework "
 
-      # /tmp/lto.o 丢失会导致 dsymutil 无法生成 dSYM
-      # -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o
+      # TODO(Chason): Add -target x86_64-apple-ios9.0 to make LTO enabled.
+      # Current we use link to generate unit test executable file.
+      command = "clang $linker_command -o {{output}} {{inputs}} {{libs}} {{frameworks}}"
+      if (!is_debug && lto) {
+        command = "$command -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o"
+      }
       if (collect_code_coverage) {
         command = "$command -fprofile-instr-generate"
       }
       default_output_dir = "{{root_out_dir}}"
-      outputs = linker_outputs
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
     }
 
     tool("alink") {
       command = "libtool -static -o {{output}} {{inputs}}"
       default_output_dir = "{{target_out_dir}}"
-      outputs = linker_outputs
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
       default_output_extension = ".a"
       output_prefix = "lib"
     }
