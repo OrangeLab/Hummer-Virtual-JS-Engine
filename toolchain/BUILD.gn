@@ -78,7 +78,7 @@ if (target_os == "android") {
   }
 } else {
   toolchain("clang") {
-    if (have_bitcode_flag) {
+    if (have_bitcode_flag && bitcode) {
       compiler_command = "-fembed-bitcode $compiler_command"
     }
     if (collect_code_coverage) {
