@@ -116,7 +116,8 @@ toolchain("clang") {
     }
 
     tool("cxx") {
-        command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}"])
+        #ndk 不支持 "-Wno-deprecated-copy" flag
+        command = string_join(" ", ["clang++", compiler_command, "{{cflags_cc}}", "-Wno-deprecated-copy"])
         # 默认 C++98 + libc++
         outputs = compiler_outputs
     }
