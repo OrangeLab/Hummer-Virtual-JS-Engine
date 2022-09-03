@@ -1,5 +1,4 @@
 ## 介绍
-
 Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独立于 JavaScript 运行时的 API 接口层，旨在将 C 原生代码和 JavaScript 引擎隔离开来。API 通常用于创建和操作 JavaScript 值，概念和操作通常映射到 ECMA-262 语言规范，API 具有以下特点：
 
 1. 所有节点API调用都返回类型为 NAPI{Common|Error|Exception}Status 的状态代码。此状态指示 API 调用是成功还是失败。
@@ -11,48 +10,27 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 ## Boost
 由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，而代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include 目录下。
 
-## 代码静态分析
+## 编辑器
+1. Clion
+2. VSCode + clangd
 
-### JavaScriptCore
+## VSCode 配置工程
+1. gn gen build --args="is_debug=true" --export-compile-commands
 
-1. `clang --analyze src/js_native_api_jsc.c --analyzer-output html -o ./static_analyze_report -I./include`
-
-### QuickJS
-
-1. `clang --analyze src/js_native_api_qjs.c --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/quickjs`
-
-### Hermes
-
-1. `clang++ --analyze src/js_native_api_hermes.cpp --analyzer-output html -o ./static_analyze_report -I./include -I./third_party/hermes/include -I./third_party/hermes/public -DHERMESVM_GC_NONCONTIG_GENERATIONAL -DHERMESVM_ALLOW_COMPRESSED_POINTERS -DHERMES_ENABLE_DEBUGGER -std=c++17 -I./third_party/include -I./third_party/hermes/external/llvh/include -I./third_party/hermes/external/llvh/gen/include -I./third_party/hermes/API -I./third_party/hermes/API/jsi -I./third_party/react-native/ReactCommon`
+## Clion
+1. `gn gen clion --args="is_debug=true" --ide=json --json-ide-script=../gn_to_cmake.py --script-executable=python3`
 
 ## 单元测试
-
-1. `gn gen out --args="debug=true asan=true ubsan=true"`（Release 模式下 assert 失效，会隐藏很多问题，特殊情况下启用 asan + ubsan）
+1. `gn gen out --args="is_debug=true asan=true ubsan=true"`（Release 模式下 assert 失效，会隐藏很多问题，特殊情况下启用 asan + ubsan）
 2. `ninja -C out test_{qjs|jsc|hermes}`
 3. `./out/test_{qjs|jsc|hermes}`
 
 ### QuickJS 单元测试修改源代码部分
-
 1. ubsan/asan 对于 QuickJS 开启，需要注释掉 CONFIG_STACK_CHECK，否则会报告 InternalError: stack overflow
 2. QuickJS 单元测试建议开启 DUMP_LEAKS
 
 ### Hermes 单元测试修改源代码部分
-
 1. include/hermes/VM/HandleRootOwner.h 修改 HERMESVM_DEBUG_MAX_GCSCOPE_HANDLES 为 2^16-1 -> 65535
-
-## 编辑器配置
-
-1. 推荐使用 CLion
-2. VSCode
-
-### CLion
-
-1. `gn gen clion --ide=json --json-ide-script=../gn_to_cmake.py --script-executable=python3`
-
-### VSCode
-
-1. C/C++ 插件
-2. 自行配置头文件搜索路径
 
 ## 交叉编译
 
@@ -85,15 +63,13 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 7. `cp armv7/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && cp arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && cp i386/obj/lib{hermes,qjs}.so napi/libs/x86 && cp x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
 
 #### 交叉编译注意
-
 1. macOS shell 对文件描述符有限制，默认限制 256，会导致链接出问题，可以通过 `ulimit -a` 查看，可以通过 `ulimit -S -n 4096` 临时修改
 
 #### 注意
-
 1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
 2. Hermes 引擎需要先 `cd third_party/hermes && git apply ../hermes_patch.diff`
 3. Android 版本 libhermes.so 包括 fbjni 库，内含 OnLoad.cpp，需要使用 System.load("hermes") 显式加载，不能依赖 Linux 内核的动态库隐式加载
-4. Hermes 引擎 0.8.1 版本内置字节码，需要先编译主机 hermesc，指令 `./utils/build/build-mac-framework.sh`，后输入如下命令
+4. Hermes 引擎 0.8.x 版本内置字节码，需要先编译主机 hermesc，指令 `./utils/build/build-mac-framework.sh`，后输入如下命令
 ```
 > cd lib/InternalBytecode
 > cat 00-header.js 01-Promise.js 02-AsyncFn.js 99-footer.js > InternalBytecode.js
@@ -102,5 +78,4 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 ```
 
 ## 注意事项
-
 1. 只能在单一线程执行，不跨多线程执行，JavaScriptCore 通过锁机制保证同步，但是其他引擎很可能没有该保证

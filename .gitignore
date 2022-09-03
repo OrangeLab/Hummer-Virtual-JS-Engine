@@ -1,6 +1,11 @@
 .DS_Store
 /third_party/include/boost/
 
+/clion/
+/build/
+/.vscode/
+/.cache/
+/.idea/
 /out/
 
 /arm/

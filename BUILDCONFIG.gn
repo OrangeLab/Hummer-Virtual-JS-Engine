@@ -7,9 +7,13 @@ if (target_cpu == "") {
 
 assert(target_os == "android" || target_os == "ios" || target_os == "mac",
        "Unsupported target os.")
-assert(target_cpu == "arm" || target_cpu == "arm64" || target_cpu == "x86" ||
+if (target_os == "ios" || target_os == "mac") {
+  assert(target_cpu == "arm64" || target_cpu == "x64", "Unsupported target cpu.")
+} else {
+  assert(target_cpu == "arm" || target_cpu == "arm64" || target_cpu == "x86" ||
            target_cpu == "x64",
        "Unsupported target cpu.")
+}
 
 declare_args() {
   generate_dwarf = true
@@ -29,16 +33,6 @@ declare_args() {
 declare_args() {
   if (!is_debug) {
     lto = true
-  }
-}
-
-have_bitcode_flag =
-    target_os == "ios" && (target_cpu == "arm" || target_cpu == "arm64") &&
-    !is_debug && !lto
-
-declare_args() {
-  if (have_bitcode_flag) {
-    bitcode = true
   }
 }
 

@@ -1,4 +1,3 @@
-# -MMD 收集的用户头文件就足够了
 depfile_string = "{{output}}.d"
 compiler_command = "-c {{source}} -o {{output}} -fPIC -funwind-tables -MMD -MF $depfile_string {{include_dirs}} {{defines}} {{cflags}}"
 if (generate_dwarf) {
@@ -65,7 +64,6 @@ if (target_os == "android") {
       if (is_debug) {
         optimize_level = "-O0"
       } else {
-        # NDK 链接器 LTO 插件问题
         optimize_level = "-O3"
       }
       default_output_extension = ".so"
@@ -78,22 +76,15 @@ if (target_os == "android") {
   }
 } else {
   toolchain("clang") {
-    if (have_bitcode_flag && bitcode) {
-      compiler_command = "-fembed-bitcode $compiler_command"
-    }
     if (collect_code_coverage) {
       compiler_command =
           "-fprofile-instr-generate -fcoverage-mapping $compiler_command"
     }
     if (target_os == "ios") {
-      if (target_cpu == "x86") {
-        compiler_command = "-target i386-apple-ios9.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
-      } else if (target_cpu == "x64") {
-        compiler_command = "-target x86_64-apple-ios9.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
-      } else if (target_cpu == "arm") {
-        compiler_command = "-target armv7-apple-ios9.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
+      if (target_cpu == "x64") {
+        compiler_command = "-target x86_64-apple-ios11.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
       } else {
-        compiler_command = "-target arm64-apple-ios9.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
+        compiler_command = "-target arm64-apple-ios11.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
       }
     }
 
@@ -117,7 +108,7 @@ if (target_os == "android") {
 
     tool("link") {
       lib_switch = "-l"
-      framework_switch = "-framework"
+      framework_switch = "-framework "
 
       # TODO(Chason): Add -target x86_64-apple-ios9.0 to make LTO enabled.
       # Current we use link to generate unit test executable file.

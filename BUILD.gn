@@ -844,6 +844,40 @@ source_set("hermes_inspector") {
   ]
 }
 
+source_set("napi_hermes") {
+  configs = [
+    ":minimal_size_build",
+    ":strict_build",
+    ":hermes_build",
+    ":llvm_build",
+    ":common_build",
+    ":cpp_new_build",
+  ]
+  include_dirs = [
+    "include",
+    "third_party/hermes/API",
+    "third_party/react-native/ReactCommon/jsi",
+    "third_party/react-native/ReactCommon",
+  ]
+  cflags_cc = [
+    #"-fno-exceptions",
+    #"-frtti",
+    "-Wno-unused-parameter",
+    "-Wno-gnu-anonymous-struct",
+    "-Wno-gnu-zero-variadic-macro-arguments",
+    "-Wno-c99-extensions",
+    "-Wno-extra-semi",
+    "-Wno-nested-anon-types",
+  ]
+  sources = [
+    #"src/js_native_api_hermes.cpp",
+    "src/hermes/External.cpp",
+    "src/hermes/HermesExecutorRuntimeAdapter.cpp",
+    "src/hermes/OpaqueNAPIEnv.cpp",
+    "src/hermes/OpaqueNAPIRef.cpp",
+  ]
+}
+
 source_set("napi_qjs") {
   configs = [
     ":quickjs_build",
@@ -926,6 +960,7 @@ if (target_os == "android") {
       ":jsi_dynamic",
       ":jsinspector",
       ":llvm_support",
+      ":napi_hermes",
     ]
   }
 } else {
