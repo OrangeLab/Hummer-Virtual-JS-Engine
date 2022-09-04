@@ -875,6 +875,7 @@ source_set("napi_hermes") {
     "src/hermes/HermesExecutorRuntimeAdapter.cpp",
     "src/hermes/OpaqueNAPIEnv.cpp",
     "src/hermes/OpaqueNAPIRef.cpp",
+    "src/hermes/FunctionInfo.cpp",
   ]
 }
 

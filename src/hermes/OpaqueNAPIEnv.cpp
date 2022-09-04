@@ -18,7 +18,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const ::hermes::vm::RuntimeConfig &runtimeConfig)
           this->hermesRuntime)) {
   // 0.8.x 版本开始会执行 runInternalBytecode -> runBytecode ->
   // clearThrownValue，0.7.2 版本没有执行，需要手动执行清空
-  // RuntimeHermesValueFields.def 文件定义了 PinnedHermesValue thrownValue_ =
+  // Runtime.h 文件定义了 PinnedHermesValue thrownValue_ =
   // {}
   // => undefined
   LIST_INIT(&this->valueList);
