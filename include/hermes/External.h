@@ -1,14 +1,11 @@
 #pragma once
 
 #include <hermes/VM/HostModel.h>
-
 #include <napi/js_native_api_types.h>
 
 namespace orangelabs {
-
 class External final : public ::hermes::vm::HostObjectProxy {
-
-public:
+ public:
   explicit External(::hermes::vm::Runtime &runtime, void *data,
                     NAPIFinalize finalizeCallback, void *finalizeHint);
 
@@ -16,8 +13,8 @@ public:
 
   ~External() override;
 
-  ::hermes::vm::CallResult<::hermes::vm::HermesValue>
-  get(::hermes::vm::SymbolID symbolId) override;
+  ::hermes::vm::CallResult<::hermes::vm::HermesValue> get(
+      ::hermes::vm::SymbolID symbolId) override;
 
   ::hermes::vm::CallResult<bool> set(::hermes::vm::SymbolID symbolId,
                                      ::hermes::vm::HermesValue value) override;
@@ -33,10 +30,10 @@ public:
 
   External &operator=(External &&) = delete;
 
-private:
+ private:
   ::hermes::vm::Runtime &runtime;
   void *const data;
   const NAPIFinalize finalizeCallback;
   void *const finalizeHint;
 };
-} // namespace orangelabs
+}  // namespace orangelabs

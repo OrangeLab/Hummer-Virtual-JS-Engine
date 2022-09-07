@@ -92,11 +92,11 @@ NAPI_EXPORT NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, N
 
 NAPI_EXPORT NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result);
 
-NAPI_EXPORT NAPICommonStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope);
+NAPI_EXPORT NAPIErrorStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope);
 
 NAPI_EXPORT NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope *result);
 
-NAPI_EXPORT NAPICommonStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope);
+NAPI_EXPORT NAPIErrorStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope);
 
 NAPI_EXPORT NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee,
                                                NAPIValue *result);

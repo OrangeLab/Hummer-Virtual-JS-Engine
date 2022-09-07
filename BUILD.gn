@@ -57,8 +57,12 @@ config("llvm_build") {
     "HAVE_FCNTL_H=1",  # Process.inc:216
     "HAVE_SIGNAL_H=1",  # Process.inc:232
     "RETSIGTYPE=void",
-    "HAVE_SYS_PARAM_H",  # Unix.h:39
   ]
+  if (target_os == "android") {
+    defines += [
+      "HAVE_SYS_PARAM_H",  # Path.inc:178
+    ]
+  }
 }
 
 config("cpp_new_build") {
@@ -85,20 +89,6 @@ source_set("dtoa") {
   ]
 }
 
-source_set("llvm_demangle") {
-  configs = [
-    ":minimal_size_build",
-    ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
-  ]
-  sources = [
-    "third_party/hermes/external/llvh/lib/Demangle/ItaniumDemangle.cpp",
-    "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangle.cpp",
-    "third_party/hermes/external/llvh/lib/Demangle/MicrosoftDemangleNodes.cpp",
-  ]
-}
-
 source_set("llvm_support") {
   configs = [
     ":minimal_size_build",
@@ -106,6 +96,7 @@ source_set("llvm_support") {
     ":common_build",
     ":cpp_new_build",
   ]
+  cflags_c = [ "-fvisibility=hidden" ]
   sources = [
     "third_party/hermes/external/llvh/lib/Support/APFloat.cpp",
     "third_party/hermes/external/llvh/lib/Support/APInt.cpp",
@@ -177,6 +168,7 @@ config("hermes_build") {
     "HERMESVM_ALLOW_CONCURRENT_GC",
     "HERMESVM_ALLOW_INLINE_ASM",
     "HERMES_ENABLE_DEBUGGER",
+    "HERMES_MEMORY_INSTRUMENTATION",
   ]
   if (target_os == "android") {
     defines += [ "HERMES_PLATFORM_UNICODE=HERMES_PLATFORM_UNICODE_JAVA" ]
@@ -375,6 +367,7 @@ source_set("hermes_parser") {
   ]
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
+    "third_party/hermes/lib/Parser/FlowHelpers.cpp",
     "third_party/hermes/lib/Parser/JSLexer.cpp",
     "third_party/hermes/lib/Parser/JSONParser.cpp",
     "third_party/hermes/lib/Parser/JSParser.cpp",
@@ -466,6 +459,7 @@ source_set("hermes_support") {
     "third_party/hermes/lib/Support/Allocator.cpp",
     "third_party/hermes/lib/Support/Base64.cpp",
     "third_party/hermes/lib/Support/Base64vlq.cpp",
+    "third_party/hermes/lib/Support/BigIntSupport.cpp",
     "third_party/hermes/lib/Support/CheckedMalloc.cpp",
     "third_party/hermes/lib/Support/Conversions.cpp",
     "third_party/hermes/lib/Support/ErrorHandling.cpp",
@@ -500,6 +494,7 @@ source_set("hermes_vm_runtime") {
   sources = [
     "third_party/hermes/lib/VM/ArrayStorage.cpp",
     "third_party/hermes/lib/VM/BasicBlockExecutionInfo.cpp",
+    "third_party/hermes/lib/VM/BigIntPrimitive.cpp",
     "third_party/hermes/lib/VM/BoxedDouble.cpp",
     "third_party/hermes/lib/VM/BuildMetadata.cpp",
     "third_party/hermes/lib/VM/Callable.cpp",
@@ -530,6 +525,7 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/JSLib/ArrayBuffer.cpp",
     "third_party/hermes/lib/VM/JSLib/ArrayIterator.cpp",
     "third_party/hermes/lib/VM/JSLib/AsyncFunction.cpp",
+    "third_party/hermes/lib/VM/JSLib/BigInt.cpp",
     "third_party/hermes/lib/VM/JSLib/Boolean.cpp",
     "third_party/hermes/lib/VM/JSLib/CallSite.cpp",
     "third_party/hermes/lib/VM/JSLib/DataView.cpp",
@@ -566,6 +562,7 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/JSLib/Symbol.cpp",
     "third_party/hermes/lib/VM/JSLib/TypedArray.cpp",
     "third_party/hermes/lib/VM/JSLib/WeakMap.cpp",
+    "third_party/hermes/lib/VM/JSLib/WeakRef.cpp",
     "third_party/hermes/lib/VM/JSLib/WeakSet.cpp",
     "third_party/hermes/lib/VM/JSLib/escape.cpp",
     "third_party/hermes/lib/VM/JSLib/eval.cpp",
@@ -579,8 +576,10 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/JSRegExpStringIterator.cpp",
     "third_party/hermes/lib/VM/JSTypedArray.cpp",
     "third_party/hermes/lib/VM/JSWeakMapImpl.cpp",
+    "third_party/hermes/lib/VM/JSWeakRef.cpp",
     "third_party/hermes/lib/VM/LimitedStorageProvider.cpp",
     "third_party/hermes/lib/VM/Metadata.cpp",
+    "third_party/hermes/lib/VM/NativeState.cpp",
     "third_party/hermes/lib/VM/Operations.cpp",
     "third_party/hermes/lib/VM/OrderedHashMap.cpp",
     "third_party/hermes/lib/VM/PredefinedStringIDs.cpp",
@@ -594,7 +593,6 @@ source_set("hermes_vm_runtime") {
     "third_party/hermes/lib/VM/Runtime-profilers.cpp",
     "third_party/hermes/lib/VM/Runtime.cpp",
     "third_party/hermes/lib/VM/RuntimeModule.cpp",
-    "third_party/hermes/lib/VM/RuntimeStats.cpp",
     "third_party/hermes/lib/VM/SegmentedArray.cpp",
     "third_party/hermes/lib/VM/SerializedLiteralParser.cpp",
     "third_party/hermes/lib/VM/SingleObject.cpp",
@@ -860,8 +858,6 @@ source_set("napi_hermes") {
     "third_party/react-native/ReactCommon",
   ]
   cflags_cc = [
-    #"-fno-exceptions",
-    #"-frtti",
     "-Wno-unused-parameter",
     "-Wno-gnu-anonymous-struct",
     "-Wno-gnu-zero-variadic-macro-arguments",
@@ -870,12 +866,15 @@ source_set("napi_hermes") {
     "-Wno-nested-anon-types",
   ]
   sources = [
-    #"src/js_native_api_hermes.cpp",
     "src/hermes/External.cpp",
-    "src/hermes/HermesExecutorRuntimeAdapter.cpp",
-    "src/hermes/OpaqueNAPIEnv.cpp",
-    "src/hermes/OpaqueNAPIRef.cpp",
     "src/hermes/FunctionInfo.cpp",
+    "src/hermes/HermesExecutorRuntimeAdapter.cpp",
+    "src/hermes/OpaqueNAPICallbackInfo.cpp",
+    "src/hermes/OpaqueNAPIEnv.cpp",
+    "src/hermes/OpaqueNAPIEscapableHandleScope.cpp",
+    "src/hermes/OpaqueNAPIHandleScope.cpp",
+    "src/hermes/OpaqueNAPIRef.cpp",
+    "src/js_native_api_hermes.cpp",
   ]
 }
 

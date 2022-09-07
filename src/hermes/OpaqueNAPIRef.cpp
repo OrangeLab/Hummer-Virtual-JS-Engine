@@ -1,9 +1,9 @@
-#include <hermes/VM/Casting.h>
-#include <hermes/VM/JSObject.h>
-
 #include <hermes/OpaqueNAPIEnv.h>
 #include <hermes/OpaqueNAPIRef.h>
+#include <hermes/VM/Casting.h>
+#include <hermes/VM/JSObject.h>
 #include <sys/queue.h>
+
 #include <variant>
 
 OpaqueNAPIRef::OpaqueNAPIRef(
@@ -74,30 +74,31 @@ uint8_t OpaqueNAPIRef::getReferenceCount() const {
 
 const ::hermes::vm::PinnedHermesValue *OpaqueNAPIRef::getHermesValue() const {
   switch (this->storage.index()) {
-  case 0:
-    return nullptr;
-    break;
-  case 1:
-    return &::std::get<::hermes::vm::PinnedHermesValue>(this->storage);
-    break;
-  case 3: {
-    auto weakRoot = ::std::get<::hermes::vm::WeakRoot<::hermes::vm::JSObject>>(
-        this->storage);
-    auto jsObject = weakRoot.get(this->env->getRuntime(),
-                                 this->env->getRuntime().getHeap());
-    if (!jsObject) {
+    case 0:
       return nullptr;
-    } else {
-      auto handle =
-          this->env->getRuntime().makeHandle<::hermes::vm::JSObject>(jsObject);
+    case 1:
+      return this->env->getRuntime()
+          .makeHandle(
+              ::std::get<::hermes::vm::PinnedHermesValue>(this->storage))
+          .unsafeGetPinnedHermesValue();
+    case 2: {
+      auto weakRoot =
+          ::std::get<::hermes::vm::WeakRoot<::hermes::vm::JSObject>>(
+              this->storage);
+      auto jsObject = weakRoot.get(this->env->getRuntime(),
+                                   this->env->getRuntime().getHeap());
+      if (!jsObject) {
+        return nullptr;
+      } else {
+        auto handle =
+            this->env->getRuntime().makeHandle<::hermes::vm::JSObject>(
+                jsObject);
 
-      return handle.unsafeGetPinnedHermesValue();
+        return handle.unsafeGetPinnedHermesValue();
+      }
     }
-  } break;
 
-  default:
-    return nullptr;
-
-    break;
+    default:
+      return nullptr;
   }
 }

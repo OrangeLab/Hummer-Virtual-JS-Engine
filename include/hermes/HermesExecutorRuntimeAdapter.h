@@ -14,8 +14,8 @@ namespace debugger {
 class Debugger;
 }
 class HermesRuntime;
-} // namespace hermes
-} // namespace facebook
+}  // namespace hermes
+}  // namespace facebook
 
 #include <hermes/inspector/RuntimeAdapter.h>
 
@@ -23,8 +23,7 @@ namespace orangelabs {
 
 class HermesExecutorRuntimeAdapter final
     : public ::facebook::hermes::inspector::RuntimeAdapter {
-
-public:
+ public:
   explicit HermesExecutorRuntimeAdapter(
       ::std::shared_ptr<::facebook::jsi::Runtime> runtime,
       ::facebook::hermes::HermesRuntime &hermesRuntime,
@@ -37,11 +36,11 @@ public:
 
   HermesExecutorRuntimeAdapter(HermesExecutorRuntimeAdapter &&) = delete;
 
-  HermesExecutorRuntimeAdapter &
-  operator=(const HermesExecutorRuntimeAdapter &) = delete;
+  HermesExecutorRuntimeAdapter &operator=(
+      const HermesExecutorRuntimeAdapter &) = delete;
 
-  HermesExecutorRuntimeAdapter &
-  operator=(HermesExecutorRuntimeAdapter &&) = delete;
+  HermesExecutorRuntimeAdapter &operator=(HermesExecutorRuntimeAdapter &&) =
+      delete;
 
   ::facebook::jsi::Runtime &getRuntime() override;
 
@@ -49,11 +48,11 @@ public:
 
   void tickleJs() override;
 
-private:
+ private:
   const ::std::shared_ptr<::facebook::jsi::Runtime> runtime;
   ::facebook::hermes::HermesRuntime &hermesRuntime;
   const ::std::shared_ptr<::facebook::react::MessageQueueThread>
       messageQueueThread;
 };
-} // namespace orangelabs
+}  // namespace orangelabs
 #endif

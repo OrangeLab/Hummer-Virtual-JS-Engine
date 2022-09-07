@@ -1,12 +1,13 @@
 #pragma once
 
-#include <memory>
 #include <napi/js_native_api_types.h>
+
+#include <memory>
 
 namespace hermes::vm {
 class RuntimeConfig;
 class Runtime;
-} // namespace hermes::vm
+}  // namespace hermes::vm
 
 namespace facebook::react {
 class MessageQueueThread;
@@ -21,8 +22,7 @@ EXTERN_C_START
 #include <sys/queue.h>
 
 struct OpaqueNAPIEnv final {
-
-public:
+ public:
   explicit OpaqueNAPIEnv(const ::hermes::vm::RuntimeConfig &runtimeConfig);
 
   ~OpaqueNAPIEnv();
@@ -43,6 +43,8 @@ public:
 
   LIST_HEAD(, OpaqueNAPIRef) strongRefList;
 
+  SLIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList;
+
 #ifdef HERMES_ENABLE_DEBUGGER
 
   void enableDebugger(const char *debuggerTitle, bool waitForDebugger) const;
@@ -54,7 +56,7 @@ public:
 
 #endif
 
-private:
+ private:
   ::std::shared_ptr<::facebook::react::MessageQueueThread> messageQueueThread;
   const ::std::shared_ptr<::facebook::hermes::HermesRuntime>
       hermesRuntimeSharedPointer;

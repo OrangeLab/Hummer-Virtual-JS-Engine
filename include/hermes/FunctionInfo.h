@@ -4,8 +4,10 @@
 
 namespace orangelabs {
 class FunctionInfo final {
-public:
+ public:
   explicit FunctionInfo(NAPIEnv env, NAPICallback callback, void *data);
+  ~FunctionInfo() = default;
+
   [[nodiscard]] NAPIEnv getEnv() const;
   [[nodiscard]] NAPICallback getCallback() const;
   [[nodiscard]] void *getData() const;
@@ -18,9 +20,9 @@ public:
 
   FunctionInfo &operator=(FunctionInfo &&) = delete;
 
-private:
+ private:
   NAPIEnv env;
   NAPICallback callback;
   void *data;
 };
-} // namespace orangelabs
+}  // namespace orangelabs

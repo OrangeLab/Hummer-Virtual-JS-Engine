@@ -8,7 +8,20 @@
 #endif
 
 #include <hermes/OpaqueNAPIEnv.h>
+#include <hermes/OpaqueNAPIHandleScope.h>
 #include <hermes/OpaqueNAPIRef.h>
+
+#ifndef SLIST_FOREACH_SAFE
+#define SLIST_FOREACH_SAFE(var, head, field, tvar) \
+  for ((var) = SLIST_FIRST((head));                \
+       (var) && ((tvar) = SLIST_NEXT((var), field), 1); (var) = (tvar))
+#endif
+
+#ifndef LIST_FOREACH_SAFE
+#define LIST_FOREACH_SAFE(var, head, field, tvar) \
+  for ((var) = LIST_FIRST((head));                \
+       (var) && ((tvar) = LIST_NEXT((var), field), 1); (var) = (tvar))
+#endif
 
 OpaqueNAPIEnv::OpaqueNAPIEnv(const ::hermes::vm::RuntimeConfig &runtimeConfig)
     : hermesRuntimeSharedPointer(
@@ -24,6 +37,7 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const ::hermes::vm::RuntimeConfig &runtimeConfig)
   LIST_INIT(&this->valueList);
   LIST_INIT(&this->weakRefList);
   LIST_INIT(&this->strongRefList);
+  SLIST_INIT(&this->handleScopeList);
 
   this->runtime.addCustomRootsFunction(
       [this](::hermes::vm::GC *, ::hermes::vm::RootAcceptor &rootAcceptor) {
@@ -48,6 +62,12 @@ OpaqueNAPIEnv::OpaqueNAPIEnv(const ::hermes::vm::RuntimeConfig &runtimeConfig)
 OpaqueNAPIEnv::~OpaqueNAPIEnv() {
   this->disableDebugger();
 
+  {
+    NAPIHandleScope handleScope, temp;
+    SLIST_FOREACH_SAFE(handleScope, &this->handleScopeList, node, temp) {
+      delete handleScope;
+    }
+  }
   NAPIRef ref, temp;
   LIST_FOREACH_SAFE(ref, &this->valueList, node, temp) { delete ref; }
   LIST_FOREACH_SAFE(ref, &this->strongRefList, node, temp) { delete ref; }

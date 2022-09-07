@@ -1,28 +1,23 @@
 diff --git a/API/hermes/hermes.cpp b/API/hermes/hermes.cpp
-index 76a5214e..ac800c2c 100644
+index f0fe3eb97..9faa5d98f 100644
 --- a/API/hermes/hermes.cpp
 +++ b/API/hermes/hermes.cpp
-@@ -1096,6 +1096,15 @@ inline const HermesRuntimeImpl *impl(const HermesRuntime *rt) {
+@@ -1080,6 +1080,10 @@ inline const HermesRuntimeImpl *impl(const HermesRuntime *rt) {
  
  } // namespace
  
-+::hermes::vm::Runtime *HermesRuntime::getHermesRuntimeFromJSI(
-+    const facebook::hermes::HermesRuntime *runtime) {
-+  if (!runtime) {
-+    return nullptr;
-+  }
-+
-+  return &(impl(runtime)->runtime_);
++::hermes::vm::Runtime &HermesRuntime::getHermesRuntimeFromJSI(const ::facebook::hermes::HermesRuntime &runtime) {
++  return (impl(&runtime)->runtime_);
 +}
 +
  bool HermesRuntime::isHermesBytecode(const uint8_t *data, size_t len) {
    return hbc::BCProviderFromBuffer::isBytecodeStream(
        llvh::ArrayRef<uint8_t>(data, len));
 diff --git a/API/hermes/hermes.h b/API/hermes/hermes.h
-index 59971257..772e55af 100644
+index 708bda235..8cbf42032 100644
 --- a/API/hermes/hermes.h
 +++ b/API/hermes/hermes.h
-@@ -38,6 +38,7 @@ class raw_ostream;
+@@ -31,6 +31,7 @@ struct HermesTestHelper;
  
  namespace hermes {
  namespace vm {
@@ -30,11 +25,11 @@ index 59971257..772e55af 100644
  class GCExecTrace;
  struct MockedEnvironment;
  } // namespace vm
-@@ -63,6 +64,7 @@ class HermesRuntimeImpl;
+@@ -56,6 +57,7 @@ class HermesRuntimeImpl;
  /// Represents a Hermes JS runtime.
  class HERMES_EXPORT HermesRuntime : public jsi::Runtime {
   public:
-+  static ::hermes::vm::Runtime *getHermesRuntimeFromJSI(const facebook::hermes::HermesRuntime *runtime);
++  static ::hermes::vm::Runtime &getHermesRuntimeFromJSI(const ::facebook::hermes::HermesRuntime &runtime);
    static bool isHermesBytecode(const uint8_t *data, size_t len);
    // Returns the supported bytecode version.
    static uint32_t getBytecodeVersion();

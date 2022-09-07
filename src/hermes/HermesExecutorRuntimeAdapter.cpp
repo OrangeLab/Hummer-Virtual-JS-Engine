@@ -10,7 +10,8 @@ orangelabs::HermesExecutorRuntimeAdapter::HermesExecutorRuntimeAdapter(
     ::std::shared_ptr<::facebook::jsi::Runtime> runtime,
     ::facebook::hermes::HermesRuntime &hermesRuntime,
     ::std::shared_ptr<::facebook::react::MessageQueueThread> messageQueueThread)
-    : runtime(::std::move(runtime)), hermesRuntime(hermesRuntime),
+    : runtime(::std::move(runtime)),
+      hermesRuntime(hermesRuntime),
       messageQueueThread(::std::move(messageQueueThread)) {}
 
 ::facebook::jsi::Runtime &
