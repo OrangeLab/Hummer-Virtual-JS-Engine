@@ -2,10 +2,7 @@
 /third_party/include/boost/
 
 /clion/
-/build/
-/.vscode/
-/.cache/
 /.idea/
-/out/
 
+/out/
 /arm/

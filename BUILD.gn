@@ -72,6 +72,37 @@ config("cpp_new_build") {
   ]
 }
 
+source_set("glog") {
+  configs = [":minimal_size_build", ":cpp_new_build"]
+  include_dirs = [
+    "third_party/include/glog",
+    "third_party/include",
+    "third_party/glog/src",
+  ]
+  defines = [
+    "_START_GOOGLE_NAMESPACE_=namespace google {",
+    "_END_GOOGLE_NAMESPACE_=}",
+    "NO_THREADS",
+    "GOOGLE_NAMESPACE=google",
+    "HAVE_SYS_TIME_H",
+    "HAVE_SYS_SYSCALL_H",
+    "DISABLE_RTTI",
+    "HAVE_SYS_UTSNAME_H",
+    "HAVE_PREAD",
+    "HAVE_DLADDR",
+    "HAVE_FCNTL",
+  ]
+  sources = [
+    "third_party/glog/src/demangle.cc",
+    "third_party/glog/src/logging.cc",
+    "third_party/glog/src/raw_logging.cc",
+    "third_party/glog/src/signalhandler.cc",
+    "third_party/glog/src/symbolize.cc",
+    "third_party/glog/src/utilities.cc",
+    "third_party/glog/src/vlog_is_on.cc",
+  ]
+}
+
 source_set("dtoa") {
   configs = [ ":minimal_size_build" ]
   cflags = [ "-fvisibility=hidden" ]
@@ -922,6 +953,14 @@ if (target_os == "android") {
       "third_party/fbjni/cxx/lyra/lyra.cpp",
       "third_party/fbjni/cxx/lyra/lyra_breakpad.cpp",
       "third_party/fbjni/cxx/lyra/lyra_exceptions.cpp",
+    ]
+  }
+  shared_library("mars") {
+    libs = [
+      "c++",
+    ]
+    deps = [
+      ":xlog",
     ]
   }
   shared_library("hermes") {

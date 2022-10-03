@@ -27,11 +27,11 @@ if (target_os == "android") {
   toolchain("android") {
     compiler_command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot $compiler_command"
 
-    if (target_cpu == "arm") {
+    if (current_cpu == "arm") {
       target_option = "-target armv7-none-linux-androideabi16 -mthumb"
-    } else if (target_cpu == "arm64") {
+    } else if (current_cpu == "arm64") {
       target_option = "-target aarch64-none-linux-android21"
-    } else if (target_cpu == "x86") {
+    } else if (current_cpu == "x86") {
       target_option = "-target i686-none-linux-android18"
     } else {
       target_option = "-target x86_64-none-linux-android21"
@@ -76,12 +76,12 @@ if (target_os == "android") {
   }
 } else {
   toolchain("clang") {
-    if (collect_code_coverage) {
+    if (target_os == "mac" && collect_code_coverage) {
       compiler_command =
           "-fprofile-instr-generate -fcoverage-mapping $compiler_command"
     }
     if (target_os == "ios") {
-      if (target_cpu == "x64") {
+      if (current_cpu == "x64") {
         compiler_command = "-target x86_64-apple-ios11.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
       } else {
         compiler_command = "-target arm64-apple-ios11.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
@@ -116,7 +116,7 @@ if (target_os == "android") {
       if (!is_debug && lto) {
         command = "$command -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o"
       }
-      if (collect_code_coverage) {
+      if (target_os == "mac" && collect_code_coverage) {
         command = "$command -fprofile-instr-generate"
       }
       default_output_dir = "{{root_out_dir}}"
