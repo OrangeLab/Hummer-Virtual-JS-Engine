@@ -67,7 +67,7 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 
 #### 注意
 1. 建议使用 BUILDCONFIG.gn 中定义的 LTS NDK 版本
-2. Hermes 引擎需要先 `cd third_party/hermes && git apply ../hermes_patch.diff`
+2. Hermes 引擎需要先 `cd third_party/hermes && git apply ../hermes_patch.diff && cd ../glog && git apply ../glog_patch.diff`
 3. Android 版本 libhermes.so 包括 fbjni 库，内含 OnLoad.cpp，需要使用 System.load("hermes") 显式加载，不能依赖 Linux 内核的动态库隐式加载
 4. Hermes 引擎 0.8.x 版本内置字节码，需要先编译主机 hermesc，指令 `./utils/build/build-mac-framework.sh`，后输入如下命令
 ```

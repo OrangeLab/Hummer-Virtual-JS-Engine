@@ -616,6 +616,9 @@ source_set("hermes_vm_runtime_rtti") {
     "-fno-exceptions",
     "-frtti",
   ]
+  if (ubsan) {
+    cflags_cc += [ "-fno-sanitize=vptr" ]
+  }
   sources = [
     "third_party/hermes/lib/VM/DecoratedObject.cpp",
     "third_party/hermes/lib/VM/HostModel.cpp",
@@ -626,7 +629,7 @@ source_set("jsi") {
   configs = [ ":new_build" ]
   cflags_cc = [
     "-fexceptions",
-    "-frtti",
+    "-frtti",  # hermes_api 需要 rtti
   ]
   include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
   sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
@@ -667,8 +670,11 @@ source_set("hermes_api") {
   ]
   cflags_cc = [
     "-fexceptions",
-    "-frtti",
+    "-frtti",  # std::function -> target 要求 rtti
   ]
+  if (ubsan) {
+    cflags_cc += [ "-fno-sanitize=vptr" ]
+  }
   include_dirs = [
     "third_party/hermes/API",
     "third_party/react-native/ReactCommon/jsi",
@@ -775,9 +781,9 @@ source_set("fmt_source") {
   ]
   cflags_cc = [
     "-fno-exceptions",
-    "-frtti", # Folly 引用 fmt，Folly 强制开启 rtti
+    "-frtti",  # Folly 引用 fmt，Folly 强制开启 rtti
   ]
-  sources = ["third_party/fmt/src/format.cc"]
+  sources = [ "third_party/fmt/src/format.cc" ]
 }
 
 source_set("folly") {
@@ -957,6 +963,14 @@ if (target_os == "android") {
       "third_party/fbjni/cxx/lyra/lyra_exceptions.cpp",
     ]
   }
+  shared_library("qjs") {
+    libs = [ "m" ]
+    deps = [
+      ":napi_common",
+      ":napi_qjs",
+      ":quickjs",
+    ]
+  }
   shared_library("hermes") {
     libs = [
       "c++",
@@ -967,7 +981,9 @@ if (target_os == "android") {
       ":double_conversion",
       ":dtoa",
       ":fbjni",
+      ":fmt_source",
       ":folly",
+      ":glog_source",
       ":hermes_adt",
       ":hermes_api",
       ":hermes_ast",
@@ -993,8 +1009,6 @@ if (target_os == "android") {
       ":jsinspector",
       ":llvm_support",
       ":napi_hermes",
-      ":fmt_source",
-      ":glog_source",
     ]
   }
 } else {
@@ -1020,6 +1034,43 @@ if (target_os == "android") {
         ":napi_common",
         ":napi_qjs",
         ":quickjs",
+      ]
+    }
+
+    static_library("hermes") {
+      complete_static_lib = true
+      deps = [
+        ":double_conversion",
+        ":dtoa",
+        ":fmt_source",
+        ":folly",
+        ":glog_source",
+        ":hermes_adt",
+        ":hermes_api",
+        ":hermes_ast",
+        ":hermes_backend",
+        ":hermes_debugger_api",
+        ":hermes_frontend",
+        ":hermes_frontend_defs",
+        ":hermes_hbc_backend",
+        ":hermes_inspector",
+        ":hermes_inst",
+        ":hermes_internal_bytecode",
+        ":hermes_optimizer",
+        ":hermes_parser",
+        ":hermes_platform",
+        ":hermes_platform_unicode",
+        ":hermes_regex",
+        ":hermes_source_map",
+        ":hermes_support",
+        ":hermes_vm_runtime",
+        ":hermes_vm_runtime_rtti",
+        ":jsi",
+        ":jsi_dynamic",
+        ":jsinspector",
+        ":llvm_support",
+        ":napi_common",
+        ":napi_hermes",
       ]
     }
   } else {
@@ -1091,6 +1142,48 @@ if (target_os == "android") {
         ":napi_common",
         ":napi_qjs",
         ":quickjs",
+        ":test",
+      ]
+    }
+
+    executable("test_hermes") {
+      testonly = true
+      libs = [
+        "c++",
+        "c++abi",
+      ]
+      deps = [
+        ":double_conversion",
+        ":dtoa",
+        ":fmt_source",
+        ":folly",
+        ":glog_source",
+        ":hermes_adt",
+        ":hermes_api",
+        ":hermes_ast",
+        ":hermes_backend",
+        ":hermes_debugger_api",
+        ":hermes_frontend",
+        ":hermes_frontend_defs",
+        ":hermes_hbc_backend",
+        ":hermes_inspector",
+        ":hermes_inst",
+        ":hermes_internal_bytecode",
+        ":hermes_optimizer",
+        ":hermes_parser",
+        ":hermes_platform",
+        ":hermes_platform_unicode",
+        ":hermes_regex",
+        ":hermes_source_map",
+        ":hermes_support",
+        ":hermes_vm_runtime",
+        ":hermes_vm_runtime_rtti",
+        ":jsi",
+        ":jsi_dynamic",
+        ":jsinspector",
+        ":llvm_support",
+        ":napi_common",
+        ":napi_hermes",
         ":test",
       ]
     }

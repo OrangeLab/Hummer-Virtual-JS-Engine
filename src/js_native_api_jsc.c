@@ -1232,10 +1232,10 @@ NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     return NAPIErrorOK;
 }
 
-NAPICommonStatus napi_close_handle_scope(__attribute__((unused)) NAPIEnv env,
+NAPIErrorStatus napi_close_handle_scope(__attribute__((unused)) NAPIEnv env,
                                          __attribute__((unused)) NAPIHandleScope scope)
 {
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 struct OpaqueNAPIEscapableHandleScope
@@ -1255,13 +1255,13 @@ NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandl
     return NAPIErrorOK;
 }
 
-NAPICommonStatus napi_close_escapable_handle_scope(__attribute__((unused)) NAPIEnv env, NAPIEscapableHandleScope scope)
+NAPIErrorStatus napi_close_escapable_handle_scope(__attribute__((unused)) NAPIEnv env, NAPIEscapableHandleScope scope)
 {
-    CHECK_ARG(scope, Common)
+    CHECK_ARG(scope, Error)
 
     free(scope);
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, NAPIValue escapee, NAPIValue *result)

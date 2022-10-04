@@ -71,7 +71,7 @@ struct Handle
 
 struct OpaqueNAPIHandleScope
 {
-    LIST_ENTRY(OpaqueNAPIHandleScope) node; // size_t
+    SLIST_ENTRY(OpaqueNAPIHandleScope) node; // size_t
     SLIST_HEAD(, Handle) handleList;        // size_t
 };
 
@@ -101,7 +101,7 @@ struct OpaqueNAPIEnv
     JSValue referenceSymbolValue;                       // size_t * 2
     NAPIRuntime runtime;                                // size_t
     JSContext *context;                                 // size_t
-    LIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList; // size_t
+    SLIST_HEAD(, OpaqueNAPIHandleScope) handleScopeList; // size_t
     LIST_HEAD(, WeakReference) weakReferenceList;       // size_t
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;           // size_t
     LIST_HEAD(, OpaqueNAPIRef) valueList;               // size_t
@@ -124,11 +124,11 @@ static NAPIErrorStatus addValueToHandleScope(NAPIEnv env, JSValue value, struct 
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
-    RETURN_STATUS_IF_FALSE(!LIST_EMPTY(&env->handleScopeList), NAPIErrorHandleScopeEmpty)
+    RETURN_STATUS_IF_FALSE(!SLIST_EMPTY(&env->handleScopeList), NAPIErrorHandleScopeEmpty)
     *result = malloc(sizeof(struct Handle));
     RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
     (*result)->value = value;
-    NAPIHandleScope handleScope = LIST_FIRST(&env->handleScopeList);
+    NAPIHandleScope handleScope = SLIST_FIRST(&env->handleScopeList);
     SLIST_INSERT_HEAD(&handleScope->handleList, *result, node);
 
     return NAPIErrorOK;
@@ -347,8 +347,8 @@ static JSValue callAsFunction(JSContext *ctx, JSValueConst thisVal, int argc, JS
     // 除非 handleScope == NULL，但是这种情况不影响后续代码的执行
     if (handleScope)
     {
-        NAPICommonStatus commonStatus = napi_close_handle_scope(functionInfo->baseInfo.env, handleScope);
-        if (__builtin_expect(commonStatus != NAPICommonOK, false))
+        NAPIErrorStatus errorStatus = napi_close_handle_scope(functionInfo->baseInfo.env, handleScope);
+        if (__builtin_expect(errorStatus != NAPIErrorOK, false))
         {
             JS_FreeValue(ctx, returnValue);
             assert(false && NAPI_CLOSE_HANDLE_SCOPE_ERROR);
@@ -1303,36 +1303,35 @@ NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
     RETURN_STATUS_IF_FALSE(handleScope, NAPIErrorMemoryError)
     *result = handleScope;
     SLIST_INIT(&(*result)->handleList);
-    LIST_INSERT_HEAD(&env->handleScopeList, *result, node);
+    SLIST_INSERT_HEAD(&env->handleScopeList, *result, node);
 
     return NAPIErrorOK;
 }
 
-NAPICommonStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
+NAPIErrorStatus napi_close_handle_scope(NAPIEnv env, NAPIHandleScope scope)
 {
 
-    CHECK_ARG(env, Common)
-    CHECK_ARG(scope, Common)
+    CHECK_ARG(env, Error)
+    CHECK_ARG(scope, Error)
 
-    // 先入后出 stack 规则
-    assert(LIST_FIRST(&env->handleScopeList) == scope &&
-           "napi_close_handle_scope() or napi_close_escapable_handle_scope() should follow FILO rule.");
+    RETURN_STATUS_IF_FALSE(SLIST_FIRST(&env->handleScopeList) == scope,
+                         NAPIErrorHandleScopeMismatch)
     struct Handle *handle, *tempHandle;
     SLIST_FOREACH_SAFE(handle, &scope->handleList, node, tempHandle)
     {
         JS_FreeValue(env->context, handle->value);
         free(handle);
     }
-    // 这里和前面的 assert 要求 env->handleScopeList 必须是 LIST 双向链表
-    LIST_REMOVE(scope, node);
+    SLIST_REMOVE_HEAD(&env->handleScopeList, node);
     free(scope);
 
-    return NAPICommonOK;
+    return NAPIErrorOK;
 }
 
 struct OpaqueNAPIEscapableHandleScope
 {
     struct OpaqueNAPIHandleScope handleScope;
+    struct Handle *handlePointer; // size_t
     bool escapeCalled;
 };
 
@@ -1343,19 +1342,31 @@ NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandl
     CHECK_ARG(env, Error)
     CHECK_ARG(result, Error)
 
-    // 万一前面的 handleScope 被 close 了，会导致当前 EscapableHandleScope 变成最上层
-    // handleScope，这里的判断就没有意义了
-    //    RETURN_STATUS_IF_FALSE(LIST_FIRST(&env->handleScopeList), NAPIHandleScopeMismatch);
-    *result = malloc(sizeof(struct OpaqueNAPIEscapableHandleScope));
+    RETURN_STATUS_IF_FALSE(SLIST_FIRST(&env->handleScopeList), NAPIErrorHandleScopeEmpty);
+
+    struct Handle *handlePointer = malloc(sizeof(struct Handle));
     RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
+    handlePointer->value = undefinedValue;
+
+    *result = malloc(sizeof(struct OpaqueNAPIEscapableHandleScope));
+    if (!*result) {
+        free(handlePointer);
+
+        return NAPIErrorMemoryError;
+    }
+
+    NAPIHandleScope handleScope = SLIST_FIRST(&env->handleScopeList);
+    SLIST_INSERT_HEAD(&handleScope->handleList, handlePointer, node);
+    
     (*result)->escapeCalled = false;
+    (*result)->handlePointer = handlePointer;
     SLIST_INIT(&(*result)->handleScope.handleList);
-    LIST_INSERT_HEAD(&env->handleScopeList, &(*result)->handleScope, node);
+    SLIST_INSERT_HEAD(&env->handleScopeList, &(*result)->handleScope, node);
 
     return NAPIErrorOK;
 }
 
-NAPICommonStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
+NAPIErrorStatus napi_close_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandleScope scope)
 {
     return napi_close_handle_scope(env, (NAPIHandleScope)scope);
 }
@@ -1371,14 +1382,9 @@ NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope, 
 
     RETURN_STATUS_IF_FALSE(!scope->escapeCalled, NAPIErrorEscapeCalledTwice)
 
-    NAPIHandleScope handleScope = LIST_NEXT(&scope->handleScope, node);
-    RETURN_STATUS_IF_FALSE(handleScope, NAPIErrorHandleScopeEmpty)
-    struct Handle *handle = malloc(sizeof(struct Handle));
-    RETURN_STATUS_IF_FALSE(handle, NAPIErrorMemoryError)
     scope->escapeCalled = true;
-    handle->value = JS_DupValue(env->context, *((JSValue *)escapee));
-    SLIST_INSERT_HEAD(&handleScope->handleList, handle, node);
-    *result = (NAPIValue)&handle->value;
+    scope->handlePointer->value = JS_DupValue(env->context, *((JSValue *)escapee));
+    *result = (NAPIValue)&scope->handlePointer->value;
 
     return NAPIErrorOK;
 }
@@ -1606,9 +1612,9 @@ static JSValue callAsConstructor(JSContext *ctx, JSValueConst newTarget, int arg
     }
     if (handleScope)
     {
-        NAPICommonStatus commonStatus =
+        NAPIErrorStatus errorStatus =
             napi_close_handle_scope(constructorInfo->functionInfo.baseInfo.env, handleScope);
-        if (__builtin_expect(commonStatus != NAPICommonOK, false))
+        if (__builtin_expect(errorStatus != NAPIErrorOK, false))
         {
             JS_FreeValue(ctx, thisValue);
             assert(false && NAPI_CLOSE_HANDLE_SCOPE_ERROR);
@@ -1812,7 +1818,7 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
     }
     (*env)->context = context;
     (*env)->isThrowNull = false;
-    LIST_INIT(&(*env)->handleScopeList);
+    SLIST_INIT(&(*env)->handleScopeList);
     LIST_INIT(&(*env)->weakReferenceList);
     LIST_INIT(&(*env)->valueList);
     LIST_INIT(&(*env)->strongRefList);
@@ -1825,7 +1831,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
     CHECK_ARG(env, Common)
 
     NAPIHandleScope handleScope, tempHandleScope;
-    LIST_FOREACH_SAFE(handleScope, &env->handleScopeList, node, tempHandleScope)
+    SLIST_FOREACH_SAFE(handleScope, &env->handleScopeList, node, tempHandleScope)
     {
         struct Handle *handle, *tempHandle;
         SLIST_FOREACH_SAFE(handle, &handleScope->handleList, node, tempHandle)
@@ -1833,8 +1839,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
             JS_FreeValue(env->context, handle->value);
             free(handle);
         }
-        // 这里和前面的 assert 要求 env->handleScopeList 必须是 LIST 双向链表
-        LIST_REMOVE(handleScope, node);
+        SLIST_REMOVE_HEAD(&env->handleScopeList, node);
         free(handleScope);
     }
     NAPIRef ref, temp;

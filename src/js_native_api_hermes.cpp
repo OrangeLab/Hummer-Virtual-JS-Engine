@@ -14,6 +14,7 @@
 #include <hermes/VM/StringPrimitive.h>
 #include <llvh/Support/ConvertUTF.h>
 #include <napi/js_native_api_types.h>
+#include <napi/js_native_api.h>
 
 #include <utility>
 
@@ -774,7 +775,7 @@ NAPIErrorStatus napi_escape_handle(NAPIEnv env, NAPIEscapableHandleScope scope,
 
   auto escapedValue =
       scope->escape(*(const ::hermes::vm::PinnedHermesValue *)escapee);
-  RETURN_STATUS_IF_FALSE(!escapedValue, NAPIErrorEscapeCalledTwice)
+  RETURN_STATUS_IF_FALSE(escapedValue, NAPIErrorEscapeCalledTwice)
   *result = (NAPIValue)escapedValue;
 
   return NAPIErrorOK;

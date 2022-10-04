@@ -16,9 +16,7 @@ bool OpaqueNAPIEscapableHandleScope::isEscapeCalled() const {
 
 const ::hermes::vm::PinnedHermesValue *OpaqueNAPIEscapableHandleScope::escape(
     const ::hermes::vm::HermesValue &hermesValue) {
-  if (!this->escapeCalled) {
-    assert(false);
-
+  if (this->escapeCalled) {
     return nullptr;
   }
   this->mutableHandle.set(hermesValue);
