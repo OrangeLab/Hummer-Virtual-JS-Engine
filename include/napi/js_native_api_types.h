@@ -1,5 +1,4 @@
-#ifndef SRC_JS_NATIVE_API_TYPES_H_
-#define SRC_JS_NATIVE_API_TYPES_H_
+#pragma once
 
 #ifdef __cplusplus
 #define EXTERN_C_START                                                                                                 \
@@ -84,5 +83,3 @@ typedef NAPIValue (*NAPICallback)(NAPIEnv env, NAPICallbackInfo callbackInfo);
 typedef void (*NAPIFinalize)(void *finalizeData, void *finalizeHint);
 
 EXTERN_C_END
-
-#endif // SRC_JS_NATIVE_API_TYPES_H_

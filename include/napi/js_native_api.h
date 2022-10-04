@@ -1,5 +1,4 @@
-#ifndef SRC_JS_NATIVE_API_H_
-#define SRC_JS_NATIVE_API_H_
+#pragma once
 
 #include <napi/js_native_api_types.h>
 
@@ -150,5 +149,3 @@ NAPI_EXPORT NAPIExceptionStatus napi_strict_equals(NAPIEnv env, NAPIValue lhs, N
 NAPI_EXPORT NAPIExceptionStatus NAPIParseUTF8JSONString(NAPIEnv env, const char *utf8String, NAPIValue *result);
 
 EXTERN_C_END
-
-#endif // SRC_JS_NATIVE_API_H_
