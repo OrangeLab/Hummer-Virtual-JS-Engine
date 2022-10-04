@@ -8,7 +8,7 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取，或通过 NAPIClearLastException 清除
 
 ## Boost
-由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，而代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include 目录下。
+由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，而代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include/folly 目录下。
 
 ## 编辑器
 1. Clion
@@ -73,7 +73,7 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 ```
 > cd lib/InternalBytecode
 > cat 00-header.js 01-Promise.js 02-AsyncFn.js 99-footer.js > InternalBytecode.js
-> ../../build_macosx/bin/hermesc -O -Wno-undefined-variable -emit-binary -out=InternalBytecode.hbc InternalBytecode.js
+> ../../build_host_hermesc/bin/hermesc -O -Wno-undefined-variable -emit-binary -out=InternalBytecode.hbc InternalBytecode.js
 > python3 xxd.py InternalBytecode.hbc > InternalBytecode.inc
 ```
 

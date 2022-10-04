@@ -1,16 +1,23 @@
+config("minimal_size_build") {
+  cflags_cc = [
+    "-fno-exceptions",
+    "-fno-rtti",
+  ]
+}
+
+config("new_build") {
+  cflags_cc = [
+    "-std=c++17",
+    "-fvisibility=hidden",
+  ]
+}
+
 config("strict_build") {
   cflags = [
     "-Wall",
     "-Wextra",
     "-Werror",
     "-Wpedantic",
-  ]
-}
-
-config("minimal_size_build") {
-  cflags_cc = [
-    "-fno-exceptions",
-    "-fno-rtti",
   ]
 }
 
@@ -34,73 +41,18 @@ source_set("quickjs") {
   }
 }
 
-config("common_build") {
-  include_dirs = [ "third_party/include" ]
-}
-
-config("llvm_build") {
-  include_dirs = [
-    "third_party/hermes/external/llvh/include",
-    "third_party/hermes/external/llvh/gen/include",
+source_set("napi_qjs") {
+  configs = [
+    ":quickjs_build",
+    ":strict_build",
   ]
-  defines = [
-    "LLVM_ON_UNIX",
-    "LLVM_DEFAULT_TARGET_TRIPLE=\"\"",
-    "LLVM_HOST_TRIPLE=\"\"",
-    "HAVE_UNISTD_H=1",  # ErrorHandling.cpp:117
-    "PACKAGE_NAME=\"\"",
-    "PACKAGE_VERSION=\"\"",
-    "HAVE_SYS_MMAN_H",  # Memory.inc:51
-    "HAVE_SYS_STAT_H=1",  # Path.inc:286
-    "LLVM_ENABLE_CRASH_DUMPS=0",
-    "HAVE_GETPAGESIZE",  # Process.inc:82
-    "HAVE_FCNTL_H=1",  # Process.inc:216
-    "HAVE_SIGNAL_H=1",  # Process.inc:232
-    "RETSIGTYPE=void",
-  ]
-  if (target_os == "android") {
-    defines += [
-      "HAVE_SYS_PARAM_H",  # Path.inc:178
-    ]
-  }
-}
-
-config("cpp_new_build") {
-  cflags_cc = [
-    "-std=c++17",
+  include_dirs = [ "include" ]
+  cflags_c = [
     "-fvisibility=hidden",
+    "-Wno-unused-parameter",
+    "-Wno-pedantic",
   ]
-}
-
-source_set("glog") {
-  configs = [":minimal_size_build", ":cpp_new_build"]
-  include_dirs = [
-    "third_party/include/glog",
-    "third_party/include",
-    "third_party/glog/src",
-  ]
-  defines = [
-    "_START_GOOGLE_NAMESPACE_=namespace google {",
-    "_END_GOOGLE_NAMESPACE_=}",
-    "NO_THREADS",
-    "GOOGLE_NAMESPACE=google",
-    "HAVE_SYS_TIME_H",
-    "HAVE_SYS_SYSCALL_H",
-    "DISABLE_RTTI",
-    "HAVE_SYS_UTSNAME_H",
-    "HAVE_PREAD",
-    "HAVE_DLADDR",
-    "HAVE_FCNTL",
-  ]
-  sources = [
-    "third_party/glog/src/demangle.cc",
-    "third_party/glog/src/logging.cc",
-    "third_party/glog/src/raw_logging.cc",
-    "third_party/glog/src/signalhandler.cc",
-    "third_party/glog/src/symbolize.cc",
-    "third_party/glog/src/utilities.cc",
-    "third_party/glog/src/vlog_is_on.cc",
-  ]
+  sources = [ "src/js_native_api_qjs.c" ]
 }
 
 source_set("dtoa") {
@@ -120,12 +72,35 @@ source_set("dtoa") {
   ]
 }
 
+config("llvm_build") {
+  include_dirs = [
+    "third_party/hermes/external/llvh/include",
+    "third_party/hermes/external/llvh/gen/include",
+    "third_party/include/llvm",
+  ]
+  defines = [
+    "LLVM_ON_UNIX",
+    "LLVM_DEFAULT_TARGET_TRIPLE=\"\"",
+    "LLVM_HOST_TRIPLE=\"\"",
+    "HAVE_UNISTD_H=1",  # ErrorHandling.cpp:117
+    "PACKAGE_NAME=\"\"",
+    "PACKAGE_VERSION=\"\"",
+    "HAVE_SYS_MMAN_H",  # Memory.inc:51
+    "HAVE_SYS_STAT_H=1",  # Path.inc:286
+    "LLVM_ENABLE_CRASH_DUMPS=false",
+    "HAVE_GETPAGESIZE",  # Process.inc:82
+    "HAVE_FCNTL_H=1",  # Process.inc:216
+    "HAVE_SIGNAL_H=1",  # Process.inc:232
+    "RETSIGTYPE=void",
+    "HAVE_SYS_PARAM_H",  # Path.inc:178
+  ]
+}
+
 source_set("llvm_support") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   cflags_c = [ "-fvisibility=hidden" ]
   sources = [
@@ -217,8 +192,7 @@ source_set("hermes_adt") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [ "third_party/hermes/lib/ADT/CompactArray.cpp" ]
 }
@@ -228,8 +202,7 @@ source_set("hermes_ast") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/AST/ASTBuilder.cpp",
@@ -246,8 +219,7 @@ source_set("hermes_backend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/BCGen/BCOpt.cpp",
@@ -271,8 +243,7 @@ source_set("hermes_frontend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/IR/CFG.cpp",
@@ -298,8 +269,7 @@ source_set("hermes_hbc_backend") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/BCGen/HBC/BackendContext.cpp",
@@ -334,8 +304,7 @@ source_set("hermes_inst") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/Inst/InstDecode.cpp",
@@ -348,8 +317,7 @@ source_set("hermes_internal_bytecode") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   defines = [ "HERMES_CMAKE_BUILD" ]
   sources = [ "third_party/hermes/lib/InternalBytecode/InternalBytecode.cpp" ]
@@ -359,9 +327,8 @@ source_set("hermes_optimizer") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
-    ":common_build",
     ":hermes_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/IR/Analysis.cpp",
@@ -393,8 +360,7 @@ source_set("hermes_parser") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
@@ -414,9 +380,8 @@ source_set("hermes_platform") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
-    ":common_build",
     ":hermes_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [ "third_party/hermes/lib/Platform/Logging.cpp" ]
 }
@@ -424,9 +389,8 @@ source_set("hermes_platform") {
 source_set("hermes_platform_unicode") {
   configs = [
     ":llvm_build",
-    ":common_build",
     ":hermes_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources =
       [ "third_party/hermes/lib/Platform/Unicode/CharacterProperties.cpp" ]
@@ -450,9 +414,8 @@ source_set("hermes_regex") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
-    ":common_build",
     ":hermes_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/Regex/Executor.cpp",
@@ -464,9 +427,8 @@ source_set("hermes_source_map") {
   configs = [
     ":minimal_size_build",
     ":llvm_build",
-    ":common_build",
     ":hermes_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   sources = [
     "third_party/hermes/lib/SourceMap/SourceMap.cpp",
@@ -482,8 +444,7 @@ source_set("hermes_support") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
@@ -518,8 +479,7 @@ source_set("hermes_vm_runtime") {
     ":minimal_size_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   include_dirs = [ "third_party/hermes/external" ]
   sources = [
@@ -650,8 +610,7 @@ source_set("hermes_vm_runtime_rtti") {
   configs = [
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   cflags_cc = [
     "-fno-exceptions",
@@ -664,7 +623,7 @@ source_set("hermes_vm_runtime_rtti") {
 }
 
 source_set("jsi") {
-  configs = [ ":cpp_new_build" ]
+  configs = [ ":new_build" ]
   cflags_cc = [
     "-fexceptions",
     "-frtti",
@@ -673,11 +632,24 @@ source_set("jsi") {
   sources = [ "third_party/react-native/ReactCommon/jsi/jsi/jsi.cpp" ]
 }
 
+config("folly_build") {
+  defines = [
+    "FOLLY_NO_CONFIG",
+    "FOLLY_MOBILE=1",
+    "FOLLY_USE_LIBCPP=1",
+    "FOLLY_HAVE_CLOCK_GETTIME=1",
+  ]
+  include_dirs = [
+    "third_party/folly",
+    "third_party/include/folly",
+  ]
+}
+
 source_set("jsi_dynamic") {
   configs = [
-    ":cpp_new_build",
     ":folly_build",
-    ":common_build",
+    ":glog_build",
+    ":new_build",
   ]
   include_dirs = [ "third_party/react-native/ReactCommon/jsi" ]
   cflags_cc = [
@@ -691,8 +663,7 @@ source_set("hermes_api") {
   configs = [
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   cflags_cc = [
     "-fexceptions",
@@ -705,26 +676,15 @@ source_set("hermes_api") {
   sources = [ "third_party/hermes/API/hermes/hermes.cpp" ]
 }
 
-source_set("jsinspector") {
-  configs = [
-    ":minimal_size_build",
-    ":cpp_new_build",
-  ]
-  sources = [
-    "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp",
-  ]
-}
-
 source_set("hermes_debugger_api") {
   configs = [
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   cflags_cc = [
     "-fno-exceptions",
-    "-frtti",
+    "-frtti",  # hermes_inspector -> Inspector.cpp 依赖
   ]
   include_dirs = [
     "third_party/hermes/API",
@@ -733,24 +693,14 @@ source_set("hermes_debugger_api") {
   sources = [ "third_party/hermes/API/hermes/DebuggerAPI.cpp" ]
 }
 
-config("libevent_build") {
-  defines = [
-    "EVENT__HAVE_UINT64_T",
-    "EVENT__HAVE_UINT32_T",
-    "EVENT__HAVE_UINT16_T",
-    "EVENT__NUMERIC_VERSION=0x02010c00",
+source_set("jsinspector") {
+  configs = [
+    ":minimal_size_build",
+    ":new_build",
   ]
-  include_dirs = [ "third_party/libevent/include" ]
-}
-
-config("folly_build") {
-  defines = [
-    "FOLLY_NO_CONFIG",
-    "FOLLY_MOBILE=1",
-    "FOLLY_USE_LIBCPP=1",
-    "FOLLY_HAVE_CLOCK_GETTIME",
+  sources = [
+    "third_party/react-native/ReactCommon/jsinspector/InspectorInterfaces.cpp",
   ]
-  include_dirs = [ "third_party/folly" ]
 }
 
 source_set("double_conversion") {
@@ -768,30 +718,79 @@ source_set("double_conversion") {
   ]
 }
 
-source_set("fmt") {
-  cflags_cc = [
-    "-fvisibility=hidden",
-    "-frtti",
-    "-fno-exceptions",
+config("glog_build") {
+  include_dirs = [
+    "third_party/include",
+    "third_party/include/glog",
   ]
-  include_dirs = [ "third_party/fmt/include" ]
+  defines = [
+    "DISABLE_RTTI",
+    "GOOGLE_NAMESPACE=google",
+    "HAVE_DLADDR",
+    "HAVE_FCNTL",
+    "HAVE_PREAD",
+    "HAVE_PTHREAD",
+    "HAVE_PWRITE",
+    "HAVE_RWLOCK",
+    "HAVE_SIGACTION",
+    "HAVE_SYS_SYSCALL_H",
+    "HAVE_SYS_TIME_H",
+    "HAVE_SYS_UTSNAME_H",
+    "HAVE_UNISTD_H",
+    "HAVE___ATTRIBUTE__",
+    "HAVE___SYNC_VAL_COMPARE_AND_SWAP",
+    "_END_GOOGLE_NAMESPACE_=}",
+    "_START_GOOGLE_NAMESPACE_=namespace google {",
+  ]
+}
+
+source_set("glog_source") {
+  configs = [
+    ":minimal_size_build",
+    ":glog_build",
+  ]
   sources = [
-    "third_party/fmt/src/format.cc",
-    "third_party/fmt/src/os.cc",
+    "third_party/glog/src/demangle.cc",
+    "third_party/glog/src/logging.cc",
+    "third_party/glog/src/raw_logging.cc",
+    "third_party/glog/src/signalhandler.cc",
+    "third_party/glog/src/symbolize.cc",
+    "third_party/glog/src/utilities.cc",
+    "third_party/glog/src/vlog_is_on.cc",
   ]
+}
+
+config("fmt_build") {
+  include_dirs = [ "third_party/fmt/include" ]
+  defines = [
+    "FMT_EXPORT",
+    "FMT_SHARED",
+  ]
+}
+
+source_set("fmt_source") {
+  configs = [
+    ":fmt_build",
+    ":new_build",
+  ]
+  cflags_cc = [
+    "-fno-exceptions",
+    "-frtti", # Folly 引用 fmt，Folly 强制开启 rtti
+  ]
+  sources = ["third_party/fmt/src/format.cc"]
 }
 
 source_set("folly") {
   configs = [
     ":folly_build",
-    ":common_build",
+    ":fmt_build",
+    ":glog_build",
+    ":new_build",
   ]
   cflags_cc = [
     "-fexceptions",
     "-frtti",
-    "-fvisibility=hidden",
   ]
-  include_dirs = [ "third_party/fmt/include" ]
   sources = [
     "third_party/folly/folly/Conv.cpp",
     "third_party/folly/folly/Demangle.cpp",
@@ -835,12 +834,25 @@ source_set("folly") {
   }
 }
 
+config("libevent_build") {
+  defines = [
+    "EVENT__HAVE_UINT64_T",
+    "EVENT__HAVE_UINT32_T",
+    "EVENT__HAVE_UINT16_T",
+    "EVENT__NUMERIC_VERSION=0x02010c00",
+  ]
+  include_dirs = [
+    "third_party/libevent/include",
+    "third_party/include/libevent",
+  ]
+}
+
 source_set("hermes_inspector") {
   configs = [
     ":folly_build",
-    ":common_build",
+    ":glog_build",
     ":libevent_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   include_dirs = [
     "third_party/hermes/API",
@@ -851,10 +863,15 @@ source_set("hermes_inspector") {
   if (target_os == "android") {
     include_dirs += [ "third_party/fbjni/cxx" ]
   }
-  defines = [ "HERMES_ENABLE_DEBUGGER" ]
+
+  # Folly 必须开启异常和 rtti
   cflags_cc = [
     "-fexceptions",
     "-frtti",
+  ]
+  defines = [
+    "HERMES_ENABLE_DEBUGGER",
+    "HERMES_MEMORY_INSTRUMENTATION",  # 虽然 RN 没有开启
   ]
   sources = [
     "third_party/react-native/ReactCommon/hermes/inspector/Inspector.cpp",
@@ -879,8 +896,7 @@ source_set("napi_hermes") {
     ":strict_build",
     ":hermes_build",
     ":llvm_build",
-    ":common_build",
-    ":cpp_new_build",
+    ":new_build",
   ]
   include_dirs = [
     "include",
@@ -907,20 +923,6 @@ source_set("napi_hermes") {
     "src/hermes/OpaqueNAPIRef.cpp",
     "src/js_native_api_hermes.cpp",
   ]
-}
-
-source_set("napi_qjs") {
-  configs = [
-    ":quickjs_build",
-    ":strict_build",
-  ]
-  include_dirs = [ "include" ]
-  cflags_c = [
-    "-fvisibility=hidden",
-    "-Wno-unused-parameter",
-    "-Wno-pedantic",
-  ]
-  sources = [ "src/js_native_api_qjs.c" ]
 }
 
 source_set("napi_common") {
@@ -955,14 +957,6 @@ if (target_os == "android") {
       "third_party/fbjni/cxx/lyra/lyra_exceptions.cpp",
     ]
   }
-  shared_library("mars") {
-    libs = [
-      "c++",
-    ]
-    deps = [
-      ":xlog",
-    ]
-  }
   shared_library("hermes") {
     libs = [
       "c++",
@@ -973,7 +967,6 @@ if (target_os == "android") {
       ":double_conversion",
       ":dtoa",
       ":fbjni",
-      ":fmt",
       ":folly",
       ":hermes_adt",
       ":hermes_api",
@@ -1000,6 +993,8 @@ if (target_os == "android") {
       ":jsinspector",
       ":llvm_support",
       ":napi_hermes",
+      ":fmt_source",
+      ":glog_source",
     ]
   }
 } else {

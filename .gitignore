@@ -1,5 +1,5 @@
 .DS_Store
-/third_party/include/boost/
+/third_party/include/folly/boost/
 
 /clion/
 /.idea/
