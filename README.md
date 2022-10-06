@@ -5,24 +5,21 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 2. NAPICommonStatus 类型的接口一般情况下不需要检查返回值，NAPIErrorStatus 接口可能抛出内存分配失败错误，NAPIExceptionStatus 代表可能抛出 JavaScript 异常
 3. API 的返回值通过 out 参数传递。
 4. 所有 JavaScript 值都抽象在一个名为 NAPIValue 的不透明类型后面。
-5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取，或通过 NAPIClearLastException 清除
+5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取或清除。A
+6. 内存管理分为栈式和引用计数式两种，大部分情况下栈式自动管理就足够。
 
 ## Boost
-由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，而代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include/folly 目录下。
+由于 Folly 依赖了 Boost，而 Boost 本身为模块化仓库管理源代码，代码量非常大，因此需要先提前下载，地址为 `https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.gz` 然后解压后将 boost 文件夹移动到 third_party/include/folly 目录下。
 
 ## 编辑器
-1. Clion
-2. VSCode + clangd
+1. VSCode + clangd
 
 ## VSCode 配置工程
-1. gn gen build --args="is_debug=true" --export-compile-commands
-
-## Clion
-1. `gn gen clion --args="is_debug=true" --ide=json --json-ide-script=../gn_to_cmake.py --script-executable=python3`
+1. gn 添加 --export-compile-commands 即可导出，可能需要设置 VSCode clangd 插件配置，以及单独导入子工程。
 
 ## 单元测试
 1. `gn gen out --args="is_debug=true asan=true ubsan=true"`（Release 模式下 assert 失效，会隐藏很多问题，特殊情况下启用 asan + ubsan）
-2. `ninja -C out test_{qjs|jsc|hermes}`
+2. `ninja -C out test_{qjs,jsc,hermes}`
 3. `./out/test_{qjs|jsc|hermes}`
 
 ### QuickJS 单元测试修改源代码部分
@@ -38,29 +35,28 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 2. `mkdir napi`
 3. `cp -r include napi`
 4. `cp -r third_party/react-native/ReactCommon/cxxreact/MessageQueueThread.h include/napi`
-5. `tar czvf napi.tar.gz -C napi .` 压缩产物
+5. `tar czvf napi.tar.gz -C napi .` 压缩产物。
 
 ### iOS 静态库
 
-1. `gn gen x86_64 --args="build_ios=true"`
-2. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\""`
-3. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\""`
-4. `ninja -C x86_64 quickjs jsc && ninja -C armv7 quickjs jsc && ninja -C arm64 quickjs jsc`
-5. `gn gen x86_64 --args="build_ios=true debug_info=false lto=false bitcode=false"`
-6. `gn gen armv7 --args="build_ios=true cross_compile_target=\"armv7\" debug_info=false lto=false bitcode=false"`
-7. `gn gen arm64 --args="build_ios=true cross_compile_target=\"arm64\" debug_info=false lto=false bitcode=false"`
-8. `ninja -C x86_64 hermes && ninja -C armv7 hermes && ninja -C hermes`
-9. `libtool -static x86_64/obj/libquickjs.a armv7/obj/libquickjs.a arm64/obj/libquickjs.a -o napi/libquickjs.a && libtool -static x86_64/obj/libhermes.a armv7/obj/libhermes.a arm64/obj/libhermes.a -o napi/libhermes.a && libtool -static x86_64/obj/libjsc.a armv7/obj/libjsc.a arm64/obj/libjsc.a -o napi/libjsc.a`
+1. `gn gen x64 --args='target_os="ios" target_cpu="x64"'`
+2. `gn gen arm64 --args='target_os="ios" target_cpu=\"arm64\"'`
+3. `ninja -C x64 quickjs jsc && ninja -C arm64 quickjs jsc`
+4. `libtool -static x64/obj/libquickjs.a arm64/obj/libquickjs.a -o napi/libquickjs.a && libtool -static x64/obj/libjsc.a arm64/obj/libjsc.a -o napi/libjsc.a`
+5. `gn gen x64 --args='target_os="ios" target_cpu="x64" generate_dwarf=false lto=false'`
+6. `gn gen arm64 --args='target_os="ios" target_cpu=\"arm64\" generate_dwarf=false lto=false'`
+7. `ninja -C x64 hermes && ninja -C arm64 hermes`
+8. `libtool -static x64/obj/libhermes.a arm64/obj/libhermes.a -o napi/libhermes.a`
 
 ### Android 动态库
 
-1. `gn gen armv7 --args="build_android=true cross_compile_target=\"armv7\""`
-2. `gn gen arm64 --args="build_android=true cross_compile_target=\"arm64\""`
-3. `gn gen i386 --args="build_android=true cross_compile_target=\"i386\""`
-4. `gn gen x86_64 --args="build_android=true cross_compile_target=\"x86_64\""`
-5. `ninja -C armv7 qjs hermes && ninja -C arm64 qjs hermes && ninja -C i386 qjs hermes && ninja -C x86_64 qjs hermes`
+1. `gn gen arm --args='target_os="android" target_cpu="arm"'`
+2. `gn gen arm64 --args='target_os="android" target_cpu="arm64"'`
+3. `gn gen x86 --args='target_os="android" target_cpu="x86"'`
+4. `gn gen x64 --args='target_os="android" target_cpu="x64"'`
+5. `ninja -C arm qjs hermes && ninja -C arm64 qjs hermes && ninja -C x86 qjs hermes && ninja -C x64 qjs hermes`
 6. `mkdir -p napi/libs/armeabi-v7a && mkdir -p napi/libs/arm64-v8a && mkdir -p napi/libs/x86 && mkdir -p napi/libs/x86_64`
-7. `cp armv7/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && cp arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && cp i386/obj/lib{hermes,qjs}.so napi/libs/x86 && cp x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
+7. `cp arm/obj/lib{hermes,qjs}.so napi/libs/armeabi-v7a && cp arm64/obj/lib{hermes,qjs}.so napi/libs/arm64-v8a && cp x86/obj/lib{hermes,qjs}.so napi/libs/x86 && cp x64/obj/lib{hermes,qjs}.so napi/libs/x86_64`
 
 #### 交叉编译注意
 1. macOS shell 对文件描述符有限制，默认限制 256，会导致链接出问题，可以通过 `ulimit -a` 查看，可以通过 `ulimit -S -n 4096` 临时修改

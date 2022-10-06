@@ -13,8 +13,8 @@
 #include <hermes/VM/Runtime.h>
 #include <hermes/VM/StringPrimitive.h>
 #include <llvh/Support/ConvertUTF.h>
-#include <napi/js_native_api_types.h>
 #include <napi/js_native_api.h>
+#include <napi/js_native_api_types.h>
 
 #include <utility>
 

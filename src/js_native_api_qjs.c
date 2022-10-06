@@ -1345,7 +1345,7 @@ NAPIErrorStatus napi_open_escapable_handle_scope(NAPIEnv env, NAPIEscapableHandl
     RETURN_STATUS_IF_FALSE(SLIST_FIRST(&env->handleScopeList), NAPIErrorHandleScopeEmpty);
 
     struct Handle *handlePointer = malloc(sizeof(struct Handle));
-    RETURN_STATUS_IF_FALSE(*result, NAPIErrorMemoryError)
+    RETURN_STATUS_IF_FALSE(handlePointer, NAPIErrorMemoryError)
     handlePointer->value = undefinedValue;
 
     *result = malloc(sizeof(struct OpaqueNAPIEscapableHandleScope));
