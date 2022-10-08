@@ -5,7 +5,7 @@ Node-API（以前称为 N-API）是一个用于和 JavaScript 引擎交互并独
 2. NAPICommonStatus 类型的接口一般情况下不需要检查返回值，NAPIErrorStatus 接口可能抛出内存分配失败错误，NAPIExceptionStatus 代表可能抛出 JavaScript 异常
 3. API 的返回值通过 out 参数传递。
 4. 所有 JavaScript 值都抽象在一个名为 NAPIValue 的不透明类型后面。
-5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取或清除。A
+5. 如果出现 NAPIExceptionPendingException 说明出现 JS 异常，可以通过 napi_get_and_clear_last_exception 获取或清除。
 6. 内存管理分为栈式和引用计数式两种，大部分情况下栈式自动管理就足够。
 
 ## Boost
