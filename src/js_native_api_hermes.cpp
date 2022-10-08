@@ -15,6 +15,8 @@
 #include <llvh/Support/ConvertUTF.h>
 #include <napi/js_native_api.h>
 #include <napi/js_native_api_types.h>
+#include <napi/js_native_api_debugger.h>
+#include <napi/js_native_api_debugger_hermes_types.h>
 
 #include <utility>
 
@@ -947,31 +949,31 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime) {
   return NAPIErrorOK;
 }
 
-// NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle,
-//                                     bool waitForDebugger) {
-//   CHECK_ARG(env, Common)
-//
-//   env->enableDebugger(debuggerTitle, waitForDebugger);
-//
-//   return NAPICommonOK;
-// }
-//
-// NAPICommonStatus NAPIDisableDebugger(NAPIEnv env) {
-//   CHECK_ARG(env, Common)
-//
-//   env->disableDebugger();
-//
-//   return NAPICommonOK;
-// }
+NAPICommonStatus NAPIEnableDebugger(NAPIEnv env, const char *debuggerTitle,
+                                    bool waitForDebugger) {
+  CHECK_ARG(env, Common)
 
-// NAPICommonStatus NAPISetMessageQueueThread(
-//     NAPIEnv env, MessageQueueThreadWrapper jsQueueWrapper) {
-// #ifdef HERMES_ENABLE_DEBUGGER
-//   CHECK_ARG(env, Common);
-//   env->setMessageQueueThread(jsQueueWrapper->thread_);
-// #endif
-//   return NAPICommonOK;
-// }
+  env->enableDebugger(debuggerTitle, waitForDebugger);
+
+  return NAPICommonOK;
+}
+
+NAPICommonStatus NAPIDisableDebugger(NAPIEnv env) {
+  CHECK_ARG(env, Common)
+
+  env->disableDebugger();
+
+  return NAPICommonOK;
+}
+
+NAPICommonStatus NAPISetMessageQueueThread(
+    NAPIEnv env, MessageQueueThreadWrapper jsQueueWrapper) {
+#ifdef HERMES_ENABLE_DEBUGGER
+  CHECK_ARG(env, Common);
+  env->setMessageQueueThread(jsQueueWrapper->thread_);
+#endif
+  return NAPICommonOK;
+}
 
 NAPICommonStatus NAPIFreeEnv(NAPIEnv env) {
   CHECK_ARG(env, Common)

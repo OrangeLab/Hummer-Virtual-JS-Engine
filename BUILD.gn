@@ -927,6 +927,7 @@ source_set("napi_hermes") {
     "src/hermes/OpaqueNAPIEscapableHandleScope.cpp",
     "src/hermes/OpaqueNAPIHandleScope.cpp",
     "src/hermes/OpaqueNAPIRef.cpp",
+    "src/hermes/js_native_api_hermes_inspector.cpp",
     "src/js_native_api_hermes.cpp",
   ]
 }

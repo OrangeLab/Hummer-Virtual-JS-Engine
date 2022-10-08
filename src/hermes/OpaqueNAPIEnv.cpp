@@ -4,7 +4,8 @@
 #ifdef HERMES_ENABLE_DEBUGGER
 #include <cxxreact/MessageQueueThread.h>
 #include <hermes/HermesExecutorRuntimeAdapter.h>
-#include <hermes/inspector/chrome/Registration.h>
+// #include <hermes/inspector/chrome/Registration.h>
+#include <hermes/js_native_api_hermes_inspector.h>
 #endif
 
 #include <hermes/OpaqueNAPIEnv.h>
@@ -87,12 +88,12 @@ void OpaqueNAPIEnv::enableDebugger(const char *debuggerTitle,
       this->messageQueueThread);
   ::std::string debuggerTitleString =
       debuggerTitle ? debuggerTitle : "N-API Hermes";
-  ::facebook::hermes::inspector::chrome::enableDebugging(::std::move(adapter),
-                                                         debuggerTitleString);
+  ::orangelab::hermes::inspector::chrome::enableDebugging(
+      ::std::move(adapter), debuggerTitleString, waitForDebugger);
 }
 
 void OpaqueNAPIEnv::disableDebugger() const {
-  ::facebook::hermes::inspector::chrome::disableDebugging(this->hermesRuntime);
+  ::orangelab::hermes::inspector::chrome::disableDebugging(this->hermesRuntime);
 }
 
 void OpaqueNAPIEnv::setMessageQueueThread(

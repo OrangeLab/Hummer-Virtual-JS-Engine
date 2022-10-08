@@ -5,7 +5,7 @@
 #include <hermes/inspector/chrome/Connection.h>
 #include <jsinspector/InspectorInterfaces.h>
 
-#include "js_native_api_hermes_inspector.h"
+#include <hermes/js_native_api_hermes_inspector.h>
 
 namespace orangelab
 {
