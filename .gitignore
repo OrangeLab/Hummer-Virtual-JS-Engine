@@ -2,7 +2,6 @@
 /third_party/include/folly/boost/
 
 /.vscode/
-/.cache/
 
 /out/
 /arm/
