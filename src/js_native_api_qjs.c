@@ -1722,6 +1722,7 @@ NAPIErrorStatus NAPICreateRuntime(NAPIRuntime *runtime)
         return NAPIErrorMemoryError;
     }
     JS_SetRuntimeOpaque((*runtime)->runtime, *runtime);
+    JS_SetMaxStackSize((*runtime)->runtime, 4 * JS_DEFAULT_STACK_SIZE);
     // 一定成功
     JS_NewClassID(&(*runtime)->constructorClassId);
     JS_NewClassID(&(*runtime)->functionClassId);
