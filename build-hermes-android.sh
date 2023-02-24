@@ -22,6 +22,9 @@ cp i386/obj/lib{hermes,qjs}.so napi/libs/x86
 cp x86_64/obj/lib{hermes,qjs}.so napi/libs/x86_64
 
 
+cp -r include napi
+cp -r third_party/react-native/ReactCommon/cxxreact/MessageQueueThread.h include/napi
+
 tar czvf napi_hermes_android.tar.gz -C napi .
 
 
