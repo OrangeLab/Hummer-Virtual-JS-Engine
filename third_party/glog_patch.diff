@@ -1,0 +1,14 @@
+diff --git a/src/logging.cc b/src/logging.cc
+index 0b5e6ee..8b1710e 100644
+--- a/src/logging.cc
++++ b/src/logging.cc
+@@ -1120,7 +1120,9 @@ void LogFileObject::Write(bool force_flush,
+       if (file_length_ >= logging::kPageSize) {
+         // don't evict the most recent page
+         uint32 len = file_length_ & ~(logging::kPageSize - 1);
++#if !defined(__ANDROID__) || !defined(__ANDROID_API__) || __ANDROID_API__ >= 21
+         posix_fadvise(fileno(file_), 0, len, POSIX_FADV_DONTNEED);
++#endif
+       }
+     }
+ #endif

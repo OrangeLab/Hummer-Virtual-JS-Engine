@@ -1,0 +1,134 @@
+depfile_string = "{{output}}.d"
+compiler_command = "-c {{source}} -o {{output}} -fPIC -funwind-tables -MMD -MF $depfile_string {{include_dirs}} {{defines}} {{cflags}}"
+if (generate_dwarf) {
+  compiler_command = "-g $compiler_command"
+}
+linker_command = ""
+if (asan) {
+  compiler_command = "-fsanitize=address $compiler_command"
+  linker_command = "-fsanitize=address $linker_command"
+}
+if (ubsan) {
+  compiler_command = "-fsanitize=undefined $compiler_command"
+  linker_command = "-fsanitize=undefined $linker_command"
+}
+
+if (!is_debug) {
+  compiler_command = "-Os -DNDEBUG $compiler_command"
+  if (lto) {
+    compiler_command = "-flto $compiler_command"
+    linker_command = "-flto $linker_command"
+  }
+} else {
+  compiler_command = "-O0 $compiler_command"
+}
+
+if (target_os == "android") {
+  toolchain("android") {
+    compiler_command = "--sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot $compiler_command"
+
+    if (current_cpu == "arm") {
+      target_option = "-target armv7-none-linux-androideabi18 -mthumb"
+    } else if (current_cpu == "arm64") {
+      target_option = "-target aarch64-none-linux-android21"
+    } else if (current_cpu == "x86") {
+      target_option = "-target i686-none-linux-android18"
+    } else {
+      target_option = "-target x86_64-none-linux-android21"
+    }
+
+    compiler_command = "$target_option $compiler_command"
+    if (linker_command == "") {
+      linker_command = target_option
+    } else {
+      linker_command = "$target_option $linker_command"
+    }
+
+    tool("cc") {
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $compiler_command {{cflags_c}}"
+      depfile = depfile_string
+      depsformat = "gcc"
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
+    }
+    tool("cxx") {
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ $compiler_command {{cflags_cc}}"
+      depfile = depfile_string
+      depsformat = "gcc"
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
+    }
+    tool("stamp") {
+      command = "touch {{output}}"
+    }
+    tool("solink") {
+      lib_switch = "-l"
+      if (is_debug) {
+        optimize_level = "-O0"
+      } else {
+        optimize_level = "-O3"
+      }
+      default_output_extension = ".so"
+
+      command = "$ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang $linker_command $optimize_level --sysroot $ndk_path/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Wl,--build-id -Wl,--no-undefined -Wl,--fatal-warnings -shared -Wl,-soname,{{target_output_name}}{{output_extension}} -o {{output}} {{inputs}} {{libs}}"
+      default_output_dir = "{{target_out_dir}}"
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
+      output_prefix = "lib"
+    }
+  }
+} else {
+  toolchain("clang") {
+    if (target_os == "mac" && collect_code_coverage) {
+      compiler_command =
+          "-fprofile-instr-generate -fcoverage-mapping $compiler_command"
+    }
+    if (target_os == "ios") {
+      if (current_cpu == "x64") {
+        compiler_command = "-target x86_64-apple-ios11.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk $compiler_command"
+      } else {
+        compiler_command = "-target arm64-apple-ios11.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk $compiler_command"
+      }
+    }
+
+    tool("cc") {
+      command = "clang $compiler_command {{cflags_c}}"
+      depfile = depfile_string
+      depsformat = "gcc"
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
+    }
+
+    tool("cxx") {
+      command = "clang++ $compiler_command {{cflags_cc}}"
+      depfile = depfile_string
+      depsformat = "gcc"
+      outputs = [ "{{source_out_dir}}/{{source_name_part}}.o" ]
+    }
+
+    tool("stamp") {
+      command = "touch {{output}}"
+    }
+
+    tool("link") {
+      lib_switch = "-l"
+      framework_switch = "-framework "
+
+      # TODO(Chason): Add -target x86_64-apple-ios9.0 to make LTO enabled.
+      # Current we use link to generate unit test executable file.
+      command = "clang $linker_command -o {{output}} {{inputs}} {{libs}} {{frameworks}}"
+      if (!is_debug && lto) {
+        command = "$command -Xlinker -object_path_lto -Xlinker {{output_dir}}/{{target_output_name}}_lto.o"
+      }
+      if (target_os == "mac" && collect_code_coverage) {
+        command = "$command -fprofile-instr-generate"
+      }
+      default_output_dir = "{{root_out_dir}}"
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
+    }
+
+    tool("alink") {
+      command = "libtool -static -o {{output}} {{inputs}}"
+      default_output_dir = "{{target_out_dir}}"
+      outputs = [ "{{output_dir}}/{{target_output_name}}{{output_extension}}" ]
+      default_output_extension = ".a"
+      output_prefix = "lib"
+    }
+  }
+}

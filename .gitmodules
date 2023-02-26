@@ -16,6 +16,15 @@
 [submodule "third_party/double-conversion"]
 	path = third_party/double-conversion
 	url = git@github.com:google/double-conversion.git
-[submodule "third_party/boost-for-react-native"]
-	path = third_party/boost-for-react-native
-	url = git@github.com:react-native-community/boost-for-react-native.git
+[submodule "third_party/libevent"]
+	path = third_party/libevent
+	url = git@github.com:libevent/libevent.git
+[submodule "third_party/fbjni"]
+	path = third_party/fbjni
+	url = git@github.com:facebookincubator/fbjni.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = git@github.com:fmtlib/fmt.git
+[submodule "third_party/glog"]
+	path = third_party/glog
+	url = git@github.com:google/glog.git
