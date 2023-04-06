@@ -985,8 +985,8 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
     struct ReferenceInfo *referenceInfo = finalizeData;
     if (!referenceInfo->isEnvFreed)
     {
-        NAPIRef reference;
-        LIST_FOREACH(reference, &referenceInfo->referenceList, node)
+        NAPIRef reference, temp;
+        LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
         {
             assert(!reference->count);
             reference->value = JSValueMakeUndefined(((NAPIEnv)finalizeHint)->context);
