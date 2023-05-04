@@ -49,6 +49,7 @@ typedef enum
     NAPIBoolean,
     NAPINumber,
     NAPIString,
+    NAPISymbol,
     // 未来建议判断到 Object 即可，提供 NAPIIsFunction 和 NAPIIsExternal
     NAPIObject,
     NAPIFunction,
