@@ -1191,17 +1191,17 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
     return NAPIExceptionOK;
 }
 
-NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPIExceptionStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_ARG(env, Error)
-    CHECK_ARG(ref, Error)
-    CHECK_ARG(result, Error)
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
+    CHECK_ARG(result, Exception)
 
-    RETURN_STATUS_IF_FALSE(env->getRuntime()->getTopGCScope(), NAPIErrorHandleScopeEmpty)
+    RETURN_STATUS_IF_FALSE(env->getRuntime()->getTopGCScope(), NAPIExceptionHandleScopeEmpty)
 
     *result = (NAPIValue)ref->getHermesValue();
 
-    return NAPIErrorOK;
+    return NAPIExceptionOK;
 }
 
 NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
