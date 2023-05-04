@@ -328,6 +328,9 @@ NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result
     case kJSTypeString:
         *result = NAPIString;
         break;
+    case kJSTypeSymbol:
+        *result = NAPISymbol;
+        break;
     case kJSTypeObject: {
         JSValueRef exception = NULL;
         JSObjectRef object = JSValueToObject(env->context, (JSValueRef)value, &exception);

@@ -712,6 +712,10 @@ NAPICommonStatus napi_typeof(NAPIEnv /*env*/, NAPIValue value, NAPIValueType *re
     {
         *result = NAPIString;
     }
+    else if (hermesValue.isSymbol())
+    {
+        *result = NAPISymbol;
+    }
     else if (hermesValue.isObject())
     {
         bool isFunction = hermes::vm::vmisa<hermes::vm::Callable>(hermesValue);

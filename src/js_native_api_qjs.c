@@ -479,6 +479,10 @@ NAPICommonStatus napi_typeof(NAPIEnv env, NAPIValue value, NAPIValueType *result
     {
         *result = NAPIString;
     }
+    else if (JS_IsSymbol(jsValue))
+    {
+        *result = NAPISymbol;
+    }
     else if (JS_IsFunction(env->context, jsValue))
     {
         *result = NAPIFunction;
