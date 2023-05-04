@@ -40,6 +40,7 @@ struct OpaqueNAPIRef
     LIST_ENTRY(OpaqueNAPIRef) node; // size_t
     JSValueRef value;               // size_t
     uint8_t count;                  // 8
+    struct ReferenceInfo *weakRefInfo;    // 8
 };
 
 struct ReferenceInfo
@@ -55,6 +56,7 @@ struct OpaqueNAPIEnv
 {
     JSGlobalContextRef context; // size_t
     JSValueRef lastException;   // size_t
+    JSObjectRef weakMap;
     LIST_HEAD(, ReferenceInfo) referenceList;
     LIST_HEAD(, OpaqueNAPIRef) strongRefList;
     LIST_HEAD(, OpaqueNAPIRef) valueList;
@@ -972,7 +974,9 @@ NAPIErrorStatus napi_get_value_external(NAPIEnv env, NAPIValue value, void **res
     return NAPIErrorOK;
 }
 
-static const char *const REFERENCE_STRING = "__reference__";
+static const char *const REFERENCE_STRING_WEAKMAP_SET = "set";
+static const char *const REFERENCE_STRING_WEAKMAP_GET = "get";
+static const char *const REFERENCE_STRING_WEAKMAP_DELETE = "delete";
 
 static void referenceFinalize(void *finalizeData, void *finalizeHint)
 {
@@ -982,6 +986,7 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
 
         return;
     }
+    // printf("\n ## hummerFinalize referenceFinalize finalizeData = %p \n",finalizeData);
     struct ReferenceInfo *referenceInfo = finalizeData;
     if (!referenceInfo->isEnvFreed)
     {
@@ -989,25 +994,100 @@ static void referenceFinalize(void *finalizeData, void *finalizeHint)
         LIST_FOREACH_SAFE(reference, &referenceInfo->referenceList, node, temp)
         {
             assert(!reference->count);
+            // printf("\n ## hummerFinalize referenceFinalize willclean reference = %p, jsvalue = %p \n",(void *)reference, (void *)reference->value);
             reference->value = JSValueMakeUndefined(((NAPIEnv)finalizeHint)->context);
+            // printf("\n ## hummerFinalize referenceFinalize didclean reference = %p, jsvalue = %p \n",(void *)reference, (void *)reference->value);
             LIST_REMOVE(reference, node);
             LIST_INSERT_HEAD(&((NAPIEnv)finalizeHint)->valueList, reference, node);
         }
         LIST_REMOVE(referenceInfo, node);
     }
     free(referenceInfo);
+    
+}
+static NAPIExceptionStatus weakMapGet(NAPIEnv env, NAPIValue value, NAPIValue *outValue){
+
+    JSObjectRef weakMap = env->weakMap;
+    JSContextRef ctx = env->context;
+    JSStringRef get = JSStringCreateWithUTF8CString(REFERENCE_STRING_WEAKMAP_GET);
+    if(!get){
+        return NAPIExceptionMemoryError;
+    }
+            
+    JSValueRef functionRef = JSObjectGetProperty(ctx, weakMap, get, &env->lastException);
+    JSStringRelease(get);
+    CHECK_JSC(env)
+
+    JSObjectRef funcObjRef = JSValueToObject(ctx, functionRef, &env->lastException);
+    CHECK_JSC(env)
+
+    JSValueRef args[] = {
+            (JSValueRef)value
+    };
+    JSValueRef result = JSObjectCallAsFunction(ctx, funcObjRef, weakMap, 1, args, &env->lastException);
+    CHECK_JSC(env)
+
+    *outValue = (NAPIValue)result;
+    return NAPIExceptionOK;
+}
+static NAPIExceptionStatus weakMapSet(NAPIEnv env, NAPIValue key, NAPIValue value){
+    
+    JSObjectRef weakMap = env->weakMap;
+    JSContextRef ctx = env->context;
+    JSStringRef set = JSStringCreateWithUTF8CString(REFERENCE_STRING_WEAKMAP_SET);
+    if(!set){
+        return NAPIExceptionMemoryError;
+    }
+    JSValueRef functionRef = JSObjectGetProperty(ctx, weakMap, set, &env->lastException);
+    JSStringRelease(set);
+    CHECK_JSC(env)
+
+    JSObjectRef funcObjRef = JSValueToObject(ctx, functionRef, &env->lastException);
+    CHECK_JSC(env)
+
+    JSValueRef args[] = {
+            (JSValueRef)key,
+            (JSValueRef)value
+    };
+    JSObjectCallAsFunction(ctx, funcObjRef, weakMap, 2, args, &env->lastException);
+    CHECK_JSC(env)
+
+    return NAPIExceptionOK;
 }
 
+static NAPIExceptionStatus weakMapDelete(NAPIEnv env, NAPIValue key){
+    
+    JSObjectRef weakMap = env->weakMap;
+    JSContextRef ctx = env->context;
+    JSStringRef delete = JSStringCreateWithUTF8CString(REFERENCE_STRING_WEAKMAP_DELETE);
+    if(!delete){
+        return NAPIExceptionMemoryError;
+    }
+    JSValueRef functionRef = JSObjectGetProperty(ctx, weakMap, delete, &env->lastException);
+    JSStringRelease(delete);
+    CHECK_JSC(env)
+
+    JSObjectRef funcObjRef = JSValueToObject(ctx, functionRef, &env->lastException);
+    CHECK_JSC(env)
+
+    JSValueRef args[] = {
+            (JSValueRef)key,
+    };
+    JSObjectCallAsFunction(ctx, funcObjRef, weakMap, 1, args, &env->lastException);
+    CHECK_JSC(env)
+
+    return NAPIExceptionOK;
+}
+
+// create_reference | unref ,调用时 JSValue 必定有效，因此无需判断 ref->weakRefInfo != external.referenceInfo 的情况
 static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
 {
     CHECK_ARG(env, Exception)
     CHECK_ARG(value, Exception)
     CHECK_ARG(ref, Exception)
 
-    NAPIValue stringValue;
-    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, &stringValue), Exception, Exception)
     NAPIValue referenceValue;
-    CHECK_NAPI(napi_get_property(env, value, stringValue, &referenceValue), Exception, Exception)
+    CHECK_NAPI(weakMapGet(env, value, &referenceValue), Exception, Exception)
     NAPIValueType valueType;
     CHECK_NAPI(napi_typeof(env, referenceValue, &valueType), Common, Exception)
     RETURN_STATUS_IF_FALSE(valueType == NAPIUndefined || valueType == NAPIExternal, NAPIExceptionGenericFailure)
@@ -1015,6 +1095,7 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
     if (valueType == NAPIUndefined)
     {
         referenceInfo = malloc(sizeof(struct ReferenceInfo));
+        // printf("\n ## hummerFinalize setWeak createReferenceInfo = %p, reference = %p, jsvalue = %p \n",(void*)referenceInfo,(void *)ref, (void *)value);
         referenceInfo->isEnvFreed = false;
         RETURN_STATUS_IF_FALSE(referenceInfo, NAPIExceptionMemoryError)
         LIST_INIT(&referenceInfo->referenceList);
@@ -1028,21 +1109,25 @@ static NAPIExceptionStatus setWeak(NAPIEnv env, NAPIValue value, NAPIRef ref)
                 return status;
             }
         }
-        CHECK_NAPI(napi_set_property(env, value, stringValue, referenceValue), Exception, Exception)
+        
+        CHECK_NAPI(weakMapSet(env, value, referenceValue), Exception, Exception)
         LIST_INSERT_HEAD(&env->referenceList, referenceInfo, node);
+
     }
     else
     {
         CHECK_NAPI(napi_get_value_external(env, referenceValue, (void **)&referenceInfo), Error, Exception)
-        if (!referenceInfo)
+        //强->弱，才有效。
+        if (!referenceInfo || ref->weakRefInfo != NULL)
         {
             assert(false);
 
             return NAPIExceptionGenericFailure;
         }
+        // printf("\n ## hummerFinalize setWeak hasReference = %p, reference = %p, jsvalue = %p \n",(void*)referenceInfo,(void *)ref, (void *)value);
     }
     LIST_INSERT_HEAD(&referenceInfo->referenceList, ref, node);
-
+    ref->weakRefInfo = referenceInfo;
     return NAPIExceptionOK;
 }
 
@@ -1053,15 +1138,15 @@ NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t
     CHECK_ARG(result, Exception)
 
     *result = malloc(sizeof(struct OpaqueNAPIRef));
+    (*result)->weakRefInfo = NULL;
     RETURN_STATUS_IF_FALSE(*result, NAPIExceptionMemoryError)
-
     // 标量 && 弱引用
     if (!JSValueIsObject(env->context, (JSValueRef)value) && !initialRefCount)
     {
         (*result)->count = 0;
         (*result)->value = JSValueMakeUndefined(env->context);
         LIST_INSERT_HEAD(&env->valueList, *result, node);
-
+        // printf("\n ## hummerFinalize napi_create_reference noObject reference = %p, jsvalue = %p \n",(void *)*result, (void *)value);
         return NAPIExceptionOK;
     }
     // 对象 || 强引用
@@ -1072,11 +1157,12 @@ NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t
     {
         JSValueProtect(env->context, (JSValueRef)value);
         LIST_INSERT_HEAD(&env->strongRefList, *result, node);
-
+        // printf("\n ## hummerFinalize napi_create_reference strong reference = %p, jsvalue = %p \n",(void *)*result, (void *)value);
         return NAPIExceptionOK;
     }
     // 对象 && 弱引用
     // setWeak
+    // printf("\n ## hummerFinalize napi_create_reference willsetweak reference = %p, jsvalue = %p \n",(void *)*result, (void *)(*result)->value);
     NAPIExceptionStatus status = setWeak(env, value, *result);
     if (status != NAPIExceptionOK)
     {
@@ -1084,36 +1170,29 @@ NAPIExceptionStatus napi_create_reference(NAPIEnv env, NAPIValue value, uint32_t
 
         return status;
     }
-
     return NAPIExceptionOK;
 }
 
+// delete_reference | ref ,调用时 JSValue 未必有效。
 static NAPIExceptionStatus clearWeak(NAPIEnv env, NAPIRef ref)
 {
     CHECK_ARG(env, Exception)
     CHECK_ARG(ref, Exception)
 
-    NAPIValue stringValue;
-    CHECK_NAPI(napi_create_string_utf8(env, REFERENCE_STRING, &stringValue), Exception, Exception)
     NAPIValue externalValue;
-    CHECK_NAPI(napi_get_property(env, (NAPIValue)ref->value, stringValue, &externalValue), Exception, Exception)
+    CHECK_NAPI(weakMapGet(env, (NAPIValue)ref->value, &externalValue), Exception, Exception)
     struct ReferenceInfo *referenceInfo;
     CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Error, Exception)
-    if (!referenceInfo)
-    {
-        assert(false);
-
-        return NAPIExceptionGenericFailure;
-    }
-    if (!LIST_EMPTY(&referenceInfo->referenceList) && LIST_FIRST(&referenceInfo->referenceList) == ref &&
-        !LIST_NEXT(ref, node))
-    {
-        bool deleteResult;
-        CHECK_NAPI(napi_delete_property(env, (NAPIValue)ref->value, stringValue, &deleteResult), Exception, Exception)
-        RETURN_STATUS_IF_FALSE(deleteResult, NAPIExceptionGenericFailure)
+    // JSValue 不一定和 ref->value 是同一JS对象，因此需要判断 referenceInfo == NULL || ref->weakRefInfo != referenceInfo 
+    if(referenceInfo && ref->weakRefInfo == referenceInfo){
+        if (!LIST_EMPTY(&referenceInfo->referenceList) && LIST_FIRST(&referenceInfo->referenceList) == ref &&
+            !LIST_NEXT(ref, node))
+        {        
+            CHECK_NAPI(weakMapDelete(env, (NAPIValue)ref->value), Exception, Exception)
+        }
     }
     LIST_REMOVE(ref, node);
-
+    ref->weakRefInfo = NULL;
     return NAPIExceptionOK;
 }
 
@@ -1125,24 +1204,24 @@ NAPIExceptionStatus napi_delete_reference(NAPIEnv env, NAPIRef ref)
     // 标量 && 弱引用（被 GC 也会这样）
     if (!JSValueIsObject(env->context, ref->value) && !ref->count)
     {
+        // printf("\n ## hummerFinalize napi_delete_reference noObject&weak reference = %p, jsvalue = %p \n",(void *)ref, (void *)ref->value);
         LIST_REMOVE(ref, node);
         free(ref);
-
         return NAPIExceptionOK;
     }
     // 对象 || 强引用
     if (ref->count)
     {
+        // printf("\n ## hummerFinalize napi_delete_reference strong reference = %p, jsvalue = %p \n",(void *)ref, (void *)ref->value);
         LIST_REMOVE(ref, node);
         JSValueUnprotect(env->context, ref->value);
         free(ref);
-
         return NAPIExceptionOK;
     }
     // 对象 && 弱引用
+    // printf("\n ## hummerFinalize napi_delete_reference clearWeak reference = %p, jsvalue = %p \n",(void *)ref, (void *)ref->value);
     CHECK_NAPI(clearWeak(env, ref), Exception, Exception)
     free(ref);
-
     return NAPIExceptionOK;
 }
 
@@ -1204,22 +1283,40 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
     return NAPIExceptionOK;
 }
 
-NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPIExceptionStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
-    CHECK_ARG(env, Error)
-    CHECK_ARG(ref, Error)
-    CHECK_ARG(result, Error)
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
+    CHECK_ARG(result, Exception)
 
-    if (!ref->count && JSValueIsUndefined(env->context, ref->value))
-    {
-        *result = NULL;
-    }
-    else
-    {
+    if(!ref->count){
+        if(JSValueIsUndefined(env->context, ref->value)){
+            *result = NULL;
+        }else{
+            NAPIValue externalValue = NULL;
+            CHECK_NAPI(weakMapGet(env, (NAPIValue)ref->value, &externalValue), Exception, Exception);
+            if(JSValueIsUndefined(env->context, (JSValueRef)externalValue)){
+                // 引用对应的 JS对象已经释放，但external 由于被分配器打断，可能未来的及销毁
+                // 返回 undefine，等待 referenceFinalize 处理
+                // printf("\n ## hummerFinalize getweakRefValue isUndefine ref = %p jsvalue = %p \n",(void *)ref, (void *)ref->value);
+                *result = NULL;
+            }else{
+                struct ReferenceInfo *referenceInfo;
+                CHECK_NAPI(napi_get_value_external(env, externalValue, (void **)&referenceInfo), Error, Exception);
+                if(referenceInfo && referenceInfo == ref->weakRefInfo){
+                    // printf("\n ## hummerFinalize getweakRefValue referenceInfo = %p, ref = %p jsvalue = %p \n", (void*)referenceInfo,(void *)ref, (void *)ref->value);
+                    *result = (NAPIValue)ref->value;
+                }else{
+                    // 引用对应的 JS对象已经释放，并且内存被新的 JS 对象分配，weakMap 保存新的对象，因此对比 referenceInfo == ref->weakRefInfo
+                    // 返回 undefine，等待 referenceFinalize 处理
+                    *result = NULL;
+                }
+            }           
+        }
+    }else{
         *result = (NAPIValue)ref->value;
     }
-
-    return NAPIErrorOK;
+    return NAPIExceptionOK;
 }
 
 NAPIErrorStatus napi_open_handle_scope(NAPIEnv env, NAPIHandleScope *result)
@@ -1389,7 +1486,8 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
     *env = malloc(sizeof(struct OpaqueNAPIEnv));
     RETURN_STATUS_IF_FALSE(*env, NAPIErrorMemoryError)
 
-    (*env)->context = JSGlobalContextCreateInGroup((JSContextGroupRef)runtime, NULL);
+    JSContextRef ctx = JSGlobalContextCreateInGroup((JSContextGroupRef)runtime, NULL);
+    (*env)->context = (JSGlobalContextRef)ctx;
     if (!(*env)->context)
     {
         free(*env);
@@ -1401,6 +1499,25 @@ NAPIErrorStatus NAPICreateEnv(NAPIEnv *env, NAPIRuntime runtime)
     LIST_INIT(&(*env)->valueList);
     LIST_INIT(&(*env)->referenceList);
 
+    JSStringRef scriptStringRef = JSStringCreateWithUTF8CString("(() => {\
+                                                                    return new WeakMap();\
+                                                                })()");
+                                                                
+    if (!scriptStringRef)
+    {
+        free(*env);
+        JSStringRelease(scriptStringRef);
+        return NAPIErrorMemoryError;
+    }
+    
+    JSValueRef weakMapRef = JSEvaluateScript(ctx, scriptStringRef, NULL, NULL, 1, &((*env)->lastException));
+    JSStringRelease(scriptStringRef);
+    RETURN_STATUS_IF_FALSE(!((*env)->lastException), NAPIErrorGenericFailure)
+
+    (*env)->weakMap = JSValueToObject(ctx, weakMapRef, &((*env)->lastException));
+    RETURN_STATUS_IF_FALSE(!((*env)->lastException), NAPIErrorObjectExpected)
+
+    JSValueProtect(ctx, weakMapRef);
     return NAPIErrorOK;
 }
 
@@ -1431,6 +1548,7 @@ NAPICommonStatus NAPIFreeEnv(NAPIEnv env)
         LIST_REMOVE(ref, node);
         free(ref);
     }
+    JSValueUnprotect(env->context, env->weakMap);
     JSGlobalContextRelease(env->context);
     free(env);
 

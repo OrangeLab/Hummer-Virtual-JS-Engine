@@ -1264,12 +1264,12 @@ NAPIExceptionStatus napi_reference_unref(NAPIEnv env, NAPIRef ref, uint32_t *res
     return NAPIExceptionOK;
 }
 
-NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
+NAPIExceptionStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *result)
 {
 
-    CHECK_ARG(env, Error)
-    CHECK_ARG(ref, Error)
-    CHECK_ARG(result, Error)
+    CHECK_ARG(env, Exception)
+    CHECK_ARG(ref, Exception)
+    CHECK_ARG(result, Exception)
 
     if (!ref->referenceCount && JS_IsUndefined(ref->value))
     {
@@ -1284,12 +1284,12 @@ NAPIErrorStatus napi_get_reference_value(NAPIEnv env, NAPIRef ref, NAPIValue *re
         {
             JS_FreeValue(env->context, strongValue);
 
-            return errorStatus;
+            return NAPIExceptionHandleScopeEmpty;
         }
         *result = (NAPIValue)&handleScope->value;
     }
 
-    return NAPIErrorOK;
+    return NAPIExceptionOK;
 }
 
 // NAPIMemoryError
