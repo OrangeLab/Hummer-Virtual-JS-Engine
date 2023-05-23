@@ -612,9 +612,11 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
         CHECK_JSC(env)
     }
     JSValueRef returnValue = NULL;
+        //内部可能会执行微任务，如果使用全局异常（env->lastException）会导致 微任务中的 napi 调用失败
+    JSValueRef _exception = NULL;
     if (!argc)
     {
-        returnValue = JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, 0, NULL, &env->lastException);
+        returnValue = JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, 0, NULL, &_exception);
     }
     else if (argc <= 8)
     {
@@ -624,7 +626,7 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
             argumentArray[i] = (JSValueRef)argv[i];
         }
         returnValue =
-            JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, argc, argumentArray, &env->lastException);
+            JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, argc, argumentArray, &_exception);
     }
     else
     {
@@ -635,9 +637,10 @@ NAPIExceptionStatus napi_call_function(NAPIEnv env, NAPIValue thisValue, NAPIVal
             argumentArray[i] = (JSValueRef)argv[i];
         }
         returnValue =
-            JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, argc, argumentArray, &env->lastException);
+            JSObjectCallAsFunction(env->context, objectRef, thisObjectRef, argc, argumentArray, &_exception);
         free(argumentArray);
     }
+    env->lastException = _exception;
     CHECK_JSC(env)
 
     if (result)
