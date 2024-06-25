@@ -98,7 +98,7 @@ toolchain("clang") {
     if (code_coverage) {
         compiler_command = string_join(" ", ["-fprofile-instr-generate -fcoverage-mapping", compiler_command])
     }
-    if (build_ios) {
+    if (build_ios && !build_mac) {
         target_option = "-target $cross_compile_target-apple-ios9.0"
         if (cross_compile_target == "i386" || cross_compile_target == "x86_64") {
             target_option = string_join("-", [target_option, "simulator"])
