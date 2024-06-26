@@ -21,9 +21,12 @@ declare_args() {
     asan = false
     ubsan = false
 
-    # iOS 交叉编译，否则编译 macOS 版本
+    # iOS 交叉编译，否则编译 macOS 版本（不会产生静态库）
     build_ios = false
     # 和 -apple-ios9.0 拼接，作为 -target 参数
+
+    # build_mac 和 build_ios 配合，编译 mac 版本静态库
+    build_mac = false
 
     # QuickJS 专属
     big_number = false
