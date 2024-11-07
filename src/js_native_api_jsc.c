@@ -1434,16 +1434,33 @@ NAPIExceptionStatus NAPIRunScript(NAPIEnv env, const char *utf8Script, const cha
 // static JSContextGroupRef virtualMachine = NULL;
 
 // static uint8_t contextCount = 0;
+#if defined(__has_builtin)
+#define NAPI_HAS_BUILTIN(...) __has_builtin(__VA_ARGS__)
+#else
+#define NAPI_HAS_BUILTIN(...) 0
+#endif
 
 NAPICommonStatus NAPIEnableDebugger(__attribute__((unused)) NAPIEnv env,
                                     __attribute__((unused)) const char *debuggerTitle,
                                     __attribute__((unused)) bool waitForDebugger)
 {
+#if defined(__APPLE__) && NAPI_HAS_BUILTIN(__builtin_available)
+    if (__builtin_available(iOS 16.4, macOS 13.3, *)) {
+        CHECK_ARG(env, Common)
+        JSGlobalContextSetInspectable(env->context, true);
+    }
+#endif
     return NAPICommonOK;
 }
 
 NAPICommonStatus NAPIDisableDebugger(__attribute__((unused)) NAPIEnv env)
 {
+#if defined(__APPLE__) && NAPI_HAS_BUILTIN(__builtin_available)
+    if (__builtin_available(iOS 16.4, macOS 13.3, *)) {
+        CHECK_ARG(env, Common)
+        JSGlobalContextSetInspectable(env->context, false);
+    }
+#endif
     return NAPICommonOK;
 }
 
