@@ -762,7 +762,7 @@ if (build_android) {
     shared_library("qjs") {
     # Android 已有 libquickjs.so，改名
         deps = [":quickjs_source_set", ":cutils", ":unicode", ":regexp", ":napi_common", ":napi_qjs_source_set"]
-        ldflags = ["-lm"]
+        ldflags = ["-lm","-Wl,-z,max-page-size=16384","-Wl,-z,common-page-size=16384"]
         if (big_number) {
             deps += [":bf"]
         }
